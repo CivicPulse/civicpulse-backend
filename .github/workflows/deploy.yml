@@ -1,0 +1,108 @@
+name: Deploy
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: '3.12'
+  UV_VERSION: '0.5.19'
+
+jobs:
+  test:
+    name: Test Before Deploy
+    uses: ./.github/workflows/ci.yml
+    secrets: inherit
+  
+  deploy-staging:
+    name: Deploy to Staging
+    needs: test
+    runs-on: ubuntu-latest
+    environment: staging
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+      
+      - name: Build Docker image
+        run: |
+          docker build -t civicpulse-backend:${{ github.sha }} .
+      
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.REGISTRY_URL }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+      
+      - name: Push Docker image
+        run: |
+          docker tag civicpulse-backend:${{ github.sha }} ${{ secrets.REGISTRY_URL }}/civicpulse-backend:${{ github.sha }}
+          docker tag civicpulse-backend:${{ github.sha }} ${{ secrets.REGISTRY_URL }}/civicpulse-backend:staging
+          docker push ${{ secrets.REGISTRY_URL }}/civicpulse-backend:${{ github.sha }}
+          docker push ${{ secrets.REGISTRY_URL }}/civicpulse-backend:staging
+      
+      - name: Deploy to staging
+        run: |
+          echo "Deploy to staging environment"
+          # Add actual deployment commands here
+          # This could be:
+          # - SSH to server and pull new image
+          # - Trigger webhook
+          # - Use cloud provider CLI (AWS, GCP, Azure)
+          # - Kubernetes deployment
+          # - Docker Swarm update
+          # Example placeholder:
+          # ssh ${{ secrets.STAGING_HOST }} 'docker pull ${{ secrets.REGISTRY_URL }}/civicpulse-backend:staging && docker-compose up -d'
+  
+  deploy-production:
+    name: Deploy to Production
+    needs: deploy-staging
+    runs-on: ubuntu-latest
+    environment: production
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.REGISTRY_URL }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+      
+      - name: Promote staging to production
+        run: |
+          docker pull ${{ secrets.REGISTRY_URL }}/civicpulse-backend:${{ github.sha }}
+          docker tag ${{ secrets.REGISTRY_URL }}/civicpulse-backend:${{ github.sha }} ${{ secrets.REGISTRY_URL }}/civicpulse-backend:production
+          docker push ${{ secrets.REGISTRY_URL }}/civicpulse-backend:production
+      
+      - name: Deploy to production
+        run: |
+          echo "Deploy to production environment"
+          # Add actual production deployment commands here
+          # This should include:
+          # - Database migrations
+          # - Static file collection
+          # - Service restart
+          # - Health checks
+          # Example placeholder:
+          # ssh ${{ secrets.PRODUCTION_HOST }} 'docker pull ${{ secrets.REGISTRY_URL }}/civicpulse-backend:production && docker-compose up -d'
+      
+      - name: Run smoke tests
+        run: |
+          echo "Running production smoke tests"
+          # Add smoke test commands
+          # curl -f ${{ secrets.PRODUCTION_URL }}/health || exit 1
