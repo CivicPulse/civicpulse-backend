@@ -45,7 +45,10 @@ dependencies = [
     { name = "django-environ" },
     { name = "django-stubs" },
     { name = "loguru" },
+<<<<<<< HEAD
     { name = "phonenumbers" },
+=======
+>>>>>>> e7f23f1 (feat: complete Django project setup (US-011))
     { name = "psycopg2-binary" },
 ]
 
@@ -85,7 +88,10 @@ requires-dist = [
     { name = "django-stubs", specifier = ">=5.2.2" },
     { name = "loguru", specifier = ">=0.7.2" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.13.0" },
+<<<<<<< HEAD
     { name = "phonenumbers", specifier = ">=9.0.12" },
+=======
+>>>>>>> e7f23f1 (feat: complete Django project setup (US-011))
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=4.0.0" },
     { name = "psycopg2-binary", specifier = ">=2.9.10" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3.0" },
@@ -390,6 +396,7 @@ wheels = [
 ]
 
 [[package]]
+<<<<<<< HEAD
 name = "phonenumbers"
 version = "9.0.12"
 source = { registry = "https://pypi.org/simple" }
@@ -399,6 +406,8 @@ wheels = [
 ]
 
 [[package]]
+=======
+>>>>>>> e7f23f1 (feat: complete Django project setup (US-011))
 name = "platformdirs"
 version = "4.3.8"
 source = { registry = "https://pypi.org/simple" }

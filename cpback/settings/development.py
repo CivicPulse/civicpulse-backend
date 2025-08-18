@@ -2,7 +2,6 @@
 Development settings for cpback project.
 """
 
-
 import sys
 
 import environ
