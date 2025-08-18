@@ -152,6 +152,9 @@ MEDIA_ROOT: Path = env('MEDIA_ROOT', default=BASE_DIR / 'media', cast=Path)
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 DEFAULT_AUTO_FIELD: str = 'django.db.models.BigAutoField'
 
+# Custom User Model
+AUTH_USER_MODEL = 'civicpulse.User'
+
 # Ensure logs directory exists
 logs_dir = BASE_DIR / 'logs'
 os.makedirs(logs_dir, exist_ok=True)
