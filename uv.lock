@@ -115,21 +115,9 @@ dependencies = [
     { name = "psycopg2-binary" },
 ]
 
-[package.optional-dependencies]
-dev = [
-    { name = "bandit" },
-    { name = "django-debug-toolbar" },
-    { name = "django-extensions" },
-    { name = "mypy" },
-    { name = "pre-commit" },
-    { name = "pytest" },
-    { name = "pytest-cov" },
-    { name = "pytest-django" },
-    { name = "ruff" },
-]
-
 [package.dev-dependencies]
 dev = [
+    { name = "bandit" },
     { name = "django-debug-toolbar" },
     { name = "django-extensions" },
     { name = "mypy" },
@@ -144,25 +132,16 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "bandit", specifier = ">=1.8.6" },
-    { name = "bandit", extras = ["toml"], marker = "extra == 'dev'", specifier = ">=1.7.10" },
     { name = "django", specifier = ">=5.2.5" },
-    { name = "django-debug-toolbar", marker = "extra == 'dev'", specifier = ">=4.4.0" },
     { name = "django-environ", specifier = ">=0.12.0" },
-    { name = "django-extensions", marker = "extra == 'dev'", specifier = ">=3.2.3" },
     { name = "django-stubs", specifier = ">=5.2.2" },
     { name = "loguru", specifier = ">=0.7.2" },
-    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.13.0" },
-    { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=4.0.0" },
     { name = "psycopg2-binary", specifier = ">=2.9.10" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3.0" },
-    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=6.0.0" },
-    { name = "pytest-django", marker = "extra == 'dev'", specifier = ">=4.9.0" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.8.0" },
 ]
-provides-extras = ["dev"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "bandit", extras = ["toml"], specifier = ">=1.8.6" },
     { name = "django-debug-toolbar", specifier = ">=6.0.0" },
     { name = "django-extensions", specifier = ">=4.1" },
     { name = "mypy", specifier = ">=1.17.1" },
