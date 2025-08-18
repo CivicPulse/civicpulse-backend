@@ -13,6 +13,18 @@ dependencies = [
     "django-stubs>=5.2.2",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.8.0",
+    "mypy>=1.13.0",
+    "pytest>=8.3.0",
+    "pytest-django>=4.9.0",
+    "pytest-cov>=6.0.0",
+    "django-debug-toolbar>=4.4.0",
+    "django-extensions>=3.2.3",
+    "bandit[toml]>=1.7.10",
+    "pre-commit>=4.0.0",
+]
 
 [tool.ruff]
 line-length = 88
