@@ -1,0 +1,163 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  PYTHON_VERSION: '3.12'
+  UV_VERSION: '0.5.19'
+
+jobs:
+  lint:
+    name: Lint & Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+      
+      - name: Install dependencies
+        run: |
+          uv sync --frozen
+      
+      - name: Run Ruff format check
+        run: |
+          uv run ruff format --check .
+      
+      - name: Run Ruff linter
+        run: |
+          uv run ruff check .
+  
+  type-check:
+    name: Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+      
+      - name: Install dependencies
+        run: |
+          uv sync --frozen
+      
+      - name: Run mypy
+        run: |
+          uv run mypy civicpulse/
+  
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: civicpulse
+          POSTGRES_PASSWORD: civicpulse
+          POSTGRES_DB: civicpulse_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+      
+      - name: Install dependencies
+        run: |
+          uv sync --frozen
+      
+      - name: Run migrations check
+        env:
+          DATABASE_URL: postgresql://civicpulse:civicpulse@localhost:5432/civicpulse_test
+          REDIS_URL: redis://localhost:6379/0
+          SECRET_KEY: test-secret-key
+          DJANGO_SETTINGS_MODULE: cpback.settings.development
+        run: |
+          uv run python manage.py migrate --check
+      
+      - name: Run tests with coverage
+        env:
+          DATABASE_URL: postgresql://civicpulse:civicpulse@localhost:5432/civicpulse_test
+          REDIS_URL: redis://localhost:6379/0
+          SECRET_KEY: test-secret-key
+          DJANGO_SETTINGS_MODULE: cpback.settings.development
+        run: |
+          uv run pytest --cov=civicpulse --cov-report=term-missing --cov-report=html --cov-report=xml
+      
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+          token: ${{ secrets.CODECOV_TOKEN }}
+  
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+      
+      - name: Install dependencies
+        run: |
+          uv sync --frozen
+      
+      - name: Run Bandit security scan
+        run: |
+          uv run bandit -r civicpulse/ -ll
+      
+      - name: Run safety check
+        run: |
+          uv run pip-audit
