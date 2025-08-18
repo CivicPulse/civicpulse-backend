@@ -1,0 +1,1 @@
+- The owner of this GitHub repository is CivicPulse - https://github.com/CivicPulse/civicpulse-backend
