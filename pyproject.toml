@@ -6,4 +6,85 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "django>=5.2.5",
+    "django-environ>=0.12.0",
+    "psycopg2-binary>=2.9.10",
+    "loguru>=0.7.2",
+    "bandit>=1.8.6",
+    "django-stubs>=5.2.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.8.0",
+    "mypy>=1.13.0",
+    "pytest>=8.3.0",
+    "pytest-django>=4.9.0",
+    "pytest-cov>=6.0.0",
+    "django-debug-toolbar>=4.4.0",
+    "django-extensions>=3.2.3",
+    "bandit[toml]>=1.7.10",
+    "pre-commit>=4.0.0",
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py313"
+extend-exclude = ["migrations"]
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "UP", # pyupgrade
+    "DJ", # flake8-django
+]
+
+[tool.ruff.lint.per-file-ignores]
+"cpback/settings*.py" = ["F403", "F405"]
+"cpback/settings/*.py" = ["F403", "F405"]
+"manage.py" = ["E402"]
+
+[tool.mypy]
+python_version = "3.13"
+check_untyped_defs = true
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unused_configs = true
+plugins = ["mypy_django_plugin.main"]
+
+[tool.django-stubs]
+django_settings_module = "cpback.settings.development"
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "cpback.settings.testing"
+python_files = ["tests.py", "test_*.py", "*_tests.py"]
+addopts = [
+    "--cov=civicpulse",
+    "--cov=cpback",
+    "--cov-report=html",
+    "--cov-report=term-missing",
+    "--cov-fail-under=50",
+    "--ignore=migrations",
+    "--reuse-db",
+]
+
+[tool.bandit]
+exclude_dirs = ["tests", "migrations"]
+skips = ["B101", "B601"]
+
+[dependency-groups]
+dev = [
+    "django-debug-toolbar>=6.0.0",
+    "django-extensions>=4.1",
+    "mypy>=1.17.1",
+    "pre-commit>=4.3.0",
+    "pytest>=8.4.1",
+    "pytest-cov>=6.2.1",
+    "pytest-django>=4.11.1",
+    "ruff>=0.12.9",
 ]
