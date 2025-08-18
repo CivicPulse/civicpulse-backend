@@ -21,9 +21,7 @@ def django_db_setup():
 def admin_user(db):
     """Create an admin user for testing."""
     return User.objects.create_superuser(
-        username='admin',
-        email='admin@test.com',
-        password='testpass123'
+        username="admin", email="admin@test.com", password="testpass123"
     )
 
 
@@ -32,9 +30,7 @@ def admin_user(db):
 def regular_user(db):
     """Create a regular user for testing."""
     return User.objects.create_user(
-        username='testuser',
-        email='test@test.com',
-        password='testpass123'
+        username="testuser", email="test@test.com", password="testpass123"
     )
 
 
@@ -52,12 +48,12 @@ def test_settings():
     """Override settings for tests."""
     with override_settings(
         CACHES={
-            'default': {
-                'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            "default": {
+                "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
             }
         },
-        EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
-        MEDIA_ROOT='/tmp/test_media',
-        STATIC_ROOT='/tmp/test_static',
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        MEDIA_ROOT="/tmp/test_media",
+        STATIC_ROOT="/tmp/test_static",
     ):
         yield

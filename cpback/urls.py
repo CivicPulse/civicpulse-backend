@@ -21,7 +21,7 @@ from django.contrib import admin
 from django.urls import include, path
 
 urlpatterns: list = [
-    path('admin/', admin.site.urls),
+    path("admin/", admin.site.urls),
     # Add app URLs here as they are created
     # path('api/', include('civicpulse.urls')),
 ]
@@ -32,7 +32,7 @@ if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
     # Add Django Debug Toolbar URLs in development
-    if 'debug_toolbar' in settings.INSTALLED_APPS:
+    if "debug_toolbar" in settings.INSTALLED_APPS:
         urlpatterns += [
-            path('__debug__/', include('debug_toolbar.urls')),
+            path("__debug__/", include("debug_toolbar.urls")),
         ]
