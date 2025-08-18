@@ -28,7 +28,7 @@ class TestBasicFunctionality:
     @pytest.mark.django_db
     def test_admin_login_with_superuser(self, admin_user, client: Client):
         """Test admin login with superuser credentials."""
-        client.login(username='admin', password='testpass123')
+        client.login(username=admin_user.username, password='testpass123')
         response = client.get('/admin/')
         assert response.status_code == 200
 

@@ -31,15 +31,26 @@ DEBUG: bool = env('DEBUG')
 SECRET_KEY: str = env('SECRET_KEY')
 
 # Validate SECRET_KEY is not empty or insecure default
-if not SECRET_KEY or SECRET_KEY.startswith('django-insecure-'):
-    import warnings
+if not SECRET_KEY:
+    raise ValueError("SECRET_KEY environment variable must be set!")
+
+if SECRET_KEY.startswith('django-insecure-'):
     if not DEBUG:
-        raise ValueError("SECRET_KEY must be set to a secure value in production!")
-    warnings.warn(
-        "Using insecure SECRET_KEY. Generate a new one for production!",
-        UserWarning,
-        stacklevel=2
-    )
+        raise ValueError(
+            "Insecure SECRET_KEY detected in production! "
+            "Generate a secure one using: "
+            "python -c 'from django.core.management.utils import "
+            "get_random_secret_key; print(get_random_secret_key())'"
+        )
+    else:
+        import warnings
+        warnings.warn(
+            "Using insecure SECRET_KEY in development. "
+            "This is only acceptable for development/testing. "
+            "Generate a secure one for production!",
+            UserWarning,
+            stacklevel=2
+        )
 
 ALLOWED_HOSTS: list[str] = env('ALLOWED_HOSTS')
 
