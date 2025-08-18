@@ -60,6 +60,8 @@ jobs:
           uv sync --frozen
       
       - name: Run mypy
+        env:
+          SECRET_KEY: dummy-secret-key-for-ci
         run: |
           uv run mypy civicpulse/
   

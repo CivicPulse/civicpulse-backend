@@ -26,13 +26,13 @@ class TestSettingsConfiguration:
     def test_installed_apps_includes_required_apps(self):
         """Test all required Django apps are installed."""
         required_apps = [
-            'django.contrib.admin',
-            'django.contrib.auth',
-            'django.contrib.contenttypes',
-            'django.contrib.sessions',
-            'django.contrib.messages',
-            'django.contrib.staticfiles',
-            'civicpulse',
+            "django.contrib.admin",
+            "django.contrib.auth",
+            "django.contrib.contenttypes",
+            "django.contrib.sessions",
+            "django.contrib.messages",
+            "django.contrib.staticfiles",
+            "civicpulse",
         ]
 
         for app in required_apps:
@@ -41,9 +41,9 @@ class TestSettingsConfiguration:
     def test_middleware_includes_security_middleware(self):
         """Test security middleware is included."""
         security_middleware = [
-            'django.middleware.security.SecurityMiddleware',
-            'django.middleware.csrf.CsrfViewMiddleware',
-            'django.middleware.clickjacking.XFrameOptionsMiddleware',
+            "django.middleware.security.SecurityMiddleware",
+            "django.middleware.csrf.CsrfViewMiddleware",
+            "django.middleware.clickjacking.XFrameOptionsMiddleware",
         ]
 
         for middleware in security_middleware:
@@ -51,8 +51,8 @@ class TestSettingsConfiguration:
 
     def test_database_configuration(self):
         """Test database is properly configured."""
-        assert 'default' in settings.DATABASES
-        assert 'ENGINE' in settings.DATABASES['default']
+        assert "default" in settings.DATABASES
+        assert "ENGINE" in settings.DATABASES["default"]
 
     def test_static_files_configuration(self):
         """Test static files settings."""
@@ -67,10 +67,10 @@ class TestSettingsConfiguration:
 
     def test_logging_configuration(self):
         """Test logging is properly configured."""
-        assert 'version' in settings.LOGGING
-        assert settings.LOGGING['version'] == 1
-        assert 'handlers' in settings.LOGGING
-        assert 'loggers' in settings.LOGGING
+        assert "version" in settings.LOGGING
+        assert settings.LOGGING["version"] == 1
+        assert "handlers" in settings.LOGGING
+        assert "loggers" in settings.LOGGING
 
     def test_internationalization_settings(self):
         """Test i18n settings."""
@@ -79,7 +79,7 @@ class TestSettingsConfiguration:
         assert isinstance(settings.USE_I18N, bool)
         assert isinstance(settings.USE_TZ, bool)
 
-    @override_settings(SECRET_KEY='')
+    @override_settings(SECRET_KEY="")
     def test_empty_secret_key_raises_warning(self):
         """Test that empty SECRET_KEY raises appropriate warning."""
         # This would normally raise a warning in development
@@ -88,7 +88,7 @@ class TestSettingsConfiguration:
 
     def test_default_auto_field_is_set(self):
         """Test DEFAULT_AUTO_FIELD is properly configured."""
-        assert settings.DEFAULT_AUTO_FIELD == 'django.db.models.BigAutoField'
+        assert settings.DEFAULT_AUTO_FIELD == "django.db.models.BigAutoField"
 
 
 class TestProductionSettings:

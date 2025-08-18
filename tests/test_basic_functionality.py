@@ -14,35 +14,33 @@ class TestBasicFunctionality:
 
     def test_admin_site_loads(self, client: Client):
         """Test that admin site loads correctly."""
-        response = client.get('/admin/')
+        response = client.get("/admin/")
         # Should redirect to login page
         assert response.status_code == 302
-        assert '/admin/login/' in response.url
+        assert "/admin/login/" in response.url
 
     def test_admin_login_page_loads(self, client: Client):
         """Test that admin login page loads."""
-        response = client.get('/admin/login/')
+        response = client.get("/admin/login/")
         assert response.status_code == 200
-        assert b'Django administration' in response.content
+        assert b"Django administration" in response.content
 
     @pytest.mark.django_db
     def test_admin_login_with_superuser(self, admin_user, client: Client):
         """Test admin login with superuser credentials."""
-        client.login(username=admin_user.username, password='testpass123')
-        response = client.get('/admin/')
+        client.login(username=admin_user.username, password="testpass123")
+        response = client.get("/admin/")
         assert response.status_code == 200
 
     @pytest.mark.django_db
     def test_create_user(self, db):
         """Test user creation works."""
         user = User.objects.create_user(
-            username='newuser',
-            email='newuser@test.com',
-            password='testpass123'
+            username="newuser", email="newuser@test.com", password="testpass123"
         )
-        assert user.username == 'newuser'
-        assert user.email == 'newuser@test.com'
-        assert user.check_password('testpass123')
+        assert user.username == "newuser"
+        assert user.email == "newuser@test.com"
+        assert user.check_password("testpass123")
         assert not user.is_staff
         assert not user.is_superuser
 
@@ -50,21 +48,18 @@ class TestBasicFunctionality:
     def test_create_superuser(self, db):
         """Test superuser creation works."""
         superuser = User.objects.create_superuser(
-            username='superuser',
-            email='super@test.com',
-            password='testpass123'
+            username="superuser", email="super@test.com", password="testpass123"
         )
-        assert superuser.username == 'superuser'
-        assert superuser.email == 'super@test.com'
+        assert superuser.username == "superuser"
+        assert superuser.email == "super@test.com"
         assert superuser.is_staff
         assert superuser.is_superuser
 
     def test_debug_toolbar_configuration(self, settings):
         """Test that debug toolbar is properly configured for development."""
-        if 'debug_toolbar' in settings.INSTALLED_APPS:
+        if "debug_toolbar" in settings.INSTALLED_APPS:
             assert (
-                'debug_toolbar.middleware.DebugToolbarMiddleware'
-                in settings.MIDDLEWARE
+                "debug_toolbar.middleware.DebugToolbarMiddleware" in settings.MIDDLEWARE
             )
         # Test passes if no errors are raised during setup
 
@@ -80,8 +75,8 @@ class TestStaticAndMediaFiles:
 
     def test_media_files_configuration(self, settings):
         """Test media files configuration."""
-        assert hasattr(settings, 'MEDIA_URL')
-        assert hasattr(settings, 'MEDIA_ROOT')
+        assert hasattr(settings, "MEDIA_URL")
+        assert hasattr(settings, "MEDIA_ROOT")
 
 
 class TestDatabase:

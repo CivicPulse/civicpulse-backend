@@ -3,7 +3,6 @@ Development settings for cpback project.
 """
 
 import sys
-
 import environ
 
 from .base import *
@@ -11,16 +10,18 @@ from .base import *
 env = environ.Env()
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG: bool = True
+DEBUG = True
 
 # Development-specific allowed hosts
-ALLOWED_HOSTS: list[str] = ['localhost', '127.0.0.1', '0.0.0.0']
+ALLOWED_HOSTS = ["localhost", "127.0.0.1", "0.0.0.0"]
 
 # Add Django Debug Toolbar in development
-THIRD_PARTY_APPS.extend([
-    'debug_toolbar',
-    'django_extensions',
-])
+THIRD_PARTY_APPS.extend(
+    [
+        "debug_toolbar",
+        "django_extensions",
+    ]
+)
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 
@@ -30,25 +31,25 @@ INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 
 # Email backend for development
 EMAIL_BACKEND = env(
-    'EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend'
+    "EMAIL_BACKEND", default="django.core.mail.backends.console.EmailBackend"
 )
 
 # Django Debug Toolbar configuration
-MIDDLEWARE.insert(0, 'debug_toolbar.middleware.DebugToolbarMiddleware')
-INTERNAL_IPS: list[str] = ['127.0.0.1', 'localhost']
+MIDDLEWARE.insert(0, "debug_toolbar.middleware.DebugToolbarMiddleware")
+INTERNAL_IPS: list[str] = ["127.0.0.1", "localhost"]
 
 # Debug Toolbar configuration
 IS_RUNNING_TESTS = 'test' in sys.argv
 
 DEBUG_TOOLBAR_CONFIG: dict = {
-    'SHOW_TOOLBAR_CALLBACK': lambda request: DEBUG,
-    'SHOW_TEMPLATE_CONTEXT': True,
-    'IS_RUNNING_TESTS': False,  # Bypass the test check
+    "SHOW_TOOLBAR_CALLBACK": lambda request: DEBUG,
+    "SHOW_TEMPLATE_CONTEXT": True,
+    "IS_RUNNING_TESTS": False,  # Bypass the test check
 }
 
 # Development-specific logging
-LOGGING['handlers']['console']['level'] = 'DEBUG'
-LOGGING['loggers']['civicpulse']['level'] = 'DEBUG'
+LOGGING["handlers"]["console"]["level"] = "DEBUG"
+LOGGING["loggers"]["civicpulse"]["level"] = "DEBUG"
 
 # Disable HTTPS redirects in development
 SECURE_SSL_REDIRECT = False
