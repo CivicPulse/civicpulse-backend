@@ -16,7 +16,6 @@ from django.contrib.auth.forms import (
     UserCreationForm,
 )
 from django.core.exceptions import ValidationError
-from django.utils.safestring import mark_safe
 
 User = get_user_model()
 
@@ -241,12 +240,13 @@ class SecureUserRegistrationForm(UserCreationForm):
         )
 
         # Add help text for passwords
-        self.fields["password1"].help_text = mark_safe(
-            "Password must be at least 8 characters and include:<br>"
-            "• At least one uppercase letter<br>"
-            "• At least one lowercase letter<br>"
-            "• At least one number<br>"
-            "• At least one special character"
+        # Using plain text format to avoid XSS vulnerabilities
+        self.fields["password1"].help_text = (
+            "Password must be at least 8 characters and include: "
+            "(1) At least one uppercase letter, "
+            "(2) At least one lowercase letter, "
+            "(3) At least one number, "
+            "(4) At least one special character"
         )
 
     def clean_email(self) -> str:
@@ -374,12 +374,12 @@ class SecureSetPasswordForm(SetPasswordForm):
             }
         ),
         label="New Password",
-        help_text=mark_safe(
-            "Password must be at least 8 characters and include:<br>"
-            "• At least one uppercase letter<br>"
-            "• At least one lowercase letter<br>"
-            "• At least one number<br>"
-            "• At least one special character"
+        help_text=(
+            "Password must be at least 8 characters and include: "
+            "(1) At least one uppercase letter, "
+            "(2) At least one lowercase letter, "
+            "(3) At least one number, "
+            "(4) At least one special character"
         ),
     )
 
@@ -425,12 +425,12 @@ class PasswordChangeForm(forms.Form):
             }
         ),
         label="New Password",
-        help_text=mark_safe(
-            "Password must be at least 8 characters and include:<br>"
-            "• At least one uppercase letter<br>"
-            "• At least one lowercase letter<br>"
-            "• At least one number<br>"
-            "• At least one special character"
+        help_text=(
+            "Password must be at least 8 characters and include: "
+            "(1) At least one uppercase letter, "
+            "(2) At least one lowercase letter, "
+            "(3) At least one number, "
+            "(4) At least one special character"
         ),
     )
 
