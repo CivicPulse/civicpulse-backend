@@ -37,11 +37,13 @@ SECURE_PERMISSIONS_POLICY: dict = {
     "payment": [],
 }
 
-# Session security
+# Session security - Override base settings for production
 SESSION_COOKIE_SECURE: bool = True
 SESSION_COOKIE_HTTPONLY: bool = True
-SESSION_COOKIE_AGE: int = 3600  # 1 hour
-SESSION_COOKIE_SAMESITE: str = "Strict"
+SESSION_COOKIE_AGE: int = 3600  # 1 hour (overrides base 30 min)
+SESSION_COOKIE_SAMESITE: str = "Strict"  # Stricter than base "Lax"
+SESSION_EXPIRE_AT_BROWSER_CLOSE: bool = False  # Keep session in production
+SESSION_SAVE_EVERY_REQUEST: bool = True  # Update session on every request
 CSRF_COOKIE_SECURE: bool = True
 CSRF_COOKIE_HTTPONLY: bool = True
 CSRF_COOKIE_SAMESITE: str = "Strict"

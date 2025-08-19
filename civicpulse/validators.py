@@ -130,23 +130,26 @@ class PasswordHistoryValidator:
             # Can't check history for new users
             return
 
-        try:
-            # Get password history from user's password change records
-            password_history = getattr(user, "password_history", [])
+        # Import here to avoid circular imports
+        from civicpulse.models import PasswordHistory
 
-            # Check against recent passwords
-            for historical_password in password_history[: self.password_history_count]:
-                if check_password(password, historical_password):
-                    raise ValidationError(
-                        _(
-                            f"You cannot reuse any of your last "
-                            f"{self.password_history_count} passwords."
-                        ),
-                        code="password_reused",
-                    )
-        except AttributeError:
-            # Password history not implemented yet, skip validation
-            pass
+        # Get last N password hashes from history
+        recent_passwords = PasswordHistory.objects.filter(
+            user=user
+        ).order_by('-created_at')[:self.password_history_count]
+
+        # Check if new password matches any recent ones
+        for history in recent_passwords:
+            if check_password(password, history.password_hash):
+                raise ValidationError(
+                    _(
+                        f"This password has been used recently. "
+                        f"Please choose a different password. "
+                        f"You cannot reuse any of your last "
+                        f"{self.password_history_count} passwords."
+                    ),
+                    code="password_reused",
+                )
 
     def get_help_text(self) -> str:
         """Return help text for password history requirements."""

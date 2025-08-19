@@ -324,6 +324,63 @@ class PasswordValidatorsTest(TestCase):
         # Should accept unique passwords
         validator.validate("Gh7$mN9@kL2pQ5!")
 
+    def test_password_history_prevents_reuse(self):
+        """Test that password history validator prevents password reuse."""
+        from civicpulse.models import PasswordHistory
+        from civicpulse.validators import PasswordHistoryValidator
+
+        # Create a user
+        user = User.objects.create_user(
+            username="historyuser",
+            email="history@example.com",
+            password="InitialPass123!"
+        )
+
+        # Save current password to history
+        PasswordHistory.objects.create(
+            user=user,
+            password_hash=user.password
+        )
+
+        # Create validator
+        validator = PasswordHistoryValidator(password_history_count=5)
+
+        # Try to validate the same password - should fail
+        with self.assertRaises(ValidationError) as cm:
+            validator.validate("InitialPass123!", user)
+
+        self.assertIn("This password has been used recently", str(cm.exception))
+
+        # Try a different password - should pass
+        validator.validate("DifferentPass456!", user)
+
+    def test_password_history_signal(self):
+        """Test that password history is saved when password changes."""
+        from civicpulse.models import PasswordHistory
+
+        # Create a user
+        user = User.objects.create_user(
+            username="signaluser",
+            email="signal@example.com",
+            password="FirstPass123!"
+        )
+
+        # Change password
+        user.set_password("SecondPass456!")
+        user.save()
+
+        # Check that password history was saved
+        history = PasswordHistory.objects.filter(user=user).order_by('-created_at')
+        self.assertTrue(history.exists())
+
+        # Change password again
+        user.set_password("ThirdPass789!")
+        user.save()
+
+        # Should have 2 history entries now
+        history = PasswordHistory.objects.filter(user=user).order_by('-created_at')
+        self.assertEqual(history.count(), 2)
+
 
 class AuthenticationViewsTest(TestCase):
     """Test authentication views and workflows."""
