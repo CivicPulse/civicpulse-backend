@@ -110,14 +110,14 @@ jobs:
         run: |
           uv sync --frozen
       
-      - name: Run migrations check
+      - name: Run migrations
         env:
           DATABASE_URL: postgresql://civicpulse:civicpulse@localhost:5432/civicpulse_test
           REDIS_URL: redis://localhost:6379/0
           SECRET_KEY: test-secret-key
           DJANGO_SETTINGS_MODULE: cpback.settings.development
         run: |
-          uv run python manage.py migrate --check
+          uv run python manage.py migrate
       
       - name: Run tests with coverage
         env:
