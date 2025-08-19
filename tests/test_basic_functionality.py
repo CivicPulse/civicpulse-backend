@@ -123,4 +123,4 @@ class TestDatabase:
         with connection.cursor() as cursor:
             table_names = connection.introspection.table_names(cursor)
             # Check for the custom user table (users)
-            assert 'users' in table_names
+            assert "users" in table_names

@@ -155,7 +155,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const form = document.querySelector('form');
     if (form) {
         form.addEventListener('submit', function(e) {
-            const username = passwordField = document.getElementById('{{ form.username.id_for_label }}').value.trim();
+            const username = document.getElementById('{{ form.username.id_for_label }}').value.trim();
             const password = document.getElementById('{{ form.password.id_for_label }}').value;
             
             if (!username || !password) {
