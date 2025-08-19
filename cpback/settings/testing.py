@@ -2,6 +2,10 @@
 Testing settings for cpback project.
 """
 
+import os
+
+import dj_database_url
+
 from .development import *  # noqa: F403,F401
 
 # Override settings for testing
@@ -15,12 +19,8 @@ if "debug_toolbar.middleware.DebugToolbarMiddleware" in MIDDLEWARE:  # noqa: F40
     MIDDLEWARE.remove("debug_toolbar.middleware.DebugToolbarMiddleware")  # noqa: F405
 
 # Use in-memory database for tests, unless DATABASE_URL is provided (e.g., for CI)
-import os
-
 if "DATABASE_URL" in os.environ:
     # Use the database URL from environment (typically PostgreSQL in CI)
-    import dj_database_url
-
     DATABASES = {"default": dj_database_url.parse(os.environ["DATABASE_URL"])}
 else:
     # Use in-memory SQLite for local testing

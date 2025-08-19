@@ -115,7 +115,7 @@ jobs:
           DATABASE_URL: postgresql://civicpulse:civicpulse@localhost:5432/civicpulse_test
           REDIS_URL: redis://localhost:6379/0
           SECRET_KEY: test-secret-key
-          DJANGO_SETTINGS_MODULE: cpback.settings.development
+          DJANGO_SETTINGS_MODULE: cpback.settings.testing
         run: |
           uv run python manage.py migrate
       
@@ -124,7 +124,7 @@ jobs:
           DATABASE_URL: postgresql://civicpulse:civicpulse@localhost:5432/civicpulse_test
           REDIS_URL: redis://localhost:6379/0
           SECRET_KEY: test-secret-key
-          DJANGO_SETTINGS_MODULE: cpback.settings.development
+          DJANGO_SETTINGS_MODULE: cpback.settings.testing
         run: |
           uv run pytest --cov=civicpulse --cov-report=term-missing --cov-report=html --cov-report=xml
       

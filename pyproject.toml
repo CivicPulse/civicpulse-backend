@@ -11,6 +11,7 @@ dependencies = [
     "loguru>=0.7.2",
     "bandit>=1.8.6",
     "django-stubs>=5.2.2",
+    "dj-database-url>=2.3.0",
 ]
 
 [project.optional-dependencies]
@@ -69,8 +70,6 @@ addopts = [
     "--cov-report=html",
     "--cov-report=term-missing",
     "--cov-fail-under=50",
-    "--ignore=migrations",
-    "--reuse-db",
 ]
 
 [tool.bandit]
