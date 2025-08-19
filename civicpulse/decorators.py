@@ -8,6 +8,7 @@ permission control based on user roles and authentication status.
 import functools
 import logging
 from collections.abc import Callable
+from typing import Any
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
@@ -44,6 +45,13 @@ def role_required(*allowed_roles: str):
         @login_required
         def wrapped_view(request: HttpRequest, *args, **kwargs) -> HttpResponse:
             user = request.user
+
+            # Check if user is authenticated and has role attribute
+            if not user.is_authenticated or not hasattr(user, "role"):
+                logger.warning(
+                    f"Access denied: User {user} is not authenticated or has no role"
+                )
+                raise PermissionDenied("Authentication required")
 
             # Check if user has required role
             if user.role not in allowed_roles:
@@ -151,6 +159,14 @@ def organization_member_required(view_func: Callable) -> Callable:
     def wrapped_view(request: HttpRequest, *args, **kwargs) -> HttpResponse:
         user = request.user
 
+        # Check if user is authenticated and has organization attribute
+        if not user.is_authenticated or not hasattr(user, "organization"):
+            logger.warning(
+                f"Access denied: User {user} is not authenticated "
+                f"or has no organization attribute"
+            )
+            raise PermissionDenied("Authentication required")
+
         # Check if user belongs to an organization
         if not user.organization:
             logger.warning(
@@ -181,6 +197,10 @@ class RoleRequiredMixin(LoginRequiredMixin, UserPassesTestMixin):
     allowed_roles: list | tuple = []
     permission_denied_message: str = "You don't have permission to access this page."
 
+    # Type annotations for attributes from parent classes
+    request: HttpRequest
+    kwargs: dict[str, Any]
+
     def test_func(self) -> bool:
         """Test if the user has the required role."""
         if not self.allowed_roles:
@@ -191,6 +211,12 @@ class RoleRequiredMixin(LoginRequiredMixin, UserPassesTestMixin):
             return False
 
         user = self.request.user
+
+        # Check if user is authenticated and has role attribute
+        if not user.is_authenticated or not hasattr(user, "role"):
+            logger.warning(f"User {user} is not authenticated or has no role attribute")
+            return False
+
         has_permission = user.role in self.allowed_roles
 
         if not has_permission:
@@ -239,9 +265,17 @@ class VerifiedRequiredMixin(LoginRequiredMixin, UserPassesTestMixin):
     Redirects unverified users to the registration complete page.
     """
 
+    # Type annotations for attributes from parent classes
+    request: HttpRequest
+
     def test_func(self) -> bool:
         """Test if the user is verified."""
         user = self.request.user
+
+        # Check if user is authenticated
+        if not user.is_authenticated:
+            return False
+
         is_verified = not hasattr(user, "is_verified") or user.is_verified
 
         if not is_verified:
@@ -252,7 +286,7 @@ class VerifiedRequiredMixin(LoginRequiredMixin, UserPassesTestMixin):
 
         return is_verified
 
-    def handle_no_permission(self) -> HttpResponse:
+    def handle_no_permission(self):
         """Redirect unverified users to registration complete page."""
         if self.request.user.is_authenticated:
             return redirect("registration_complete")
@@ -264,9 +298,17 @@ class OrganizationMemberMixin(LoginRequiredMixin, UserPassesTestMixin):
     Mixin that requires the user to belong to an organization.
     """
 
+    # Type annotations for attributes from parent classes
+    request: HttpRequest
+
     def test_func(self) -> bool:
         """Test if the user belongs to an organization."""
         user = self.request.user
+
+        # Check if user is authenticated and has organization attribute
+        if not user.is_authenticated or not hasattr(user, "organization"):
+            return False
+
         has_organization = bool(user.organization)
 
         if not has_organization:
@@ -290,10 +332,18 @@ class SameUserOrAdminMixin(LoginRequiredMixin, UserPassesTestMixin):
     Expects a 'username' URL parameter to identify the target user.
     """
 
+    # Type annotations for attributes from parent classes
+    request: HttpRequest
+    kwargs: dict[str, Any]
+
     def test_func(self) -> bool:
         """Test if user can access the profile."""
         current_user = self.request.user
         target_username = self.kwargs.get("username")
+
+        # Check if user is authenticated and has role attribute
+        if not current_user.is_authenticated or not hasattr(current_user, "role"):
+            return False
 
         # Allow access if user is admin or accessing their own profile
         is_admin = current_user.role == "admin"

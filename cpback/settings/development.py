@@ -11,10 +11,10 @@ from .base import *
 env = environ.Env()
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG: bool = True
+DEBUG = True
 
 # Development-specific allowed hosts
-ALLOWED_HOSTS: list[str] = ["localhost", "127.0.0.1", "0.0.0.0"]
+ALLOWED_HOSTS.extend(["localhost", "127.0.0.1", "0.0.0.0"])
 
 # Add Django Debug Toolbar in development (not in testing)
 if "test" not in sys.argv:

@@ -454,6 +454,9 @@ class PasswordChangeForm(forms.Form):
         """Validate current password."""
         current_password = self.cleaned_data.get("current_password")
 
+        if not current_password:
+            raise ValidationError("This field is required.", code="required")
+
         if not self.user.check_password(current_password):
             raise ValidationError(
                 "Current password is incorrect.", code="incorrect_password"
@@ -465,6 +468,9 @@ class PasswordChangeForm(forms.Form):
         """Validate password confirmation matches."""
         password1 = self.cleaned_data.get("new_password1")
         password2 = self.cleaned_data.get("new_password2")
+
+        if not password2:
+            raise ValidationError("This field is required.", code="required")
 
         if password1 and password2 and password1 != password2:
             raise ValidationError(

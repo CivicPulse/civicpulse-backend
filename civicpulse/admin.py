@@ -54,7 +54,7 @@ class UserAdmin(BaseUserAdmin):
     ordering = ("-date_joined",)
 
     # Custom fieldsets for the form
-    fieldsets = BaseUserAdmin.fieldsets + (
+    fieldsets = list(BaseUserAdmin.fieldsets or ()) + [
         (
             "Custom Fields",
             {
@@ -69,12 +69,12 @@ class UserAdmin(BaseUserAdmin):
                 "classes": ("collapse",),
             },
         ),
-    )
+    ]
 
     readonly_fields = ("id", "created_at", "updated_at", "date_joined", "last_login")
 
     # Add custom fields to the add form
-    add_fieldsets = BaseUserAdmin.add_fieldsets + (
+    add_fieldsets = list(BaseUserAdmin.add_fieldsets or ()) + [
         (
             "Custom Fields",
             {
@@ -82,7 +82,7 @@ class UserAdmin(BaseUserAdmin):
                 "classes": ("wide",),
             },
         ),
-    )
+    ]
 
 
 class ContactAttemptInline(admin.TabularInline):
@@ -283,6 +283,7 @@ class PersonAdmin(admin.ModelAdmin):
         )
 
     # Custom methods for list display
+    @admin.display(boolean=True, description="Voter Record")
     def has_voter_record(self, obj):
         """Display whether person has a voter record."""
         try:
@@ -290,9 +291,7 @@ class PersonAdmin(admin.ModelAdmin):
         except VoterRecord.DoesNotExist:
             return False
 
-    has_voter_record.boolean = True
-    has_voter_record.short_description = "Voter Record"
-
+    @admin.display(description="Contacts")
     def contact_count(self, obj):
         """Display count of contact attempts."""
         count = obj.contact_attempts.count()
@@ -303,9 +302,8 @@ class PersonAdmin(admin.ModelAdmin):
             )
         return "0 contacts"
 
-    contact_count.short_description = "Contacts"
-
     # Custom actions
+    @admin.action(description="Mark as volunteers")
     def mark_as_volunteers(self, request, queryset):
         """Mark selected persons as volunteers."""
         for person in queryset:
@@ -313,8 +311,6 @@ class PersonAdmin(admin.ModelAdmin):
                 person.tags.append("volunteer")
                 person.save()
         self.message_user(request, f"{queryset.count()} persons marked as volunteers.")
-
-    mark_as_volunteers.short_description = "Mark as volunteers"
 
     actions = ["mark_as_volunteers"]
 
@@ -431,14 +427,14 @@ class VoterRecordAdmin(admin.ModelAdmin):
         return qs.select_related("person")
 
     # Custom methods for list display
+    @admin.display(description="Person")
     def person_link(self, obj):
         """Display link to related person."""
         url = reverse("admin:civicpulse_person_change", args=[obj.person.id])
         return format_html('<a href="{}">{}</a>', url, obj.person.full_name)
 
-    person_link.short_description = "Person"
-
     # Custom actions
+    @admin.action(description="Mark high-priority voters")
     def mark_high_priority(self, request, queryset):
         """Mark high-scoring voters for priority contact."""
         high_priority = queryset.filter(voter_score__gte=70)
@@ -450,8 +446,6 @@ class VoterRecordAdmin(admin.ModelAdmin):
         self.message_user(
             request, f"{high_priority.count()} high-priority voters marked."
         )
-
-    mark_high_priority.short_description = "Mark high-priority voters"
 
     actions = ["mark_high_priority"]
 
@@ -560,14 +554,14 @@ class ContactAttemptAdmin(admin.ModelAdmin):
         return qs.select_related("person", "contacted_by")
 
     # Custom methods for list display
+    @admin.display(description="Person")
     def person_link(self, obj):
         """Display link to related person."""
         url = reverse("admin:civicpulse_person_change", args=[obj.person.id])
         return format_html('<a href="{}">{}</a>', url, obj.person.full_name)
 
-    person_link.short_description = "Person"
-
     # Custom actions
+    @admin.action(description="Mark for follow-up")
     def mark_for_followup(self, request, queryset):
         """Mark selected contacts for follow-up."""
         from datetime import date, timedelta
@@ -577,8 +571,7 @@ class ContactAttemptAdmin(admin.ModelAdmin):
         )
         self.message_user(request, f"{updated} contacts marked for follow-up.")
 
-    mark_for_followup.short_description = "Mark for follow-up"
-
+    @admin.action(description="Tag positive sentiment as supporters")
     def mark_positive_sentiment(self, request, queryset):
         """Mark contacts with positive sentiment for further engagement."""
         positive_contacts = queryset.filter(sentiment__in=["strong_support", "support"])
@@ -588,8 +581,6 @@ class ContactAttemptAdmin(admin.ModelAdmin):
                 person.tags.append("supporter")
                 person.save()
         self.message_user(request, f"{positive_contacts.count()} supporters tagged.")
-
-    mark_positive_sentiment.short_description = "Tag positive sentiment as supporters"
 
     actions = ["mark_for_followup", "mark_positive_sentiment"]
 

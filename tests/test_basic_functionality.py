@@ -32,9 +32,15 @@ class TestBasicFunctionality:
         response = client.get("/admin/")
         assert response.status_code == 200
 
+        # Check that login form elements are present
+        assert b'name="username"' in response.content
+        assert b'name="password"' in response.content
+        assert b'<input type="submit"' in response.content
+
     @pytest.mark.django_db
-    def test_create_user(self, db):
+    def test_create_user(self):
         """Test user creation works."""
+        # Test user creation
         user = User.objects.create_user(
             username="newuser", email="newuser@test.com", password="testpass123"
         )
@@ -45,8 +51,9 @@ class TestBasicFunctionality:
         assert not user.is_superuser
 
     @pytest.mark.django_db
-    def test_create_superuser(self, db):
+    def test_create_superuser(self):
         """Test superuser creation works."""
+        # Test superuser creation
         superuser = User.objects.create_superuser(
             username="superuser", email="super@test.com", password="testpass123"
         )
@@ -83,22 +90,37 @@ class TestDatabase:
     """Test database functionality."""
 
     @pytest.mark.django_db
-    def test_database_connection(self, db):
+    def test_database_connection(self):
         """Test database connection works."""
-        # Simply accessing the database should work
+        # Test database access
         user_count = User.objects.count()
         assert isinstance(user_count, int)
 
     @pytest.mark.django_db
-    def test_migrations_are_applied(self, db):
-        """Test that migrations are properly applied."""
-        # Check that core Django tables exist
+    def test_database_tables_exist(self):
+        """Test that database tables are properly created and accessible."""
         from django.db import connection
+
+        # Test initial count
+        user_count = User.objects.count()
+        assert isinstance(user_count, int)
+
+        # Test user creation
+        user = User.objects.create_user(
+            username="testuser", email="test@example.com", password="testpass123"
+        )
+
+        # Verify user properties
+        assert user.id is not None
+        assert user.username == "testuser"
+
+        # Test count after creation
+        new_count = User.objects.count()
+        assert new_count == user_count + 1
 
         with connection.cursor() as cursor:
             cursor.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' "
-                "AND name='users';"
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='users';"
             )
             result = cursor.fetchone()
             assert result is not None

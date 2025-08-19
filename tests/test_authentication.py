@@ -333,14 +333,11 @@ class PasswordValidatorsTest(TestCase):
         user = User.objects.create_user(
             username="historyuser",
             email="history@example.com",
-            password="InitialPass123!"
+            password="InitialPass123!",
         )
 
         # Save current password to history
-        PasswordHistory.objects.create(
-            user=user,
-            password_hash=user.password
-        )
+        PasswordHistory.objects.create(user=user, password_hash=user.password)
 
         # Create validator
         validator = PasswordHistoryValidator(password_history_count=5)
@@ -360,9 +357,7 @@ class PasswordValidatorsTest(TestCase):
 
         # Create a user
         user = User.objects.create_user(
-            username="signaluser",
-            email="signal@example.com",
-            password="FirstPass123!"
+            username="signaluser", email="signal@example.com", password="FirstPass123!"
         )
 
         # Change password
@@ -370,7 +365,7 @@ class PasswordValidatorsTest(TestCase):
         user.save()
 
         # Check that password history was saved
-        history = PasswordHistory.objects.filter(user=user).order_by('-created_at')
+        history = PasswordHistory.objects.filter(user=user).order_by("-created_at")
         self.assertTrue(history.exists())
 
         # Change password again
@@ -378,7 +373,7 @@ class PasswordValidatorsTest(TestCase):
         user.save()
 
         # Should have 2 history entries now
-        history = PasswordHistory.objects.filter(user=user).order_by('-created_at')
+        history = PasswordHistory.objects.filter(user=user).order_by("-created_at")
         self.assertEqual(history.count(), 2)
 
 

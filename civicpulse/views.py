@@ -413,12 +413,20 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         user = self.request.user
 
+        # Safely access user attributes
+        user_role = getattr(user, "role", None) if user.is_authenticated else None
+        organization = (
+            getattr(user, "organization", None) if user.is_authenticated else None
+        )
+        first_name = getattr(user, "first_name", "") if user.is_authenticated else ""
+        last_name = getattr(user, "last_name", "") if user.is_authenticated else ""
+
         context.update(
             {
-                "user_role": user.role,
-                "organization": user.organization,
-                "user_full_name": f"{user.first_name} {user.last_name}".strip()
-                or user.username,
+                "user_role": user_role,
+                "organization": organization,
+                "user_full_name": f"{first_name} {last_name}".strip()
+                or (user.username if user.is_authenticated else ""),
             }
         )
 

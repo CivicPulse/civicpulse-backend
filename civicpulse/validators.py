@@ -6,13 +6,17 @@ including complexity requirements and password history tracking.
 """
 
 import re
+from typing import TYPE_CHECKING, Any
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import check_password
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext as _
 
-User = get_user_model()
+if TYPE_CHECKING:
+    User = Any  # Use Any for ORM compatibility
+else:
+    User = get_user_model()
 
 
 class PasswordComplexityValidator:
@@ -134,9 +138,9 @@ class PasswordHistoryValidator:
         from civicpulse.models import PasswordHistory
 
         # Get last N password hashes from history
-        recent_passwords = PasswordHistory.objects.filter(
-            user=user
-        ).order_by('-created_at')[:self.password_history_count]
+        recent_passwords = PasswordHistory.objects.filter(user=user).order_by(
+            "-created_at"
+        )[: self.password_history_count]
 
         # Check if new password matches any recent ones
         for history in recent_passwords:

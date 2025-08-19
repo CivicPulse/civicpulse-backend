@@ -873,7 +873,7 @@ class ContactAttemptSecurityTest(TestCase):
 
     def test_old_contact_date_validation(self):
         """Test validation of very old contact dates."""
-        old_date = timezone.now() - timezone.timedelta(days=4000)  # Over 10 years
+        old_date = timezone.now() - timedelta(days=4000)  # Over 10 years
         contact = ContactAttempt(
             person=self.person,
             contact_type="phone",

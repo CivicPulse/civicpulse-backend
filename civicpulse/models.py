@@ -1,5 +1,6 @@
 import re
 import uuid
+from datetime import timedelta
 from typing import Optional
 
 import phonenumbers
@@ -245,7 +246,9 @@ class PersonManager(models.Manager):
             "voter_record"
         )
 
-    def by_location(self, state: str = None, zip_code: str = None) -> QuerySet:
+    def by_location(
+        self, state: str | None = None, zip_code: str | None = None
+    ) -> QuerySet:
         """Filter persons by location."""
         queryset = self.all()
         if state:
@@ -266,7 +269,9 @@ class PersonManager(models.Manager):
             | Q(middle_name__icontains=search_term)
         ).distinct()
 
-    def by_age_range(self, min_age: int = None, max_age: int = None) -> QuerySet:
+    def by_age_range(
+        self, min_age: int | None = None, max_age: int | None = None
+    ) -> QuerySet:
         """Filter persons by age range."""
         queryset = self.exclude(date_of_birth__isnull=True)
         today = timezone.now().date()
@@ -287,7 +292,7 @@ class PersonManager(models.Manager):
 
     def with_contact_in_period(self, days: int = 30) -> QuerySet:
         """Return persons contacted in the last N days."""
-        cutoff_date = timezone.now() - timezone.timedelta(days=days)
+        cutoff_date = timezone.now() - timedelta(days=days)
         return self.filter(contact_attempts__contact_date__gte=cutoff_date).distinct()
 
 
@@ -425,16 +430,16 @@ class PasswordHistory(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name='password_history'
+        related_name="password_history",
     )
     password_hash = models.CharField(max_length=255)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        db_table = 'password_history'
-        ordering = ['-created_at']
+        db_table = "password_history"
+        ordering = ["-created_at"]
         indexes = [
-            models.Index(fields=['user', '-created_at']),
+            models.Index(fields=["user", "-created_at"]),
         ]
 
     def __str__(self):
@@ -999,7 +1004,7 @@ class ContactAttempt(models.Model):
 
         # Validate contact date is not too far in the past (e.g., 10 years)
         if self.contact_date:
-            ten_years_ago = timezone.now() - timezone.timedelta(days=3650)
+            ten_years_ago = timezone.now() - timedelta(days=3650)
             if self.contact_date < ten_years_ago:
                 raise ValidationError(
                     {
@@ -1018,8 +1023,8 @@ class ContactAttempt(models.Model):
             raise ValidationError(
                 {
                     "follow_up_date": (
-                        "Follow-up date cannot be in the past when "
-                        "follow-up is required."
+                        "Follow-up date cannot be in the past when follow-up is "
+                        "required."
                     )
                 }
             )

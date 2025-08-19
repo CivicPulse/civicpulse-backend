@@ -33,15 +33,14 @@ def save_password_history(sender, instance, **kwargs):
             # Save the NEW password to history (not the old one)
             # This ensures we track all passwords that have been used
             PasswordHistory.objects.create(
-                user=instance,
-                password_hash=instance.password
+                user=instance, password_hash=instance.password
             )
 
             # Clean up old password history entries (keep only last 10)
             # This prevents the table from growing indefinitely
-            old_entries = PasswordHistory.objects.filter(
-                user=instance
-            ).order_by('-created_at')[10:]
+            old_entries = PasswordHistory.objects.filter(user=instance).order_by(
+                "-created_at"
+            )[10:]
 
             for entry in old_entries:
                 entry.delete()
