@@ -86,7 +86,7 @@ class UserModelTest(TestCase):
             "abc123def",    # Contains letters
             "123456789012345", # Genuinely too long
             "0000000000",   # Invalid number pattern
-            "1234567890",   # Invalid area code (123)
+            "1234567890",   # Invalid: area code 123 is not assigned in NANP
         ]
         for number in invalid_numbers:
             user.phone_number = number

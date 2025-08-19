@@ -3,6 +3,7 @@ import uuid
 from typing import Optional
 
 import phonenumbers
+from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -10,6 +11,16 @@ from django.db.models import Q, QuerySet
 from django.utils import timezone
 from django.utils.html import strip_tags
 from phonenumbers import NumberParseException
+
+# US State codes - moved to module level constant for better maintainability
+VALID_US_STATE_CODES = [
+    "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA",
+    "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD",
+    "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ",
+    "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC",
+    "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY",
+    "DC"  # District of Columbia
+]
 
 
 def validate_phone_number(phone_number: str) -> None:
@@ -158,7 +169,7 @@ def validate_text_content(value: str, field_name: str = "field") -> None:
         r'javascript:',     # JavaScript URLs
         r'data:',          # Data URLs
         r'vbscript:',      # VBScript URLs
-        r'on\w+\s*=',      # Event handlers
+        r'on\w+\s*=\s*["\']?',      # Event handlers (more robust)
     ]
 
     for pattern in suspicious_patterns:
@@ -498,15 +509,7 @@ class Person(models.Model):
 
         # Validate state is a valid US state code if provided
         if self.state:
-            valid_states = [
-                "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA",
-                "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD",
-                "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ",
-                "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC",
-                "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY",
-                "DC"  # District of Columbia
-            ]
-            if self.state.upper() not in valid_states:
+            if self.state.upper() not in VALID_US_STATE_CODES:
                 raise ValidationError({
                     "state": f"'{self.state}' is not a valid US state code."
                 })
@@ -514,8 +517,11 @@ class Person(models.Model):
         # Validate email domain if provided
         if self.email and '@' in self.email:
             domain = self.email.split('@')[-1].lower()
-            # Check for suspicious domains
-            suspicious_domains = ['example.com', 'test.com', 'localhost']
+            # Check for suspicious domains - configurable via settings
+            suspicious_domains = getattr(
+                settings, 'SUSPICIOUS_EMAIL_DOMAINS',
+                ['example.com', 'test.com', 'localhost']
+            )
             if domain in suspicious_domains:
                 raise ValidationError({
                     "email": f"Email domain '{domain}' is not allowed."
