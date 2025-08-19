@@ -12,7 +12,7 @@ env = environ.Env()
 DEBUG: bool = False
 
 # Production allowed hosts - should be set via environment variable
-ALLOWED_HOSTS: list[str] = env("ALLOWED_HOSTS")
+ALLOWED_HOSTS: list[str] = env.list("ALLOWED_HOSTS", default=[])
 
 # Security settings for production
 SECURE_SSL_REDIRECT: bool = env("SECURE_SSL_REDIRECT", default=True)
@@ -79,9 +79,88 @@ INSTALLED_APPS += [
 # AWS_S3_REGION_NAME = env('AWS_S3_REGION_NAME', default='us-east-1')
 
 # Cache configuration for production
-CACHES = {
-    "default": {
-        "BACKEND": "django.core.cache.backends.redis.RedisCache",
-        "LOCATION": env("REDIS_URL", default="redis://127.0.0.1:6379/1"),
+# Use Redis for caching and rate limiting in production
+# Falls back to database cache if Redis is unavailable
+try:
+    import redis
+
+    # Test Redis connection
+    redis_url = env("REDIS_URL", default="redis://127.0.0.1:6379/1")
+    redis_client = redis.from_url(redis_url)
+    redis_client.ping()  # Test connection
+
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": redis_url,
+            "TIMEOUT": 300,  # 5 minutes default timeout
+            "OPTIONS": {},  # Simplified - Django's Redis backend has fewer options
+            "KEY_PREFIX": env("CACHE_KEY_PREFIX", default="civicpulse_prod"),
+            "VERSION": 1,
+        },
+        # Separate cache for sessions to improve performance
+        "sessions": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": env("REDIS_URL", default="redis://127.0.0.1:6379/2"),
+            "TIMEOUT": 3600,  # 1 hour for sessions
+            "OPTIONS": {},  # Simplified - Django's Redis backend has fewer options
+            "KEY_PREFIX": (
+                env("CACHE_KEY_PREFIX", default="civicpulse_prod") + "_sessions"
+            ),
+        },
     }
-}
+
+    # Use Redis for session storage in production
+    SESSION_ENGINE = "django.contrib.sessions.backends.cache"
+    SESSION_CACHE_ALIAS = "sessions"
+
+except (ImportError, redis.ConnectionError, redis.TimeoutError) as e:
+    import warnings
+    warnings.warn(
+        f"Redis connection failed ({e}), falling back to database cache. "
+        "This may impact performance in distributed deployments.",
+        RuntimeWarning,
+        stacklevel=2
+    )
+
+    # Fallback to database cache if Redis is not available
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+            "LOCATION": "civicpulse_cache_table",
+            "TIMEOUT": 300,
+            "OPTIONS": {
+                "MAX_ENTRIES": 10000,
+                "CULL_FREQUENCY": 4,
+            },
+            "KEY_PREFIX": env("CACHE_KEY_PREFIX", default="civicpulse_prod"),
+            "VERSION": 1,
+        }
+    }
+
+    # Use database sessions as fallback
+    SESSION_ENGINE = "django.contrib.sessions.backends.db"
+
+# Django-Axes Configuration for Production with Redis
+# Override base settings to ensure axes uses Redis cache
+AXES_CACHE = "default"  # Use the default cache (Redis) for axes
+AXES_ENABLED = True
+AXES_FAILURE_LIMIT = 5  # Lock after 5 failed attempts
+AXES_COOLOFF_TIME = 0.5  # 30 minutes lockout (in hours)
+AXES_LOCKOUT_TEMPLATE = "registration/account_locked.html"
+AXES_LOCK_OUT_AT_FAILURE = True
+AXES_RESET_ON_SUCCESS = True
+AXES_ENABLE_ADMIN = True
+AXES_VERBOSE = True
+AXES_LOCKOUT_CALLABLE = None  # Use default lockout behavior
+AXES_USERNAME_FORM_FIELD = "username"
+AXES_PASSWORD_FORM_FIELD = "password"
+
+# Enhanced rate limiting for production
+AXES_LOCKOUT_PARAMETERS = ["ip_address", "username"]  # Lock by both IP and username
+AXES_LOCKOUT_URL = None  # Redirect to default lockout template
+AXES_NEVER_LOCKOUT_WHITELIST = env("AXES_WHITELIST_IPS", default="", cast=list)
+AXES_NEVER_LOCKOUT_GET = True  # Never lockout GET requests
+
+# Use database handler as fallback
+AXES_HANDLER = "axes.handlers.database.AxesDatabaseHandler"

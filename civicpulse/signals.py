@@ -3,7 +3,7 @@ Signal handlers for the civicpulse app.
 """
 
 from django.contrib.auth import get_user_model
-from django.db.models.signals import pre_save
+from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 
 from civicpulse.models import PasswordHistory
@@ -12,39 +12,61 @@ User = get_user_model()
 
 
 @receiver(pre_save, sender=User)
-def save_password_history(sender, instance, **kwargs):
+def track_password_changes(sender, instance, **kwargs):
     """
-    Save password to history when user's password changes.
+    Track the current password state before saving for comparison.
+
+    This signal runs before the user is saved to capture the previous password.
+    """
+    if instance.pk:
+        try:
+            # Get the current password from database
+            old_user = User.objects.get(pk=instance.pk)
+            instance._old_password = old_user.password
+        except User.DoesNotExist:
+            instance._old_password = None
+    else:
+        # New user - no old password
+        instance._old_password = None
+
+
+@receiver(post_save, sender=User)
+def save_password_history(sender, instance, created, **kwargs):
+    """
+    Save password to history when user is created or password changes.
 
     This signal handler tracks password changes and stores them in the
     PasswordHistory model to prevent password reuse.
+
+    Args:
+        sender: The model class (User)
+        instance: The user instance being saved
+        created: Boolean indicating if this is a new user
+        **kwargs: Additional keyword arguments
     """
-    # Don't save history if it's a new user (no pk yet)
-    # Also check if the user actually exists in the database
-    if not instance.pk or instance._state.adding:
-        return
+    password_changed = False
 
-    try:
-        # Get the existing user from the database
-        existing_user = User.objects.get(pk=instance.pk)
+    if created:
+        # For new users, always save the initial password
+        password_changed = True
+    else:
+        # For existing users, check if password has changed
+        old_password = getattr(instance, '_old_password', None)
+        if old_password != instance.password:
+            password_changed = True
 
-        # Check if password has changed
-        if existing_user.password != instance.password:
-            # Save the NEW password to history (not the old one)
-            # This ensures we track all passwords that have been used
-            PasswordHistory.objects.create(
-                user=instance, password_hash=instance.password
-            )
+    if password_changed:
+        # Save the current password to history
+        PasswordHistory.objects.create(
+            user=instance,
+            password_hash=instance.password
+        )
 
-            # Clean up old password history entries (keep only last 10)
-            # This prevents the table from growing indefinitely
-            old_entries = PasswordHistory.objects.filter(user=instance).order_by(
-                "-created_at"
-            )[10:]
+        # Clean up old password history entries (keep only last 10)
+        # This prevents the table from growing indefinitely
+        old_entries = PasswordHistory.objects.filter(user=instance).order_by(
+            "-created_at"
+        )[10:]
 
-            for entry in old_entries:
-                entry.delete()
-
-    except User.DoesNotExist:
-        # User doesn't exist yet (shouldn't happen in pre_save)
-        pass
+        for entry in old_entries:
+            entry.delete()

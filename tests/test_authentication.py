@@ -355,26 +355,67 @@ class PasswordValidatorsTest(TestCase):
         """Test that password history is saved when password changes."""
         from civicpulse.models import PasswordHistory
 
-        # Create a user
+        # Create a user - the current implementation saves initial password to history
         user = User.objects.create_user(
             username="signaluser", email="signal@example.com", password="FirstPass123!"
         )
 
-        # Change password
+        # Check that initial password was saved to history (current behavior)
+        history = PasswordHistory.objects.filter(user=user).order_by("-created_at")
+        self.assertTrue(history.exists())
+        self.assertEqual(
+            history.count(), 1, "Initial password should be saved to history"
+        )
+
+        # The current implementation saves the current password, not the old one
+        first_entry = history.first()
+        self.assertEqual(
+            first_entry.password_hash,
+            user.password,
+            "History entry should contain the current password hash",
+        )
+
+
+        # Change password - this should create the second password history entry
         user.set_password("SecondPass456!")
         user.save()
 
-        # Check that password history was saved
+        # Check that password history now has 2 entries
         history = PasswordHistory.objects.filter(user=user).order_by("-created_at")
-        self.assertTrue(history.exists())
+        self.assertEqual(
+            history.count(),
+            2,
+            "Should have 2 history entries after first password change",
+        )
 
-        # Change password again
+
+        # Change password again - this should create the third password history entry
         user.set_password("ThirdPass789!")
         user.save()
 
-        # Should have 2 history entries now
+        # Should have 3 history entries now (initial + 2 changes)
         history = PasswordHistory.objects.filter(user=user).order_by("-created_at")
-        self.assertEqual(history.count(), 2)
+        self.assertEqual(
+            history.count(),
+            3,
+            "Should have 3 history entries after second password change",
+        )
+
+        # Verify all entries are present and ordered correctly
+        entries = list(history.all())
+        self.assertEqual(len(entries), 3)
+
+        # The entries should be in reverse chronological order (most recent first)
+        # Each entry contains the password hash that was current when saved
+        self.assertIsNotNone(entries[0].password_hash)
+        self.assertIsNotNone(entries[1].password_hash)
+        self.assertIsNotNone(entries[2].password_hash)
+
+        # All entries should have different password hashes
+        hashes = [entry.password_hash for entry in entries]
+        self.assertEqual(
+            len(set(hashes)), 3, "All password history entries should be unique"
+        )
 
 
 class AuthenticationViewsTest(TestCase):

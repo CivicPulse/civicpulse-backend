@@ -19,6 +19,7 @@ class TestBasicFunctionality:
         assert response.status_code == 302
         assert "/admin/login/" in response.url
 
+    @pytest.mark.django_db
     def test_admin_login_page_loads(self, client: Client):
         """Test that admin login page loads."""
         response = client.get("/admin/login/")
@@ -32,10 +33,10 @@ class TestBasicFunctionality:
         response = client.get("/admin/")
         assert response.status_code == 200
 
-        # Check that login form elements are present
-        assert b'name="username"' in response.content
-        assert b'name="password"' in response.content
-        assert b'<input type="submit"' in response.content
+        # Check that we're on the admin dashboard (successfully logged in)
+        assert b"CivicPulse Administration" in response.content
+        assert b"Welcome," in response.content
+        assert b"Log out" in response.content
 
     @pytest.mark.django_db
     def test_create_user(self):
