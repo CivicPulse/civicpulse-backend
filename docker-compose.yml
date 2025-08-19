@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - .:/app
+      - /app/.venv  # Exclude venv from being overwritten
+    ports:
+      - "8000:8000"
+    environment:
+      - DJANGO_SETTINGS_MODULE=cpback.settings.development
+      - DATABASE_URL=postgresql://civicpulse:civicpulse@db:5432/civicpulse
+      - REDIS_URL=redis://redis:6379/0
+      - DEBUG=True
+      - SECRET_KEY=django-insecure-development-key-change-in-production
+    depends_on:
+      - db
+      - redis
+    env_file:
+      - .env
+
+  db:
+    image: postgres:16-alpine
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=civicpulse
+      - POSTGRES_USER=civicpulse
+      - POSTGRES_PASSWORD=civicpulse
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  celery:
+    build: .
+    command: celery -A cpback worker -l info
+    volumes:
+      - .:/app
+      - /app/.venv  # Exclude venv from being overwritten
+    environment:
+      - DJANGO_SETTINGS_MODULE=cpback.settings.development
+      - DATABASE_URL=postgresql://civicpulse:civicpulse@db:5432/civicpulse
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=django-insecure-development-key-change-in-production
+    depends_on:
+      - db
+      - redis
+    env_file:
+      - .env
+
+  celery-beat:
+    build: .
+    command: celery -A cpback beat -l info
+    volumes:
+      - .:/app
+      - /app/.venv  # Exclude venv from being overwritten
+    environment:
+      - DJANGO_SETTINGS_MODULE=cpback.settings.development
+      - DATABASE_URL=postgresql://civicpulse:civicpulse@db:5432/civicpulse
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=django-insecure-development-key-change-in-production
+    depends_on:
+      - db
+      - redis
+    env_file:
+      - .env
+
+volumes:
+  postgres_data:

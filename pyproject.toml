@@ -12,20 +12,9 @@ dependencies = [
     "bandit>=1.8.6",
     "django-stubs>=5.2.2",
     "phonenumbers>=9.0.12",
+    "dj-database-url>=2.3.0",
 ]
 
-[project.optional-dependencies]
-dev = [
-    "ruff>=0.8.0",
-    "mypy>=1.13.0",
-    "pytest>=8.3.0",
-    "pytest-django>=4.9.0",
-    "pytest-cov>=6.0.0",
-    "django-debug-toolbar>=4.4.0",
-    "django-extensions>=3.2.3",
-    "bandit[toml]>=1.7.10",
-    "pre-commit>=4.0.0",
-]
 
 [tool.ruff]
 line-length = 88
@@ -70,8 +59,6 @@ addopts = [
     "--cov-report=html",
     "--cov-report=term-missing",
     "--cov-fail-under=50",
-    "--ignore=migrations",
-    "--reuse-db",
 ]
 
 [tool.bandit]
@@ -80,9 +67,11 @@ skips = ["B101", "B601"]
 
 [dependency-groups]
 dev = [
+    "bandit[toml]>=1.8.6",
     "django-debug-toolbar>=6.0.0",
     "django-extensions>=4.1",
     "mypy>=1.17.1",
+    "pip-audit>=2.9.0",
     "pre-commit>=4.3.0",
     "pytest>=8.4.1",
     "pytest-cov>=6.2.1",
