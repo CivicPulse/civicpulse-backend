@@ -47,9 +47,7 @@ class Command(BaseCommand):
         # Test cache functionality
         self._test_cache()
 
-        self.stdout.write(
-            self.style.SUCCESS("Production environment setup complete!")
-        )
+        self.stdout.write(self.style.SUCCESS("Production environment setup complete!"))
 
     def _test_redis_connection(self):
         """Test Redis connection."""

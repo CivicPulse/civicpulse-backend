@@ -116,11 +116,12 @@ try:
 
 except (ImportError, redis.ConnectionError, redis.TimeoutError) as e:
     import warnings
+
     warnings.warn(
         f"Redis connection failed ({e}), falling back to database cache. "
         "This may impact performance in distributed deployments.",
         RuntimeWarning,
-        stacklevel=2
+        stacklevel=2,
     )
 
     # Fallback to database cache if Redis is not available

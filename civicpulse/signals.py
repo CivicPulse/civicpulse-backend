@@ -51,16 +51,13 @@ def save_password_history(sender, instance, created, **kwargs):
         password_changed = True
     else:
         # For existing users, check if password has changed
-        old_password = getattr(instance, '_old_password', None)
+        old_password = getattr(instance, "_old_password", None)
         if old_password != instance.password:
             password_changed = True
 
     if password_changed:
         # Save the current password to history
-        PasswordHistory.objects.create(
-            user=instance,
-            password_hash=instance.password
-        )
+        PasswordHistory.objects.create(user=instance, password_hash=instance.password)
 
         # Clean up old password history entries (keep only last 10)
         # This prevents the table from growing indefinitely

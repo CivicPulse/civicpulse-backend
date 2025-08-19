@@ -375,7 +375,6 @@ class PasswordValidatorsTest(TestCase):
             "History entry should contain the current password hash",
         )
 
-
         # Change password - this should create the second password history entry
         user.set_password("SecondPass456!")
         user.save()
@@ -387,7 +386,6 @@ class PasswordValidatorsTest(TestCase):
             2,
             "Should have 2 history entries after first password change",
         )
-
 
         # Change password again - this should create the third password history entry
         user.set_password("ThirdPass789!")
