@@ -65,7 +65,8 @@ class PasswordComplexityValidator:
             (
                 r"(.)\1{2,}",
                 _(
-                    "Password cannot contain 3 or more consecutive identical characters."
+                    "Password cannot contain 3 or more consecutive "
+                    "identical characters."
                 ),
             ),
             (
@@ -138,7 +139,8 @@ class PasswordHistoryValidator:
                 if check_password(password, historical_password):
                     raise ValidationError(
                         _(
-                            f"You cannot reuse any of your last {self.password_history_count} passwords."
+                            f"You cannot reuse any of your last "
+                            f"{self.password_history_count} passwords."
                         ),
                         code="password_reused",
                     )

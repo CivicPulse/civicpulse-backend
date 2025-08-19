@@ -996,7 +996,8 @@ class ContactAttempt(models.Model):
             raise ValidationError(
                 {
                     "follow_up_date": (
-                        "Follow-up date cannot be in the past when follow-up is required."
+                        "Follow-up date cannot be in the past when "
+                        "follow-up is required."
                     )
                 }
             )

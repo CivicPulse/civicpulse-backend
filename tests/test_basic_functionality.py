@@ -23,7 +23,7 @@ class TestBasicFunctionality:
         """Test that admin login page loads."""
         response = client.get("/admin/login/")
         assert response.status_code == 200
-        assert b"Django administration" in response.content
+        assert b"CivicPulse Admin" in response.content
 
     @pytest.mark.django_db
     def test_admin_login_with_superuser(self, admin_user, client: Client):
@@ -98,7 +98,7 @@ class TestDatabase:
         with connection.cursor() as cursor:
             cursor.execute(
                 "SELECT name FROM sqlite_master WHERE type='table' "
-                "AND name='auth_user';"
+                "AND name='users';"
             )
             result = cursor.fetchone()
             assert result is not None

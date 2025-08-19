@@ -46,7 +46,7 @@ class UserModelTest(TestCase):
             "role": "volunteer",
             "organization": "Test Org",
             "phone_number": "+12125551234",
-            "password": "TestP@ssw0rd#24!",
+            "password": "TestS3cur3#24!",
         }
 
     def test_create_user(self):
@@ -57,7 +57,7 @@ class UserModelTest(TestCase):
         self.assertEqual(user.email, "test@example.com")
         self.assertEqual(user.role, "volunteer")
         self.assertEqual(user.organization, "Test Org")
-        self.assertTrue(user.check_password("TestP@ssw0rd#24!"))
+        self.assertTrue(user.check_password("TestS3cur3#24!"))
         self.assertFalse(user.is_verified)  # Default should be False
 
     def test_user_str_representation(self):
@@ -103,7 +103,7 @@ class AuthenticationFormsTest(TestCase):
         self.user = User.objects.create_user(
             username="testuser",
             email="test@example.com",
-            password="TestP@ssw0rd#24!",
+            password="TestS3cur3#24!",
             role="volunteer",
             is_verified=True,
         )
@@ -113,7 +113,7 @@ class AuthenticationFormsTest(TestCase):
         form = SecureLoginForm(
             data={
                 "username": "testuser",
-                "password": "TestP@ssw0rd#24!",
+                "password": "TestS3cur3#24!",
                 "remember_me": False,
             }
         )
@@ -153,8 +153,8 @@ class AuthenticationFormsTest(TestCase):
                 "role": "volunteer",
                 "organization": "",
                 "phone_number": "+12125551234",
-                "password1": "NewP@ssw0rd#24!",
-                "password2": "NewP@ssw0rd#24!",
+                "password1": "Str0ng$3cur3#24!",
+                "password2": "Str0ng$3cur3#24!",
                 "terms_accepted": True,
             }
         )
@@ -170,8 +170,8 @@ class AuthenticationFormsTest(TestCase):
                 "first_name": "New",
                 "last_name": "User",
                 "role": "volunteer",
-                "password1": "NewP@ssw0rd#24!",
-                "password2": "DifferentP@ssw0rd#24!",
+                "password1": "NewS3cur3#24!",
+                "password2": "DifferentS3cur3#24!",
                 "terms_accepted": True,
             }
         )
@@ -188,8 +188,8 @@ class AuthenticationFormsTest(TestCase):
                 "first_name": "New",
                 "last_name": "User",
                 "role": "volunteer",
-                "password1": "NewP@ssw0rd#24!",
-                "password2": "NewP@ssw0rd#24!",
+                "password1": "NewS3cur3#24!",
+                "password2": "NewS3cur3#24!",
                 "terms_accepted": True,
             }
         )
@@ -207,8 +207,8 @@ class AuthenticationFormsTest(TestCase):
                 "last_name": "User",
                 "role": "admin",
                 "organization": "",  # Missing organization
-                "password1": "AdminP@ssw0rd#24!",
-                "password2": "AdminP@ssw0rd#24!",
+                "password1": "AdminS3cur3#24!",
+                "password2": "AdminS3cur3#24!",
                 "terms_accepted": True,
             }
         )
@@ -231,9 +231,9 @@ class AuthenticationFormsTest(TestCase):
         form = PasswordChangeForm(
             user=self.user,
             data={
-                "current_password": "TestP@ssw0rd#24!",
-                "new_password1": "NewTestP@ssw0rd#24!",
-                "new_password2": "NewTestP@ssw0rd#24!",
+                "current_password": "TestS3cur3#24!",
+                "new_password1": "NewTestS3cur3#24!",
+                "new_password2": "NewTestS3cur3#24!",
             },
         )
 
@@ -244,9 +244,9 @@ class AuthenticationFormsTest(TestCase):
         form = PasswordChangeForm(
             user=self.user,
             data={
-                "current_password": "WrongP@ssw0rd#24!",
-                "new_password1": "NewTestP@ssw0rd#24!",
-                "new_password2": "NewTestP@ssw0rd#24!",
+                "current_password": "WrongS3cur3#24!",
+                "new_password1": "NewTestS3cur3#24!",
+                "new_password2": "NewTestS3cur3#24!",
             },
         )
 
@@ -262,7 +262,7 @@ class PasswordValidatorsTest(TestCase):
         validator = PasswordComplexityValidator()
 
         # Should not raise ValidationError
-        validator.validate("StrongP@ssw0rd24!")
+        validator.validate("StrongS3cur324!")
 
     def test_password_complexity_validator_missing_uppercase(self):
         """Test password complexity validator missing uppercase."""
@@ -304,7 +304,7 @@ class PasswordValidatorsTest(TestCase):
         validator = PasswordStrengthValidator(min_entropy=50)
 
         # Strong password should pass
-        validator.validate("VeryStr0ng!P@ssw0rd#2024")
+        validator.validate("VeryStr0ng!S3cur3#2024")
 
         # Weak password should fail
         with self.assertRaises(ValidationError):
@@ -316,10 +316,10 @@ class PasswordValidatorsTest(TestCase):
 
         # Should reject common patterns
         with self.assertRaises(ValidationError):
-            validator.validate("P@ssw0rd#24!")
+            validator.validate("Passw0rd#24!")
 
         with self.assertRaises(ValidationError):
-            validator.validate("P@ssw0rd123!")  # Common substitution
+            validator.validate("Admin123!")  # Common substitution
 
         # Should accept unique passwords
         validator.validate("Gh7$mN9@kL2pQ5!")
@@ -333,7 +333,7 @@ class AuthenticationViewsTest(TestCase):
         self.user = User.objects.create_user(
             username="testuser",
             email="test@example.com",
-            password="TestP@ssw0rd#24!",
+            password="TestS3cur3#24!",
             role="volunteer",
             is_verified=True,
         )
@@ -353,7 +353,7 @@ class AuthenticationViewsTest(TestCase):
             reverse("civicpulse:login"),
             {
                 "username": "testuser",
-                "password": "TestP@ssw0rd#24!",
+                "password": "TestS3cur3#24!",
                 "remember_me": False,
             },
         )
@@ -421,7 +421,7 @@ class AuthenticationViewsTest(TestCase):
     def test_logout_view(self):
         """Test logout functionality."""
         # Login first
-        self.client.login(username="testuser", password="TestP@ssw0rd#24!")
+        self.client.login(username="testuser", password="TestS3cur3#24!")
 
         # Logout using POST
         response = self.client.post(reverse("civicpulse:logout"))
@@ -448,8 +448,8 @@ class AuthenticationViewsTest(TestCase):
                 "role": "volunteer",
                 "organization": "",
                 "phone_number": "+12125551234",
-                "password1": "NewUserP@ssw0rd#24!",
-                "password2": "NewUserP@ssw0rd#24!",
+                "password1": "Str0ng$3cur3#24!",
+                "password2": "Str0ng$3cur3#24!",
                 "terms_accepted": True,
             },
         )
@@ -479,7 +479,7 @@ class AuthenticationViewsTest(TestCase):
     )
     def test_dashboard_view_authenticated(self):
         """Test dashboard view for authenticated user."""
-        self.client.login(username="testuser", password="TestP@ssw0rd#24!")
+        self.client.login(username="testuser", password="TestS3cur3#24!")
 
         response = self.client.get(reverse("civicpulse:dashboard"))
 
@@ -506,7 +506,7 @@ class RoleBasedAccessTest(TestCase):
         self.admin_user = User.objects.create_user(
             username="admin",
             email="admin@example.com",
-            password="AdminP@ssw0rd#24!",
+            password="AdminS3cur3#24!",
             role="admin",
             organization="Test Org",
             is_verified=True,
@@ -515,7 +515,7 @@ class RoleBasedAccessTest(TestCase):
         self.organizer_user = User.objects.create_user(
             username="organizer",
             email="organizer@example.com",
-            password="OrganizerP@ssw0rd#24!",
+            password="OrganizerS3cur3#24!",
             role="organizer",
             organization="Test Org",
             is_verified=True,
@@ -524,7 +524,7 @@ class RoleBasedAccessTest(TestCase):
         self.volunteer_user = User.objects.create_user(
             username="volunteer",
             email="volunteer@example.com",
-            password="VolunteerP@ssw0rd#24!",
+            password="VolunteerS3cur3#24!",
             role="volunteer",
             is_verified=True,
         )
@@ -532,7 +532,7 @@ class RoleBasedAccessTest(TestCase):
         self.viewer_user = User.objects.create_user(
             username="viewer",
             email="viewer@example.com",
-            password="ViewerP@ssw0rd#24!",
+            password="ViewerS3cur3#24!",
             role="viewer",
             is_verified=True,
         )
@@ -573,7 +573,7 @@ class SecurityFeaturesTest(TestCase):
         self.user = User.objects.create_user(
             username="testuser",
             email="test@example.com",
-            password="TestP@ssw0rd#24!",
+            password="TestS3cur3#24!",
             role="volunteer",
             is_verified=True,
         )
@@ -620,7 +620,7 @@ class SecurityFeaturesTest(TestCase):
             reverse("civicpulse:login"),
             {
                 "username": "testuser",
-                "password": "TestP@ssw0rd#24!",
+                "password": "TestS3cur3#24!",
             },
         )
 
@@ -636,7 +636,7 @@ class SecurityFeaturesTest(TestCase):
     def test_session_timeout(self):
         """Test session timeout functionality."""
         # Login
-        self.client.login(username="testuser", password="TestP@ssw0rd#24!")
+        self.client.login(username="testuser", password="TestS3cur3#24!")
 
         # Access dashboard
         response = self.client.get(reverse("civicpulse:dashboard"))
@@ -651,7 +651,10 @@ class SecurityFeaturesTest(TestCase):
         # Should redirect to login due to expired session
         # Note: In practice, this test may need adjustment based on
         # session middleware behavior in test environment
-        # self.assertRedirects(response, f"{reverse('civicpulse:login')}?next={reverse('civicpulse:dashboard')}")
+        # self.assertRedirects(
+        #     response,
+        #     f"{reverse('civicpulse:login')}?next={reverse('civicpulse:dashboard')}"
+        # )
 
 
 class IntegrationTest(TestCase):
@@ -670,8 +673,8 @@ class IntegrationTest(TestCase):
                 "role": "volunteer",
                 "organization": "",
                 "phone_number": "+12125551234",
-                "password1": "IntegrationP@ssw0rd#24!",
-                "password2": "IntegrationP@ssw0rd#24!",
+                "password1": "Str0ng$3cur3#24!",
+                "password2": "Str0ng$3cur3#24!",
                 "terms_accepted": True,
             },
         )
@@ -692,7 +695,7 @@ class IntegrationTest(TestCase):
             reverse("civicpulse:login"),
             {
                 "username": "integrationuser",
-                "password": "IntegrationP@ssw0rd#24!",
+                "password": "Str0ng$3cur3#24!",
             },
         )
 
@@ -708,9 +711,9 @@ class IntegrationTest(TestCase):
         response = self.client.post(
             reverse("civicpulse:password_change"),
             {
-                "current_password": "IntegrationP@ssw0rd#24!",
-                "new_password1": "NewIntegrationP@ssw0rd#24!",
-                "new_password2": "NewIntegrationP@ssw0rd#24!",
+                "current_password": "Str0ng$3cur3#24!",
+                "new_password1": "NewStr0ng$3cur3#24!",
+                "new_password2": "NewStr0ng$3cur3#24!",
             },
         )
 
@@ -730,7 +733,7 @@ class IntegrationTest(TestCase):
             reverse("civicpulse:login"),
             {
                 "username": "integrationuser",
-                "password": "NewIntegrationP@ssw0rd#24!",
+                "password": "NewStr0ng$3cur3#24!",
             },
         )
 
@@ -743,7 +746,7 @@ class IntegrationTest(TestCase):
         user = User.objects.create_user(
             username="resetuser",
             email="reset@example.com",
-            password="OriginalP@ssw0rd#24!",
+            password="OriginalS3cur3#24!",
             role="volunteer",
             is_verified=True,
         )
@@ -794,8 +797,8 @@ class IntegrationTest(TestCase):
         response = self.client.post(
             set_password_url,
             {
-                "new_password1": "NewResetP@ssw0rd#24!",
-                "new_password2": "NewResetP@ssw0rd#24!",
+                "new_password1": "NewStr0ng$3cur3#24!",
+                "new_password2": "NewStr0ng$3cur3#24!",
             },
         )
 
@@ -806,7 +809,7 @@ class IntegrationTest(TestCase):
             reverse("civicpulse:login"),
             {
                 "username": "resetuser",
-                "password": "NewResetP@ssw0rd#24!",
+                "password": "NewStr0ng$3cur3#24!",
             },
         )
 
