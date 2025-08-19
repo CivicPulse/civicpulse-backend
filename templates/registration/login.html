@@ -1,0 +1,175 @@
+{% extends 'base.html' %}
+
+{% block title %}Login - CivicPulse{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-6 col-lg-5">
+                <div class="auth-card">
+                    <div class="card-body p-5">
+                        <!-- Logo/Branding -->
+                        <div class="text-center mb-4">
+                            <h1 class="h3 mb-3 fw-normal">
+                                <i class="bi bi-people-fill text-primary me-2"></i>
+                                CivicPulse
+                            </h1>
+                            <p class="text-muted">Sign in to your account</p>
+                        </div>
+                        
+                        <!-- Rate Limited Message -->
+                        {% if rate_limited %}
+                        <div class="alert alert-danger">
+                            <i class="bi bi-shield-exclamation me-2"></i>
+                            <strong>Account Temporarily Locked</strong><br>
+                            Too many failed login attempts. Please try again later.
+                        </div>
+                        {% endif %}
+                        
+                        <!-- Login Form -->
+                        <form method="post" class="needs-validation" novalidate>
+                            {% csrf_token %}
+                            
+                            <!-- Username/Email Field -->
+                            <div class="mb-3">
+                                <label for="{{ form.username.id_for_label }}" class="form-label">
+                                    {{ form.username.label }}
+                                </label>
+                                {{ form.username }}
+                                {% if form.username.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.username.errors.0 }}
+                                    </div>
+                                {% endif %}
+                                {% if form.username.help_text %}
+                                    <div class="form-text">{{ form.username.help_text }}</div>
+                                {% endif %}
+                            </div>
+                            
+                            <!-- Password Field -->
+                            <div class="mb-3">
+                                <label for="{{ form.password.id_for_label }}" class="form-label">
+                                    {{ form.password.label }}
+                                </label>
+                                <div class="input-group">
+                                    {{ form.password }}
+                                    <button class="btn btn-outline-secondary" type="button" id="togglePassword">
+                                        <i class="bi bi-eye" id="passwordIcon"></i>
+                                    </button>
+                                </div>
+                                {% if form.password.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.password.errors.0 }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                            
+                            <!-- Remember Me -->
+                            <div class="mb-3 form-check">
+                                {{ form.remember_me }}
+                                <label class="form-check-label" for="{{ form.remember_me.id_for_label }}">
+                                    {{ form.remember_me.label }}
+                                </label>
+                            </div>
+                            
+                            <!-- Non-field errors -->
+                            {% if form.non_field_errors %}
+                                <div class="alert alert-danger">
+                                    {% for error in form.non_field_errors %}
+                                        <div>{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                            
+                            <!-- Submit Button -->
+                            <div class="d-grid mb-3">
+                                <button type="submit" class="btn btn-primary btn-lg" {% if rate_limited %}disabled{% endif %}>
+                                    <i class="bi bi-box-arrow-in-right me-2"></i>
+                                    Sign In
+                                </button>
+                            </div>
+                        </form>
+                        
+                        <!-- Additional Links -->
+                        <div class="text-center">
+                            <p class="text-muted mb-3">
+                                <a href="{% url 'civicpulse:password_reset' %}" class="text-decoration-none">
+                                    Forgot your password?
+                                </a>
+                            </p>
+                            
+                            <hr class="my-4">
+                            
+                            <p class="text-muted">
+                                Don't have an account? 
+                                <a href="{% url 'civicpulse:register' %}" class="text-primary text-decoration-none fw-semibold">
+                                    Sign up here
+                                </a>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Security Notice -->
+                <div class="text-center mt-4">
+                    <small class="text-muted">
+                        <i class="bi bi-shield-check me-1"></i>
+                        Your connection is secure and encrypted
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Password toggle functionality
+    const togglePassword = document.getElementById('togglePassword');
+    const passwordField = document.getElementById('{{ form.password.id_for_label }}');
+    const passwordIcon = document.getElementById('passwordIcon');
+    
+    if (togglePassword && passwordField && passwordIcon) {
+        togglePassword.addEventListener('click', function() {
+            const type = passwordField.getAttribute('type') === 'password' ? 'text' : 'password';
+            passwordField.setAttribute('type', type);
+            
+            if (type === 'password') {
+                passwordIcon.className = 'bi bi-eye';
+            } else {
+                passwordIcon.className = 'bi bi-eye-slash';
+            }
+        });
+    }
+    
+    // Focus on first field
+    const usernameField = document.getElementById('{{ form.username.id_for_label }}');
+    if (usernameField) {
+        usernameField.focus();
+    }
+    
+    // Client-side validation
+    const form = document.querySelector('form');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            const username = passwordField = document.getElementById('{{ form.username.id_for_label }}').value.trim();
+            const password = document.getElementById('{{ form.password.id_for_label }}').value;
+            
+            if (!username || !password) {
+                e.preventDefault();
+                
+                if (!username) {
+                    document.getElementById('{{ form.username.id_for_label }}').classList.add('is-invalid');
+                }
+                if (!password) {
+                    document.getElementById('{{ form.password.id_for_label }}').classList.add('is-invalid');
+                }
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

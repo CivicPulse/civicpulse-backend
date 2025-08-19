@@ -2,24 +2,23 @@
 Testing settings for cpback project.
 """
 
-
 from .development import *  # noqa: F403,F401
 
 # Override settings for testing
 DEBUG: bool = False
 
 # Remove debug toolbar from testing
-if 'debug_toolbar' in INSTALLED_APPS:  # noqa: F405
-    INSTALLED_APPS.remove('debug_toolbar')  # noqa: F405
+if "debug_toolbar" in INSTALLED_APPS:  # noqa: F405
+    INSTALLED_APPS.remove("debug_toolbar")  # noqa: F405
 
-if 'debug_toolbar.middleware.DebugToolbarMiddleware' in MIDDLEWARE:  # noqa: F405
-    MIDDLEWARE.remove('debug_toolbar.middleware.DebugToolbarMiddleware')  # noqa: F405
+if "debug_toolbar.middleware.DebugToolbarMiddleware" in MIDDLEWARE:  # noqa: F405
+    MIDDLEWARE.remove("debug_toolbar.middleware.DebugToolbarMiddleware")  # noqa: F405
 
 # Use in-memory database for tests
 DATABASES = {  # noqa: F405
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': ':memory:',
+    "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": ":memory:",
     }
 }
 
@@ -36,24 +35,32 @@ DATABASES = {  # noqa: F405
 
 # Use local memory cache for tests
 CACHES = {  # noqa: F405
-    'default': {
-        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
     }
 }
 
 # Use console email backend for tests
-EMAIL_BACKEND = 'django.core.mail.backends.locmem.EmailBackend'  # noqa: F405
+EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"  # noqa: F405
 
 # Password hashers for faster tests
 PASSWORD_HASHERS: list[str] = [
-    'django.contrib.auth.hashers.MD5PasswordHasher',
+    "django.contrib.auth.hashers.MD5PasswordHasher",
 ]
 
 # Logging for tests - minimal logging
-LOGGING['handlers']['console']['level'] = 'WARNING'  # noqa: F405
-LOGGING['loggers']['civicpulse']['level'] = 'WARNING'  # noqa: F405
+LOGGING["handlers"]["console"]["level"] = "WARNING"  # noqa: F405
+LOGGING["loggers"]["civicpulse"]["level"] = "WARNING"  # noqa: F405
 
 # Security settings can be relaxed for testing
 SECURE_SSL_REDIRECT = False  # noqa: F405
 SESSION_COOKIE_SECURE = False  # noqa: F405
 CSRF_COOKIE_SECURE = False  # noqa: F405
+
+# Override authentication backends for testing to avoid AXES issues
+AUTHENTICATION_BACKENDS = [  # noqa: F405
+    "django.contrib.auth.backends.ModelBackend",
+]
+
+# Disable AXES for testing
+AXES_ENABLED = False  # noqa: F405

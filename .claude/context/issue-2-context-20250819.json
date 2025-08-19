@@ -1,0 +1,103 @@
+{
+  "metadata": {
+    "captured_by": "John Taylor",
+    "date": "2025-08-19",
+    "issue_number": 2,
+    "issue_code": "US-006",
+    "version": "1.0",
+    "priority": "P0 Critical"
+  },
+  "project": {
+    "name": "CivicPulse Backend",
+    "repository": "https://github.com/CivicPulse/civicpulse-backend",
+    "description": "Multi-tenant CRM/CMS platform for nonprofits, civic organizations, and political groups",
+    "architecture": "Modular monolith with multi-tenant support"
+  },
+  "current_state": {
+    "branch": "feature/us-011-django-project-setup",
+    "next_branch": "issue/2-secure-user-authentication",
+    "working_directory": "/home/kwhatcher/projects/civicpulse/civicpulse-backend-issue-2",
+    "base_setup_complete": true,
+    "django_project_status": "configured"
+  },
+  "technology_stack": {
+    "backend": "Django",
+    "database": {
+      "development": "SQLite",
+      "production": "PostgreSQL + PostGIS"
+    },
+    "package_manager": "uv",
+    "testing": "pytest",
+    "linting": "ruff",
+    "type_checking": "mypy",
+    "security": "bandit",
+    "logging": "Loguru"
+  },
+  "authentication_design": {
+    "framework": "Django built-in authentication",
+    "user_model": "Extended Django User",
+    "roles": ["coordinator", "field_worker"],
+    "multi_tenancy": "schema-per-tenant",
+    "security_features": [
+      "password_validation",
+      "session_management", 
+      "account_lockout",
+      "secure_password_reset"
+    ]
+  },
+  "code_standards": {
+    "style_guide": "PEP 8",
+    "line_length": 88,
+    "test_coverage_minimum": 80,
+    "commit_format": "conventional_commits",
+    "linting_required": true
+  },
+  "agent_context": {
+    "current_agent": "Grace Davis",
+    "role": "Authentication System Implementation",
+    "status": "active",
+    "previous_work": ["US-011 Django project setup"]
+  },
+  "immediate_tasks": [
+    "Implement Django authentication framework",
+    "Create User model extensions for roles",
+    "Build login/logout views and templates",
+    "Implement password validation",
+    "Add session security middleware",
+    "Create password reset flow",
+    "Write comprehensive tests"
+  ],
+  "development_workflow": [
+    "Use uv for Python package management",
+    "Run ruff linting before commits",
+    "Ensure tests pass with 80%+ coverage",
+    "Work on feature branches, not main",
+    "Use GitHub MCP server for GitHub operations",
+    "Never push to GitHub unless requested"
+  ],
+  "key_commands": {
+    "package_management": [
+      "uv add <package>",
+      "uv add --dev <package>",
+      "uv remove <package>"
+    ],
+    "django": [
+      "uv run python manage.py runserver",
+      "uv run python manage.py makemigrations",
+      "uv run python manage.py migrate"
+    ],
+    "testing": [
+      "uv run pytest",
+      "uv run ruff check .",
+      "uv run ruff format ."
+    ]
+  },
+  "critical_notes": [
+    "Never commit .env files",
+    "Always lint with ruff before commits", 
+    "Use GitHub MCP server for GitHub operations",
+    "Maintain 80% test coverage minimum",
+    "Follow conventional commit messages",
+    "Work on feature branches only"
+  ]
+}

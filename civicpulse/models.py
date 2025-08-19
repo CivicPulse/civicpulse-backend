@@ -14,12 +14,57 @@ from phonenumbers import NumberParseException
 
 # US State codes - moved to module level constant for better maintainability
 VALID_US_STATE_CODES = [
-    "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA",
-    "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD",
-    "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ",
-    "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC",
-    "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY",
-    "DC"  # District of Columbia
+    "AL",
+    "AK",
+    "AZ",
+    "AR",
+    "CA",
+    "CO",
+    "CT",
+    "DE",
+    "FL",
+    "GA",
+    "HI",
+    "ID",
+    "IL",
+    "IN",
+    "IA",
+    "KS",
+    "KY",
+    "LA",
+    "ME",
+    "MD",
+    "MA",
+    "MI",
+    "MN",
+    "MS",
+    "MO",
+    "MT",
+    "NE",
+    "NV",
+    "NH",
+    "NJ",
+    "NM",
+    "NY",
+    "NC",
+    "ND",
+    "OH",
+    "OK",
+    "OR",
+    "PA",
+    "RI",
+    "SC",
+    "SD",
+    "TN",
+    "TX",
+    "UT",
+    "VT",
+    "VA",
+    "WA",
+    "WV",
+    "WI",
+    "WY",
+    "DC",  # District of Columbia
 ]
 
 
@@ -47,15 +92,11 @@ def validate_phone_number(phone_number: str) -> None:
 
         # Check if it's a possible number first (basic format check)
         if not phonenumbers.is_possible_number(parsed_number):
-            raise ValidationError(
-                f"'{phone_number}' is not a possible phone number."
-            )
+            raise ValidationError(f"'{phone_number}' is not a possible phone number.")
 
         # Check if the number is valid (more strict check)
         if not phonenumbers.is_valid_number(parsed_number):
-            raise ValidationError(
-                f"'{phone_number}' is not a valid phone number."
-            )
+            raise ValidationError(f"'{phone_number}' is not a valid phone number.")
 
     except NumberParseException as e:
         error_messages = {
@@ -65,7 +106,7 @@ def validate_phone_number(phone_number: str) -> None:
             NumberParseException.TOO_SHORT_AFTER_IDD: (
                 "Phone number is too short after country code."
             ),
-            NumberParseException.TOO_LONG: "Phone number is too long."
+            NumberParseException.TOO_LONG: "Phone number is too long.",
         }
         message = error_messages.get(e.error_type, "Invalid phone number format.")
         raise ValidationError(f"'{phone_number}' - {message}") from e
@@ -86,12 +127,10 @@ def validate_voter_id(voter_id: str) -> None:
 
     # Basic length check - adjust based on your state's requirements
     if len(voter_id) < 3 or len(voter_id) > 50:
-        raise ValidationError(
-            "Voter ID must be between 3 and 50 characters long."
-        )
+        raise ValidationError("Voter ID must be between 3 and 50 characters long.")
 
     # Check for valid characters (alphanumeric and basic symbols)
-    if not re.match(r'^[A-Za-z0-9\-_]+$', voter_id):
+    if not re.match(r"^[A-Za-z0-9\-_]+$", voter_id):
         raise ValidationError(
             "Voter ID can only contain letters, numbers, hyphens, and underscores."
         )
@@ -111,7 +150,7 @@ def validate_zip_code(zip_code: str) -> None:
         return  # Allow empty ZIP codes
 
     # Match 5-digit or 9-digit (ZIP+4) format
-    if not re.match(r'^\d{5}(-\d{4})?$', zip_code):
+    if not re.match(r"^\d{5}(-\d{4})?$", zip_code):
         raise ValidationError(
             f"'{zip_code}' is not a valid US ZIP code format. "
             "Use XXXXX or XXXXX-XXXX format."
@@ -133,14 +172,14 @@ def sanitize_text_field(value: str) -> str:
 
     # Remove script tags and their content completely
     value = re.sub(
-        r'<script[^>]*>.*?</script>', '', value, flags=re.IGNORECASE | re.DOTALL
+        r"<script[^>]*>.*?</script>", "", value, flags=re.IGNORECASE | re.DOTALL
     )
 
     # Strip remaining HTML tags
     value = strip_tags(value)
 
     # Remove null bytes and other control characters
-    value = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', '', value)
+    value = re.sub(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]", "", value)
 
     # Limit length to prevent DoS attacks
     if len(value) > 10000:  # Reasonable limit for text fields
@@ -165,18 +204,16 @@ def validate_text_content(value: str, field_name: str = "field") -> None:
 
     # Check for suspicious patterns
     suspicious_patterns = [
-        r'<script[^>]*>',  # Script tags
-        r'javascript:',     # JavaScript URLs
-        r'data:',          # Data URLs
-        r'vbscript:',      # VBScript URLs
-        r'on\w+\s*=\s*["\']?',      # Event handlers (more robust)
+        r"<script[^>]*>",  # Script tags
+        r"javascript:",  # JavaScript URLs
+        r"data:",  # Data URLs
+        r"vbscript:",  # VBScript URLs
+        r'on\w+\s*=\s*["\']?',  # Event handlers (more robust)
     ]
 
     for pattern in suspicious_patterns:
         if re.search(pattern, value, re.IGNORECASE):
-            raise ValidationError(
-                f"Suspicious content detected in {field_name}."
-            )
+            raise ValidationError(f"Suspicious content detected in {field_name}.")
 
 
 class PersonManager(models.Manager):
@@ -196,17 +233,17 @@ class PersonManager(models.Manager):
 
     def with_voter_records(self) -> QuerySet:
         """Return persons with their voter records pre-fetched."""
-        return self.select_related('voter_record')
+        return self.select_related("voter_record")
 
     def with_recent_contacts(self, days: int = 30) -> QuerySet:
         """Return persons with recent contact attempts pre-fetched."""
-        return self.prefetch_related('contact_attempts')
+        return self.prefetch_related("contact_attempts")
 
     def active_voters(self) -> QuerySet:
         """Return persons who are active voters."""
-        return self.filter(
-            voter_record__registration_status='active'
-        ).select_related('voter_record')
+        return self.filter(voter_record__registration_status="active").select_related(
+            "voter_record"
+        )
 
     def by_location(self, state: str = None, zip_code: str = None) -> QuerySet:
         """Filter persons by location."""
@@ -224,9 +261,9 @@ class PersonManager(models.Manager):
 
         search_term = search_term.strip()
         return self.filter(
-            Q(first_name__icontains=search_term) |
-            Q(last_name__icontains=search_term) |
-            Q(middle_name__icontains=search_term)
+            Q(first_name__icontains=search_term)
+            | Q(last_name__icontains=search_term)
+            | Q(middle_name__icontains=search_term)
         ).distinct()
 
     def by_age_range(self, min_age: int = None, max_age: int = None) -> QuerySet:
@@ -251,9 +288,7 @@ class PersonManager(models.Manager):
     def with_contact_in_period(self, days: int = 30) -> QuerySet:
         """Return persons contacted in the last N days."""
         cutoff_date = timezone.now() - timezone.timedelta(days=days)
-        return self.filter(
-            contact_attempts__contact_date__gte=cutoff_date
-        ).distinct()
+        return self.filter(contact_attempts__contact_date__gte=cutoff_date).distinct()
 
 
 class VoterRecordManager(models.Manager):
@@ -261,19 +296,19 @@ class VoterRecordManager(models.Manager):
 
     def with_person_details(self) -> QuerySet:
         """Return voter records with person details pre-fetched."""
-        return self.select_related('person')
+        return self.select_related("person")
 
     def active_voters(self) -> QuerySet:
         """Return only active voter registrations."""
-        return self.filter(registration_status='active').select_related('person')
+        return self.filter(registration_status="active").select_related("person")
 
     def by_party(self, party: str) -> QuerySet:
         """Filter by party affiliation."""
-        return self.filter(party_affiliation=party).select_related('person')
+        return self.filter(party_affiliation=party).select_related("person")
 
     def high_frequency_voters(self, min_score: int = 70) -> QuerySet:
         """Return voters with high voting frequency."""
-        return self.filter(voter_score__gte=min_score).select_related('person')
+        return self.filter(voter_score__gte=min_score).select_related("person")
 
 
 class ContactAttemptManager(models.Manager):
@@ -281,30 +316,29 @@ class ContactAttemptManager(models.Manager):
 
     def with_related(self) -> QuerySet:
         """Return contact attempts with person and contacted_by pre-fetched."""
-        return self.select_related('person', 'contacted_by')
+        return self.select_related("person", "contacted_by")
 
     def successful_contacts(self) -> QuerySet:
         """Return only successful contact attempts."""
         return self.filter(
-            result__in=['contacted', 'left_message', 'callback']
-        ).select_related('person', 'contacted_by')
+            result__in=["contacted", "left_message", "callback"]
+        ).select_related("person", "contacted_by")
 
     def requiring_followup(self) -> QuerySet:
         """Return contacts that require follow-up."""
         return self.filter(
-            follow_up_required=True,
-            follow_up_date__gte=timezone.now().date()
-        ).select_related('person', 'contacted_by')
+            follow_up_required=True, follow_up_date__gte=timezone.now().date()
+        ).select_related("person", "contacted_by")
 
     def by_campaign(self, campaign: str) -> QuerySet:
         """Filter by campaign."""
-        return self.filter(campaign=campaign).select_related('person', 'contacted_by')
+        return self.filter(campaign=campaign).select_related("person", "contacted_by")
 
     def positive_sentiment(self) -> QuerySet:
         """Return contacts with positive sentiment."""
-        return self.filter(
-            sentiment__in=['strong_support', 'support']
-        ).select_related('person', 'contacted_by')
+        return self.filter(sentiment__in=["strong_support", "support"]).select_related(
+            "person", "contacted_by"
+        )
 
 
 class User(AbstractUser):
@@ -343,11 +377,13 @@ class User(AbstractUser):
 
         # Validate organization is required for certain roles
         if self.role in ["admin", "organizer"] and not self.organization.strip():
-            raise ValidationError({
-                "organization": (
-                    "Organization is required for admin and organizer roles."
-                )
-            })
+            raise ValidationError(
+                {
+                    "organization": (
+                        "Organization is required for admin and organizer roles."
+                    )
+                }
+            )
 
     def __str__(self) -> str:
         return f"{self.username} ({self.role})"
@@ -443,8 +479,11 @@ class Person(models.Model):
     is_active = models.BooleanField(default=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
     deleted_by = models.ForeignKey(
-        User, on_delete=models.SET_NULL, null=True,
-        related_name="persons_deleted", blank=True
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="persons_deleted",
+        blank=True,
     )
 
     # Custom manager
@@ -475,12 +514,22 @@ class Person(models.Model):
         super().clean()
 
         # Sanitize text fields first, then validate
-        text_fields = ['first_name', 'middle_name', 'last_name', 'suffix',
-                      'street_address', 'apartment_number', 'city', 'county',
-                      'occupation', 'employer', 'notes']
+        text_fields = [
+            "first_name",
+            "middle_name",
+            "last_name",
+            "suffix",
+            "street_address",
+            "apartment_number",
+            "city",
+            "county",
+            "occupation",
+            "employer",
+            "notes",
+        ]
 
         for field_name in text_fields:
-            value = getattr(self, field_name, '')
+            value = getattr(self, field_name, "")
             if value:
                 # Sanitize the content first
                 sanitized_value = sanitize_text_field(value)
@@ -494,38 +543,39 @@ class Person(models.Model):
 
         # Validate date of birth is not in the future
         if self.date_of_birth and self.date_of_birth > timezone.now().date():
-            raise ValidationError({
-                "date_of_birth": "Date of birth cannot be in the future."
-            })
+            raise ValidationError(
+                {"date_of_birth": "Date of birth cannot be in the future."}
+            )
 
         # Validate age is reasonable (not older than 150 years)
         if self.date_of_birth:
             today = timezone.now().date()
             age = today.year - self.date_of_birth.year
             if age > 150:
-                raise ValidationError({
-                    "date_of_birth": "Date of birth indicates an unrealistic age."
-                })
+                raise ValidationError(
+                    {"date_of_birth": "Date of birth indicates an unrealistic age."}
+                )
 
         # Validate state is a valid US state code if provided
         if self.state:
             if self.state.upper() not in VALID_US_STATE_CODES:
-                raise ValidationError({
-                    "state": f"'{self.state}' is not a valid US state code."
-                })
+                raise ValidationError(
+                    {"state": f"'{self.state}' is not a valid US state code."}
+                )
 
         # Validate email domain if provided
-        if self.email and '@' in self.email:
-            domain = self.email.split('@')[-1].lower()
+        if self.email and "@" in self.email:
+            domain = self.email.split("@")[-1].lower()
             # Check for suspicious domains - configurable via settings
             suspicious_domains = getattr(
-                settings, 'SUSPICIOUS_EMAIL_DOMAINS',
-                ['example.com', 'test.com', 'localhost']
+                settings,
+                "SUSPICIOUS_EMAIL_DOMAINS",
+                ["example.com", "test.com", "localhost"],
             )
             if domain in suspicious_domains:
-                raise ValidationError({
-                    "email": f"Email domain '{domain}' is not allowed."
-                })
+                raise ValidationError(
+                    {"email": f"Email domain '{domain}' is not allowed."}
+                )
 
     @property
     def full_name(self) -> str:
@@ -544,9 +594,13 @@ class Person(models.Model):
         if not self.date_of_birth:
             return None
         today = timezone.now().date()
-        return today.year - self.date_of_birth.year - (
-            (today.month, today.day) <
-            (self.date_of_birth.month, self.date_of_birth.day)
+        return (
+            today.year
+            - self.date_of_birth.year
+            - (
+                (today.month, today.day)
+                < (self.date_of_birth.month, self.date_of_birth.day)
+            )
         )
 
     def get_formatted_phone_primary(self, format_type: str = "national") -> str:
@@ -587,7 +641,7 @@ class Person(models.Model):
             filters |= Q(
                 first_name__iexact=self.first_name,
                 last_name__iexact=self.last_name,
-                date_of_birth=self.date_of_birth
+                date_of_birth=self.date_of_birth,
             )
 
         # Same email (if provided)
@@ -608,7 +662,7 @@ class Person(models.Model):
                 first_name__iexact=self.first_name,
                 last_name__iexact=self.last_name,
                 street_address__iexact=self.street_address,
-                zip_code=self.zip_code
+                zip_code=self.zip_code,
             )
 
         queryset = Person.objects.filter(filters)
@@ -619,7 +673,7 @@ class Person(models.Model):
 
         return queryset.distinct()
 
-    def soft_delete(self, user: Optional['User'] = None) -> None:
+    def soft_delete(self, user: Optional["User"] = None) -> None:
         """
         Soft delete this person.
 
@@ -629,14 +683,14 @@ class Person(models.Model):
         self.is_active = False
         self.deleted_at = timezone.now()
         self.deleted_by = user
-        self.save(update_fields=['is_active', 'deleted_at', 'deleted_by'])
+        self.save(update_fields=["is_active", "deleted_at", "deleted_by"])
 
     def restore(self) -> None:
         """Restore a soft-deleted person."""
         self.is_active = True
         self.deleted_at = None
         self.deleted_by = None
-        self.save(update_fields=['is_active', 'deleted_at', 'deleted_by'])
+        self.save(update_fields=["is_active", "deleted_at", "deleted_by"])
 
     def _format_phone_number(
         self, phone_number: str, format_type: str = "national"
@@ -769,28 +823,31 @@ class VoterRecord(models.Model):
 
         # Validate registration date is not in the future
         if self.registration_date and self.registration_date > timezone.now().date():
-            raise ValidationError({
-                "registration_date": "Registration date cannot be in the future."
-            })
+            raise ValidationError(
+                {"registration_date": "Registration date cannot be in the future."}
+            )
 
         # Validate last voted date is not in the future
         if self.last_voted_date and self.last_voted_date > timezone.now().date():
-            raise ValidationError({
-                "last_voted_date": "Last voted date cannot be in the future."
-            })
+            raise ValidationError(
+                {"last_voted_date": "Last voted date cannot be in the future."}
+            )
 
         # Validate voter score is within reasonable range
         if not (0 <= self.voter_score <= 100):
-            raise ValidationError({
-                "voter_score": "Voter score must be between 0 and 100."
-            })
+            raise ValidationError(
+                {"voter_score": "Voter score must be between 0 and 100."}
+            )
 
         # Validate mail ballot dates are logical
-        if (self.mail_ballot_sent_date and self.mail_ballot_returned_date and
-                self.mail_ballot_sent_date > self.mail_ballot_returned_date):
-            raise ValidationError({
-                "mail_ballot_returned_date": "Return date cannot be before sent date."
-            })
+        if (
+            self.mail_ballot_sent_date
+            and self.mail_ballot_returned_date
+            and self.mail_ballot_sent_date > self.mail_ballot_returned_date
+        ):
+            raise ValidationError(
+                {"mail_ballot_returned_date": "Return date cannot be before sent date."}
+            )
 
     @property
     def voting_frequency(self) -> str:
@@ -902,9 +959,9 @@ class ContactAttempt(models.Model):
         super().clean()
 
         # Sanitize text fields first, then validate
-        text_fields = ['notes', 'campaign', 'event']
+        text_fields = ["notes", "campaign", "event"]
         for field_name in text_fields:
-            value = getattr(self, field_name, '')
+            value = getattr(self, field_name, "")
             if value:
                 # Sanitize the content first
                 sanitized_value = sanitize_text_field(value)
@@ -914,39 +971,44 @@ class ContactAttempt(models.Model):
 
         # Validate contact date is not in the future
         if self.contact_date and self.contact_date > timezone.now():
-            raise ValidationError({
-                "contact_date": "Contact date cannot be in the future."
-            })
+            raise ValidationError(
+                {"contact_date": "Contact date cannot be in the future."}
+            )
 
         # Validate contact date is not too far in the past (e.g., 10 years)
         if self.contact_date:
             ten_years_ago = timezone.now() - timezone.timedelta(days=3650)
             if self.contact_date < ten_years_ago:
-                raise ValidationError({
-                    "contact_date": (
-                        "Contact date seems unreasonably old (over 10 years)."
-                    )
-                })
+                raise ValidationError(
+                    {
+                        "contact_date": (
+                            "Contact date seems unreasonably old (over 10 years)."
+                        )
+                    }
+                )
 
         # Validate follow-up date is not in the past if follow-up is required
-        if (self.follow_up_required and self.follow_up_date and
-            self.follow_up_date < timezone.now().date()):
-            raise ValidationError({
-                "follow_up_date": (
-                    "Follow-up date cannot be in the past when follow-up is required."
-                )
-            })
+        if (
+            self.follow_up_required
+            and self.follow_up_date
+            and self.follow_up_date < timezone.now().date()
+        ):
+            raise ValidationError(
+                {
+                    "follow_up_date": (
+                        "Follow-up date cannot be in the past when follow-up is required."
+                    )
+                }
+            )
 
         # Validate duration is reasonable
         if self.duration_minutes is not None and self.duration_minutes < 0:
-            raise ValidationError({
-                "duration_minutes": "Duration cannot be negative."
-            })
+            raise ValidationError({"duration_minutes": "Duration cannot be negative."})
 
         if self.duration_minutes is not None and self.duration_minutes > 480:
-            raise ValidationError({
-                "duration_minutes": "Duration seems unreasonably long (over 8 hours)."
-            })
+            raise ValidationError(
+                {"duration_minutes": "Duration seems unreasonably long (over 8 hours)."}
+            )
 
         # Validate JSON fields for security
         if self.issues_discussed:

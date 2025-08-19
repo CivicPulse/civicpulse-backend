@@ -12,6 +12,7 @@ dependencies = [
     "bandit>=1.8.6",
     "django-stubs>=5.2.2",
     "phonenumbers>=9.0.12",
+    "django-axes>=8.0.0",
 ]
 
 [project.optional-dependencies]
@@ -71,7 +72,6 @@ addopts = [
     "--cov-report=term-missing",
     "--cov-fail-under=50",
     "--ignore=migrations",
-    "--reuse-db",
 ]
 
 [tool.bandit]
