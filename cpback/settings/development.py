@@ -3,6 +3,7 @@ Development settings for cpback project.
 """
 
 import sys
+
 import environ
 
 from .base import *
@@ -39,7 +40,7 @@ MIDDLEWARE.insert(0, "debug_toolbar.middleware.DebugToolbarMiddleware")
 INTERNAL_IPS: list[str] = ["127.0.0.1", "localhost"]
 
 # Debug Toolbar configuration
-IS_RUNNING_TESTS = 'test' in sys.argv
+IS_RUNNING_TESTS = "test" in sys.argv
 
 DEBUG_TOOLBAR_CONFIG: dict = {
     "SHOW_TOOLBAR_CALLBACK": lambda request: DEBUG,

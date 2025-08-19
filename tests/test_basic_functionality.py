@@ -37,7 +37,7 @@ class TestBasicFunctionality:
         assert b'name="password"' in response.content
         assert b'<input type="submit"' in response.content
 
-    @patch.object(User.objects, 'create_user')
+    @patch.object(User.objects, "create_user")
     def test_create_user(self, mock_create_user):
         """Test user creation works."""
         # Mock user object
@@ -67,7 +67,7 @@ class TestBasicFunctionality:
         assert not user.is_staff
         assert not user.is_superuser
 
-    @patch.object(User.objects, 'create_superuser')
+    @patch.object(User.objects, "create_superuser")
     def test_create_superuser(self, mock_create_superuser):
         """Test superuser creation works."""
         # Mock superuser object
@@ -122,7 +122,7 @@ class TestStaticAndMediaFiles:
 class TestDatabase:
     """Test database functionality."""
 
-    @patch.object(User.objects, 'count')
+    @patch.object(User.objects, "count")
     def test_database_connection(self, mock_count):
         """Test database connection works with mocked count."""
         # Mock the count method to return a reasonable value
@@ -136,8 +136,8 @@ class TestDatabase:
         assert isinstance(user_count, int)
         assert user_count == 5
 
-    @patch.object(User.objects, 'count')
-    @patch.object(User.objects, 'create_user')
+    @patch.object(User.objects, "count")
+    @patch.object(User.objects, "create_user")
     def test_database_tables_exist(self, mock_create_user, mock_count):
         """Test that database tables are properly created and accessible with mocks."""
         # Mock initial count
@@ -157,16 +157,12 @@ class TestDatabase:
 
         # Test user creation
         user = User.objects.create_user(
-            username="testuser",
-            email="test@example.com",
-            password="testpass123"
+            username="testuser", email="test@example.com", password="testpass123"
         )
 
         # Verify creation was called correctly
         mock_create_user.assert_called_once_with(
-            username="testuser",
-            email="test@example.com",
-            password="testpass123"
+            username="testuser", email="test@example.com", password="testpass123"
         )
 
         # Verify user properties

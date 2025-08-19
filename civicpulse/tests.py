@@ -70,11 +70,11 @@ class UserModelTest(TestCase):
         # Valid phone numbers - various formats
         valid_numbers = [
             "+1 212 555 1234",  # International format
-            "(212) 555-1234",   # US format with parentheses
-            "212-555-1234",     # US format with dashes
-            "2125551234",       # Plain digits
-            "+12125551234",     # E164 format
-            "212.555.1234",     # Dots format
+            "(212) 555-1234",  # US format with parentheses
+            "212-555-1234",  # US format with dashes
+            "2125551234",  # Plain digits
+            "+12125551234",  # E164 format
+            "212.555.1234",  # Dots format
         ]
         for number in valid_numbers:
             user.phone_number = number
@@ -82,11 +82,11 @@ class UserModelTest(TestCase):
 
         # Invalid phone numbers
         invalid_numbers = [
-            "123",          # Too short
-            "abc123def",    # Contains letters
-            "123456789012345", # Genuinely too long
-            "0000000000",   # Invalid number pattern
-            "1234567890",   # Invalid: area code 123 is not assigned in NANP
+            "123",  # Too short
+            "abc123def",  # Contains letters
+            "123456789012345",  # Genuinely too long
+            "0000000000",  # Invalid number pattern
+            "1234567890",  # Invalid: area code 123 is not assigned in NANP
         ]
         for number in invalid_numbers:
             user.phone_number = number
@@ -98,8 +98,7 @@ class UserModelTest(TestCase):
     def test_phone_number_formatting(self):
         """Test phone number formatting functionality."""
         user = User.objects.create_user(
-            username="testuser4",
-            phone_number="+12125551234"
+            username="testuser4", phone_number="+12125551234"
         )
 
         # Test different format types
@@ -219,9 +218,7 @@ class PersonModelTest(TestCase):
     def test_person_age_property(self):
         """Test the age property calculation."""
         person = Person.objects.create(
-            first_name="Test",
-            last_name="User",
-            date_of_birth=date(1990, 1, 1)
+            first_name="Test", last_name="User", date_of_birth=date(1990, 1, 1)
         )
         age = person.age
         expected_age = timezone.now().date().year - 1990
@@ -265,7 +262,7 @@ class PersonModelTest(TestCase):
             first_name="John",
             last_name="Doe",
             phone_primary="+12125551234",
-            phone_secondary="+13035551234"  # Use valid Denver area code
+            phone_secondary="+13035551234",  # Use valid Denver area code
         )
 
         # Test primary phone formatting
@@ -657,6 +654,7 @@ class PersonManagerTest(TestCase):
         """Test age range filtering."""
         # Create person with specific age
         from datetime import date
+
         birth_date = date(1990, 1, 1)
         person = Person.objects.create(
             first_name="Age", last_name="Test", date_of_birth=birth_date
@@ -675,7 +673,7 @@ class PersonValidationTest(TestCase):
         person = Person(
             first_name="John<b>Bold</b>",
             last_name="Doe<em>Italic</em>",
-            notes="Some notes with <b>HTML</b> tags and <i>italics</i>"
+            notes="Some notes with <b>HTML</b> tags and <i>italics</i>",
         )
         person.clean()
 
@@ -686,9 +684,7 @@ class PersonValidationTest(TestCase):
     def test_suspicious_content_detection(self):
         """Test that suspicious content is detected."""
         person = Person(
-            first_name="John",
-            last_name="Doe",
-            notes="onclick=malicious() content"
+            first_name="John", last_name="Doe", notes="onclick=malicious() content"
         )
 
         with self.assertRaises(ValidationError) as cm:
@@ -698,10 +694,11 @@ class PersonValidationTest(TestCase):
     def test_age_validation(self):
         """Test age validation."""
         from datetime import date
+
         person = Person(
             first_name="Old",
             last_name="Person",
-            date_of_birth=date(1800, 1, 1)  # Over 200 years old
+            date_of_birth=date(1800, 1, 1),  # Over 200 years old
         )
 
         with self.assertRaises(ValidationError) as cm:
@@ -713,7 +710,7 @@ class PersonValidationTest(TestCase):
         person = Person(
             first_name="Test",
             last_name="User",
-            email="user@test.com"  # Suspicious domain
+            email="user@test.com",  # Suspicious domain
         )
 
         with self.assertRaises(ValidationError) as cm:
@@ -745,9 +742,7 @@ class SoftDeleteTest(TestCase):
         self.user = User.objects.create_user(
             username="deleter", email="deleter@example.com"
         )
-        self.person = Person.objects.create(
-            first_name="Delete", last_name="Test"
-        )
+        self.person = Person.objects.create(first_name="Delete", last_name="Test")
 
     def test_soft_delete(self):
         """Test soft delete functionality."""
@@ -781,15 +776,13 @@ class DuplicateDetectionTest(TestCase):
             last_name="Doe",
             email="john@example.com",
             phone_primary="+12125551234",
-            date_of_birth=date(1980, 1, 1)
+            date_of_birth=date(1980, 1, 1),
         )
 
     def test_duplicate_by_name_and_dob(self):
         """Test duplicate detection by name and DOB."""
         duplicate = Person(
-            first_name="John",
-            last_name="Doe",
-            date_of_birth=date(1980, 1, 1)
+            first_name="John", last_name="Doe", date_of_birth=date(1980, 1, 1)
         )
 
         duplicates = duplicate.get_potential_duplicates()
@@ -800,7 +793,7 @@ class DuplicateDetectionTest(TestCase):
         duplicate = Person(
             first_name="Jane",
             last_name="Smith",
-            email="john@example.com"  # Same email
+            email="john@example.com",  # Same email
         )
 
         duplicates = duplicate.get_potential_duplicates()
@@ -811,7 +804,7 @@ class DuplicateDetectionTest(TestCase):
         duplicate = Person(
             first_name="Jane",
             last_name="Smith",
-            phone_primary="+12125551234"  # Same phone
+            phone_primary="+12125551234",  # Same phone
         )
 
         duplicates = duplicate.get_potential_duplicates()
@@ -848,9 +841,7 @@ class ContactAttemptSecurityTest(TestCase):
         self.user = User.objects.create_user(
             username="contactor", email="contactor@example.com"
         )
-        self.person = Person.objects.create(
-            first_name="Contact", last_name="Test"
-        )
+        self.person = Person.objects.create(first_name="Contact", last_name="Test")
 
     def test_notes_sanitization(self):
         """Test that notes are sanitized."""
@@ -860,7 +851,7 @@ class ContactAttemptSecurityTest(TestCase):
             contact_date=timezone.now(),
             contacted_by=self.user,
             result="contacted",
-            notes="<script>alert('xss')</script>Good conversation"
+            notes="<script>alert('xss')</script>Good conversation",
         )
         contact.clean()
 
@@ -874,7 +865,7 @@ class ContactAttemptSecurityTest(TestCase):
             contact_date=timezone.now(),
             contacted_by=self.user,
             result="contacted",
-            issues_discussed=["healthcare", "<script>alert('xss')</script>"]
+            issues_discussed=["healthcare", "<script>alert('xss')</script>"],
         )
 
         with self.assertRaises(ValidationError):
@@ -882,13 +873,13 @@ class ContactAttemptSecurityTest(TestCase):
 
     def test_old_contact_date_validation(self):
         """Test validation of very old contact dates."""
-        old_date = timezone.now() - timezone.timedelta(days=4000)  # Over 10 years
+        old_date = timezone.now() - timedelta(days=4000)  # Over 10 years
         contact = ContactAttempt(
             person=self.person,
             contact_type="phone",
             contact_date=old_date,
             contacted_by=self.user,
-            result="contacted"
+            result="contacted",
         )
 
         with self.assertRaises(ValidationError) as cm:
