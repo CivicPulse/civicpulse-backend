@@ -1,4 +1,9 @@
-docs/*
+# Auto-generated docs
+docs/_build/
+docs/api/generated/
+
+# But keep our documentation
+!docs/development/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
