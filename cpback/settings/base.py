@@ -81,8 +81,12 @@ MIDDLEWARE: list[str] = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    # Current user middleware - stores user in thread-local storage for audit trail
+    "civicpulse.middleware.current_user.CurrentUserMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    # Audit middleware - tracks all HTTP requests and user actions
+    "civicpulse.middleware.audit.AuditMiddleware",
 ]
 
 ROOT_URLCONF: str = "cpback.urls"
@@ -155,6 +159,24 @@ DEFAULT_AUTO_FIELD: str = "django.db.models.BigAutoField"
 
 # Custom User Model
 AUTH_USER_MODEL = "civicpulse.User"
+
+# Email Configuration
+# Default email settings (can be overridden in environment-specific settings)
+EMAIL_BACKEND = env("EMAIL_BACKEND", default="django.core.mail.backends.smtp.EmailBackend")
+EMAIL_HOST = env("EMAIL_HOST", default="localhost")
+EMAIL_PORT = env("EMAIL_PORT", default=587, cast=int)
+EMAIL_USE_TLS = env("EMAIL_USE_TLS", default=True, cast=bool)
+EMAIL_USE_SSL = env("EMAIL_USE_SSL", default=False, cast=bool)
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="noreply@civicpulse.com")
+SERVER_EMAIL = env("SERVER_EMAIL", default="admin@civicpulse.com")
+
+# Admin notification settings
+ADMINS = [
+    ("CivicPulse Admin", env("ADMIN_EMAIL", default="admin@civicpulse.com")),
+]
+MANAGERS = ADMINS
 
 # Ensure logs directory exists
 logs_dir = BASE_DIR / "logs"

@@ -22,8 +22,8 @@ from django.urls import include, path
 
 urlpatterns: list = [
     path("admin/", admin.site.urls),
-    # Add app URLs here as they are created
-    # path('api/', include('civicpulse.urls')),
+    # CivicPulse app URLs
+    path("", include("civicpulse.urls")),
 ]
 
 # Serve static and media files in development

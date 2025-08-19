@@ -65,3 +65,6 @@ LOGGING["loggers"]["civicpulse"]["level"] = "WARNING"  # noqa: F405
 SECURE_SSL_REDIRECT = False  # noqa: F405
 SESSION_COOKIE_SECURE = False  # noqa: F405
 CSRF_COOKIE_SECURE = False  # noqa: F405
+
+# Allow all email domains for testing
+SUSPICIOUS_EMAIL_DOMAINS = []  # noqa: F405

@@ -5,11 +5,17 @@ This module provides comprehensive admin interface configuration for all models
 including custom admin classes, list displays, filters, and inline editing.
 """
 
+from datetime import timedelta
+
 from django.contrib import admin
+from django.contrib.admin import DateFieldListFilter
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+from django.http import HttpResponse
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.html import format_html
 
+from .audit import AuditLog
 from .models import ContactAttempt, Person, User, VoterRecord
 
 
@@ -583,6 +589,544 @@ class ContactAttemptAdmin(admin.ModelAdmin):
         self.message_user(request, f"{positive_contacts.count()} supporters tagged.")
 
     actions = ["mark_for_followup", "mark_positive_sentiment"]
+
+
+@admin.register(AuditLog)
+class AuditLogAdmin(admin.ModelAdmin):
+    """
+    Admin configuration for AuditLog model.
+
+    Provides read-only access to audit logs with comprehensive
+    search and filtering capabilities.
+    """
+
+    # Fields to display in the list view
+    list_display = (
+        "timestamp",
+        "action_display",
+        "user_link",
+        "object_display",
+        "category_badge",
+        "severity_badge",
+        "ip_address",
+        "changes_summary",
+    )
+
+    # Fields to filter by
+    list_filter = (
+        "action",
+        "category",
+        "severity",
+        ("timestamp", DateFieldListFilter),
+        ("user", admin.RelatedOnlyFieldListFilter),
+        ("content_type", admin.RelatedOnlyFieldListFilter),
+    )
+
+    # Fields to search
+    search_fields = (
+        "object_repr",
+        "user_repr",
+        "message",
+        "search_vector",
+        "ip_address",
+        "user__username",
+        "user__email",
+    )
+
+    # Search help text
+    search_help_text = (
+        "Search across object names, users, messages, IP addresses, and changes. "
+        "Try searching for usernames, email addresses, or specific actions."
+    )
+
+    # Number of items per page
+    list_per_page = 50
+
+    # Ordering
+    ordering = ("-timestamp",)
+
+    # Date hierarchy navigation
+    date_hierarchy = "timestamp"
+
+    # Read-only - audit logs should never be edited
+    readonly_fields = [field.name for field in AuditLog._meta.fields]
+
+    # Custom fieldsets for the form
+    fieldsets = (
+        (
+            "Event Information",
+            {
+                "fields": (
+                    "timestamp",
+                    "action",
+                    "category",
+                    "severity",
+                    "message",
+                ),
+            },
+        ),
+        (
+            "User Information",
+            {
+                "fields": (
+                    "user",
+                    "user_repr",
+                    "ip_address",
+                    "user_agent",
+                    "session_key",
+                ),
+            },
+        ),
+        (
+            "Object Information",
+            {
+                "fields": (
+                    "content_type",
+                    "object_id",
+                    "object_repr",
+                ),
+            },
+        ),
+        (
+            "Change Details",
+            {
+                "fields": (
+                    "changes",
+                    "old_values",
+                    "new_values",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "Additional Data",
+            {
+                "fields": (
+                    "metadata",
+                    "search_vector",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+    )
+
+    # Prevent any modifications
+    def has_add_permission(self, request):
+        """Audit logs cannot be manually created."""
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        """Audit logs cannot be edited."""
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        """Audit logs cannot be deleted."""
+        return False
+
+    # Optimize queries
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.select_related("user", "content_type").prefetch_related(
+            "content_object"
+        )
+
+    # Custom display methods
+    @admin.display(description="Action", ordering="action")
+    def action_display(self, obj):
+        """Display action with color coding."""
+        color_map = {
+            AuditLog.ACTION_CREATE: "green",
+            AuditLog.ACTION_UPDATE: "blue",
+            AuditLog.ACTION_DELETE: "red",
+            AuditLog.ACTION_SOFT_DELETE: "orange",
+            AuditLog.ACTION_LOGIN: "teal",
+            AuditLog.ACTION_LOGOUT: "gray",
+            AuditLog.ACTION_LOGIN_FAILED: "red",
+            AuditLog.ACTION_EXPORT: "purple",
+            AuditLog.ACTION_IMPORT: "purple",
+        }
+        color = color_map.get(obj.action, "black")
+        return format_html(
+            '<span style="color: {}; font-weight: bold;">{}</span>',
+            color,
+            obj.get_action_display(),
+        )
+
+    @admin.display(description="User", ordering="user")
+    def user_link(self, obj):
+        """Display link to user if available."""
+        if obj.user:
+            url = reverse("admin:civicpulse_user_change", args=[obj.user.id])
+            return format_html('<a href="{}">{}</a>', url, obj.user_repr or obj.user)
+        return obj.user_repr or "System"
+
+    @admin.display(description="Object", ordering="object_repr")
+    def object_display(self, obj):
+        """Display affected object with link if possible."""
+        if obj.content_type and obj.object_id:
+            try:
+                # Try to create admin link
+                app_label = obj.content_type.app_label
+                model_name = obj.content_type.model
+                url = reverse(
+                    f"admin:{app_label}_{model_name}_change", args=[obj.object_id]
+                )
+                return format_html('<a href="{}">{}</a>', url, obj.object_repr)
+            except Exception:
+                # Fallback to text if link can't be created
+                pass
+        return obj.object_repr or "-"
+
+    @admin.display(description="Category")
+    def category_badge(self, obj):
+        """Display category as a colored badge."""
+        color_map = {
+            AuditLog.CATEGORY_VOTER_DATA: "#2E7D32",
+            AuditLog.CATEGORY_AUTH: "#1565C0",
+            AuditLog.CATEGORY_SYSTEM: "#616161",
+            AuditLog.CATEGORY_CONTACT: "#00838F",
+            AuditLog.CATEGORY_ADMIN: "#6A1B9A",
+            AuditLog.CATEGORY_SECURITY: "#C62828",
+        }
+        color = color_map.get(obj.category, "#424242")
+        return format_html(
+            '<span style="background-color: {}; color: white; padding: 2px 8px; '
+            'border-radius: 3px; font-size: 11px;">{}</span>',
+            color,
+            obj.get_category_display(),
+        )
+
+    @admin.display(description="Severity")
+    def severity_badge(self, obj):
+        """Display severity as a colored badge."""
+        color_map = {
+            AuditLog.SEVERITY_INFO: "#90A4AE",
+            AuditLog.SEVERITY_WARNING: "#FFA726",
+            AuditLog.SEVERITY_ERROR: "#EF5350",
+            AuditLog.SEVERITY_CRITICAL: "#E53935",
+        }
+        color = color_map.get(obj.severity, "#90A4AE")
+        return format_html(
+            '<span style="background-color: {}; color: white; padding: 2px 8px; '
+            'border-radius: 3px; font-size: 11px;">{}</span>',
+            color,
+            obj.get_severity_display(),
+        )
+
+    @admin.display(description="Changes")
+    def changes_summary(self, obj):
+        """Display summary of changes."""
+        if not obj.changes:
+            return "-"
+
+        change_count = len(obj.changes)
+        if change_count == 1:
+            field = list(obj.changes.keys())[0]
+            return f"{field} changed"
+        else:
+            return f"{change_count} fields changed"
+
+    # Custom actions
+    @admin.action(description="Export selected audit logs to CSV")
+    def export_to_csv(self, request, queryset):
+        """Export selected audit logs to CSV."""
+        import csv
+
+        response = HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = 'attachment; filename="audit_logs.csv"'
+
+        writer = csv.writer(response)
+        writer.writerow(
+            [
+                "Timestamp",
+                "User",
+                "Action",
+                "Category",
+                "Severity",
+                "Object",
+                "IP Address",
+                "Message",
+                "Changes",
+            ]
+        )
+
+        for log in queryset:
+            writer.writerow(
+                [
+                    log.timestamp.isoformat() if log.timestamp else "",
+                    log.user_repr or "System",
+                    log.get_action_display(),
+                    log.get_category_display(),
+                    log.get_severity_display(),
+                    log.object_repr,
+                    log.ip_address or "",
+                    log.message,
+                    log.get_changes_display() if log.changes else "",
+                ]
+            )
+
+        # Log the export action
+        AuditLog.log_action(
+            action=AuditLog.ACTION_EXPORT,
+            user=request.user,
+            message=f"Exported {queryset.count()} audit log entries to CSV",
+            category=AuditLog.CATEGORY_ADMIN,
+            severity=AuditLog.SEVERITY_WARNING,
+            metadata={
+                "export_type": "audit_logs",
+                "format": "csv",
+                "record_count": queryset.count(),
+            },
+        )
+
+        return response
+
+    @admin.action(description="Generate audit report for selected logs")
+    def generate_report(self, request, queryset):
+        """Generate a summary report of selected audit logs."""
+        from django.db.models import Count
+
+        # Get statistics
+        stats = {
+            "total_events": queryset.count(),
+            "date_range": {
+                "start": queryset.last().timestamp if queryset.exists() else None,
+                "end": queryset.first().timestamp if queryset.exists() else None,
+            },
+            "by_action": dict(
+                queryset.values_list("action").annotate(Count("id")).order_by()
+            ),
+            "by_category": dict(
+                queryset.values_list("category").annotate(Count("id")).order_by()
+            ),
+            "by_severity": dict(
+                queryset.values_list("severity").annotate(Count("id")).order_by()
+            ),
+            "unique_users": queryset.values("user").distinct().count(),
+            "unique_ips": queryset.values("ip_address").distinct().count(),
+        }
+
+        # Create report content
+        report_lines = [
+            "AUDIT LOG REPORT",
+            "=" * 50,
+            f"Generated: {timezone.now().isoformat()}",
+            f"Generated by: {request.user}",
+            "",
+            "SUMMARY",
+            "-" * 30,
+            f"Total Events: {stats['total_events']}",
+            (
+                f"Date Range: {stats['date_range']['start']} to "
+                f"{stats['date_range']['end']}"
+            ),
+            f"Unique Users: {stats['unique_users']}",
+            f"Unique IPs: {stats['unique_ips']}",
+            "",
+            "EVENTS BY ACTION",
+            "-" * 30,
+        ]
+
+        for action, count in stats["by_action"].items():
+            action_display = dict(AuditLog.ACTION_CHOICES).get(action, action)
+            report_lines.append(f"{action_display}: {count}")
+
+        report_lines.extend(
+            [
+                "",
+                "EVENTS BY CATEGORY",
+                "-" * 30,
+            ]
+        )
+
+        for category, count in stats["by_category"].items():
+            category_display = dict(AuditLog.CATEGORY_CHOICES).get(category, category)
+            report_lines.append(f"{category_display}: {count}")
+
+        report_lines.extend(
+            [
+                "",
+                "EVENTS BY SEVERITY",
+                "-" * 30,
+            ]
+        )
+
+        for severity, count in stats["by_severity"].items():
+            severity_display = dict(AuditLog.SEVERITY_CHOICES).get(severity, severity)
+            report_lines.append(f"{severity_display}: {count}")
+
+        # Return as text file
+        response = HttpResponse(content_type="text/plain")
+        response["Content-Disposition"] = 'attachment; filename="audit_report.txt"'
+        response.write("\n".join(report_lines))
+
+        # Log the report generation
+        AuditLog.log_action(
+            action=AuditLog.ACTION_EXPORT,
+            user=request.user,
+            message=f"Generated audit report for {queryset.count()} entries",
+            category=AuditLog.CATEGORY_ADMIN,
+            severity=AuditLog.SEVERITY_INFO,
+            metadata={
+                "export_type": "audit_report",
+                "format": "txt",
+                "record_count": queryset.count(),
+                "stats": stats,
+            },
+        )
+
+        return response
+
+    @admin.action(description="Generate security summary report")
+    def generate_security_report(self, request, queryset):
+        """Generate a focused security report from selected audit logs."""
+        from django.db.models import Count
+
+        # Filter for security-related events
+        security_logs = queryset.filter(
+            category__in=[
+                AuditLog.CATEGORY_SECURITY,
+                AuditLog.CATEGORY_AUTH,
+            ]
+        )
+
+        # Get statistics
+        stats = {
+            "total_events": security_logs.count(),
+            "date_range": {
+                "start": (
+                    security_logs.last().timestamp if security_logs.exists() else None
+                ),
+                "end": (
+                    security_logs.first().timestamp if security_logs.exists() else None
+                ),
+            },
+            "failed_logins": security_logs.filter(
+                action=AuditLog.ACTION_LOGIN_FAILED
+            ).count(),
+            "critical_events": security_logs.filter(
+                severity=AuditLog.SEVERITY_CRITICAL
+            ).count(),
+            "unique_ips": security_logs.values("ip_address").distinct().count(),
+            "by_action": dict(
+                security_logs.values_list("action").annotate(Count("id")).order_by()
+            ),
+            "by_severity": dict(
+                security_logs.values_list("severity").annotate(Count("id")).order_by()
+            ),
+        }
+
+        # Create report content
+        report_lines = [
+            "SECURITY AUDIT REPORT",
+            "=" * 50,
+            f"Generated: {timezone.now().isoformat()}",
+            f"Generated by: {request.user}",
+            f"Report covers: {stats['total_events']} security-related events",
+            "",
+            "SECURITY SUMMARY",
+            "-" * 30,
+            f"Failed Logins: {stats['failed_logins']}",
+            f"Critical Events: {stats['critical_events']}",
+            f"Unique IP Addresses: {stats['unique_ips']}",
+            (
+                f"Date Range: {stats['date_range']['start']} to "
+                f"{stats['date_range']['end']}"
+            ),
+            "",
+            "SECURITY EVENTS BY TYPE",
+            "-" * 30,
+        ]
+
+        for action, count in stats["by_action"].items():
+            action_display = dict(AuditLog.ACTION_CHOICES).get(action, action)
+            report_lines.append(f"{action_display}: {count}")
+
+        report_lines.extend(
+            [
+                "",
+                "EVENTS BY SEVERITY",
+                "-" * 30,
+            ]
+        )
+
+        for severity, count in stats["by_severity"].items():
+            severity_display = dict(AuditLog.SEVERITY_CHOICES).get(severity, severity)
+            report_lines.append(f"{severity_display}: {count}")
+
+        # Add recommendations
+        report_lines.extend(
+            [
+                "",
+                "SECURITY RECOMMENDATIONS",
+                "-" * 30,
+            ]
+        )
+
+        if stats["failed_logins"] > 10:
+            report_lines.append(
+                "⚠ High number of failed logins detected - review authentication logs"
+            )
+        if stats["critical_events"] > 0:
+            report_lines.append(
+                "🚨 Critical security events require immediate attention"
+            )
+        if stats["unique_ips"] > 50:
+            report_lines.append(
+                "ℹ High number of unique IPs - monitor for suspicious activity"
+            )
+
+        if not any([stats["failed_logins"] > 10, stats["critical_events"] > 0]):
+            report_lines.append("✓ No immediate security concerns detected")
+
+        # Return as text file
+        response = HttpResponse(content_type="text/plain")
+        response["Content-Disposition"] = (
+            'attachment; filename="security_audit_report.txt"'
+        )
+        response.write("\n".join(report_lines))
+
+        # Log the report generation
+        AuditLog.log_action(
+            action=AuditLog.ACTION_EXPORT,
+            user=request.user,
+            message=(
+                f"Generated security audit report for {security_logs.count()} entries"
+            ),
+            category=AuditLog.CATEGORY_ADMIN,
+            severity=AuditLog.SEVERITY_INFO,
+            metadata={
+                "export_type": "security_audit_report",
+                "format": "txt",
+                "record_count": security_logs.count(),
+                "stats": stats,
+            },
+        )
+
+        return response
+
+    actions = ["export_to_csv", "generate_report", "generate_security_report"]
+
+    def changelist_view(self, request, extra_context=None):
+        """Add summary statistics to the changelist view."""
+        extra_context = extra_context or {}
+
+        # Get recent statistics
+        recent_cutoff = timezone.now() - timedelta(hours=24)
+        recent_logs = AuditLog.objects.filter(timestamp__gte=recent_cutoff)
+
+        extra_context["audit_stats"] = {
+            "total_logs": AuditLog.objects.count(),
+            "recent_24h": recent_logs.count(),
+            "critical_events": AuditLog.objects.filter(
+                severity=AuditLog.SEVERITY_CRITICAL
+            ).count(),
+            "failed_logins": AuditLog.objects.filter(
+                action=AuditLog.ACTION_LOGIN_FAILED, timestamp__gte=recent_cutoff
+            ).count(),
+        }
+
+        return super().changelist_view(request, extra_context=extra_context)
 
 
 # Admin site customization
