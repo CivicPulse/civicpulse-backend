@@ -119,9 +119,8 @@ class TestDatabase:
         new_count = User.objects.count()
         assert new_count == user_count + 1
 
+        # Verify table exists using Django's database introspection
         with connection.cursor() as cursor:
-            cursor.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name='users';"
-            )
-            result = cursor.fetchone()
-            assert result is not None
+            table_names = connection.introspection.table_names(cursor)
+            # Check for the custom user table (users)
+            assert 'users' in table_names
