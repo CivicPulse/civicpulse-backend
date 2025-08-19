@@ -7,7 +7,7 @@ on:
     branches: [ main, develop ]
 
 env:
-  PYTHON_VERSION: '3.12'
+  PYTHON_VERSION: '3.13'
   UV_VERSION: '0.5.19'
 
 jobs:
@@ -135,6 +135,13 @@ jobs:
           flags: unittests
           name: codecov-umbrella
           token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+      
+      - name: Upload coverage to GitHub
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: htmlcov/
   
   security:
     name: Security Scan
@@ -158,8 +165,39 @@ jobs:
       
       - name: Run Bandit security scan
         run: |
+          uv run bandit -r civicpulse/ -ll -f json -o bandit-report.json || true
           uv run bandit -r civicpulse/ -ll
+      
+      - name: Upload security scan results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-scan-results
+          path: bandit-report.json
       
       - name: Run safety check
         run: |
           uv run pip-audit
+
+  summary:
+    name: CI Summary
+    runs-on: ubuntu-latest
+    needs: [lint, type-check, test, security]
+    if: always()
+    steps:
+      - name: Check CI Results
+        run: |
+          echo "Lint: ${{ needs.lint.result }}"
+          echo "Type Check: ${{ needs.type-check.result }}"
+          echo "Test: ${{ needs.test.result }}"
+          echo "Security: ${{ needs.security.result }}"
+          
+          if [[ "${{ needs.lint.result }}" != "success" || \
+                "${{ needs.type-check.result }}" != "success" || \
+                "${{ needs.test.result }}" != "success" || \
+                "${{ needs.security.result }}" != "success" ]]; then
+            echo "❌ One or more CI checks failed"
+            exit 1
+          else
+            echo "✅ All CI checks passed successfully"
+          fi

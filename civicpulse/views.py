@@ -7,6 +7,7 @@ security features.
 """
 
 import logging
+import time
 
 from django.conf import settings
 from django.contrib import messages
@@ -22,7 +23,8 @@ from django.contrib.auth.views import (
     PasswordResetView,
 )
 from django.core.cache import cache
-from django.http import HttpRequest, HttpResponse
+from django.db import connection
+from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse_lazy
 from django.utils.decorators import method_decorator
@@ -442,3 +444,42 @@ class ProfileView(LoginRequiredMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         context["user"] = self.request.user
         return context
+
+
+# Health check and monitoring views
+
+
+def health_check(request):
+    """
+    Health check endpoint for deployment verification.
+
+    Returns system status including database and cache connectivity.
+    """
+    health_status = {
+        "status": "healthy",
+        "timestamp": time.time(),
+        "version": "0.1.0",
+        "checks": {},
+    }
+
+    # Database connectivity check
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
+        health_status["checks"]["database"] = "healthy"
+    except Exception as e:
+        health_status["status"] = "unhealthy"
+        health_status["checks"]["database"] = f"error: {str(e)}"
+
+    # Cache connectivity check
+    try:
+        cache.set("health_check", "test", 1)
+        cache.get("health_check")
+        health_status["checks"]["cache"] = "healthy"
+    except Exception as e:
+        health_status["status"] = "unhealthy"
+        health_status["checks"]["cache"] = f"error: {str(e)}"
+
+    # Return appropriate HTTP status code
+    status_code = 200 if health_status["status"] == "healthy" else 503
+    return JsonResponse(health_status, status=status_code)
