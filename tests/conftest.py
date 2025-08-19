@@ -12,21 +12,30 @@ User = get_user_model()
 @pytest.fixture(scope="session")
 def django_db_setup():
     """Setup test database."""
-    # Use in-memory SQLite for tests
+    # pytest-django handles database setup automatically
     pass
 
 
 @pytest.fixture
-@pytest.mark.django_db
+@pytest.mark.django_db(transaction=True)
 def admin_user(db):
     """Create an admin user for testing."""
+    # Ensure migrations are applied (only needed once per database)
+    from django.core.management import call_command
+    try:
+        # Try to access User model first
+        User.objects.count()
+    except Exception:
+        # If tables don't exist, run migrations
+        call_command('migrate', verbosity=0, interactive=False)
+
     return User.objects.create_superuser(
         username="admin", email="admin@test.com", password="testpass123"
     )
 
 
 @pytest.fixture
-@pytest.mark.django_db
+@pytest.mark.django_db(transaction=True)
 def regular_user(db):
     """Create a regular user for testing."""
     return User.objects.create_user(
