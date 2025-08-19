@@ -65,3 +65,11 @@ LOGGING["loggers"]["civicpulse"]["level"] = "WARNING"  # noqa: F405
 SECURE_SSL_REDIRECT = False  # noqa: F405
 SESSION_COOKIE_SECURE = False  # noqa: F405
 CSRF_COOKIE_SECURE = False  # noqa: F405
+
+# Override authentication backends for testing to avoid AXES issues
+AUTHENTICATION_BACKENDS = [  # noqa: F405
+    "django.contrib.auth.backends.ModelBackend",
+]
+
+# Disable AXES for testing
+AXES_ENABLED = False  # noqa: F405
