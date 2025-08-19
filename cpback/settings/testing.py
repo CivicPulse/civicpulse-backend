@@ -16,12 +16,12 @@ if "debug_toolbar.middleware.DebugToolbarMiddleware" in MIDDLEWARE:  # noqa: F40
 
 # Use in-memory database for tests, unless DATABASE_URL is provided (e.g., for CI)
 import os
+
 if "DATABASE_URL" in os.environ:
     # Use the database URL from environment (typically PostgreSQL in CI)
     import dj_database_url
-    DATABASES = {
-        "default": dj_database_url.parse(os.environ["DATABASE_URL"])
-    }
+
+    DATABASES = {"default": dj_database_url.parse(os.environ["DATABASE_URL"])}
 else:
     # Use in-memory SQLite for local testing
     DATABASES = {  # noqa: F405
