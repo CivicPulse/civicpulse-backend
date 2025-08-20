@@ -772,7 +772,7 @@ class AuditLogAdmin(admin.ModelAdmin):
                     f"admin:{app_label}_{model_name}_change", args=[obj.object_id]
                 )
                 return format_html('<a href="{}">{}</a>', url, obj.object_repr)
-            except Exception:
+            except Exception:  # nosec B110
                 # Fallback to text if link can't be created
                 pass
         return obj.object_repr or "-"
