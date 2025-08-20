@@ -55,7 +55,7 @@ class AuditMiddleware(MiddlewareMixin):
             request: The HTTP request object
         """
         # Store audit context in request for later use
-        request.audit_context = {
+        request.audit_context = {  # type: ignore[attr-defined]
             "ip_address": self.get_client_ip(request),
             "user_agent": request.META.get("HTTP_USER_AGENT", "")[:500],
             "session_key": (
