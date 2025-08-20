@@ -12,29 +12,53 @@ via email alerts for critical security incidents.
 
 import logging
 from datetime import timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.mail import mail_admins
 from django.utils import timezone
 
 from civicpulse.audit import AuditLog
 
-User = get_user_model()
+if TYPE_CHECKING:
+    from django.contrib.auth.models import AbstractUser as User
+else:
+    User = get_user_model()
 logger = logging.getLogger(__name__)
 
-# Configurable security thresholds
-DEFAULT_FAILED_LOGIN_THRESHOLD = 5  # failures per hour
-DEFAULT_FAILED_LOGIN_WINDOW_HOURS = 1
-DEFAULT_EXPORT_THRESHOLD = 10  # exports per day
-DEFAULT_EXPORT_WINDOW_HOURS = 24
+
+# Security threshold configuration helpers
+def get_failed_login_threshold() -> int:
+    """Get the failed login threshold from settings with fallback."""
+    return getattr(settings, "SECURITY_FAILED_LOGIN_THRESHOLD", 5)
+
+
+def get_failed_login_window_hours() -> int:
+    """Get the failed login window hours from settings with fallback."""
+    return getattr(settings, "SECURITY_FAILED_LOGIN_WINDOW_HOURS", 1)
+
+
+def get_export_threshold() -> int:
+    """Get the export threshold from settings with fallback."""
+    return getattr(settings, "SECURITY_EXPORT_THRESHOLD", 10)
+
+
+def get_export_window_hours() -> int:
+    """Get the export window hours from settings with fallback."""
+    return getattr(settings, "SECURITY_EXPORT_WINDOW_HOURS", 24)
+
+
+def get_privilege_escalation_window_hours() -> int:
+    """Get the privilege escalation window hours from settings with fallback."""
+    return getattr(settings, "SECURITY_PRIVILEGE_ESCALATION_WINDOW_HOURS", 24)
 
 
 def check_failed_login_attempts(
     ip_address: str,
     username: str | None = None,
-    threshold: int = DEFAULT_FAILED_LOGIN_THRESHOLD,
-    window_hours: int = DEFAULT_FAILED_LOGIN_WINDOW_HOURS,
+    threshold: int | None = None,
+    window_hours: int | None = None,
 ) -> dict[str, Any]:
     """
     Check for excessive failed login attempts from the same IP address.
@@ -45,8 +69,9 @@ def check_failed_login_attempts(
     Args:
         ip_address: The IP address to check for failed login attempts
         username: Optional username to include in analysis
-        threshold: Number of failed attempts that trigger an alert (default: 5)
-        window_hours: Time window in hours to check (default: 1)
+        threshold: Number of failed attempts that trigger an alert
+                  (uses settings default if None)
+        window_hours: Time window in hours to check (uses settings default if None)
 
     Returns:
         Dictionary containing:
@@ -56,6 +81,11 @@ def check_failed_login_attempts(
         - metadata: dict with additional context
     """
     try:
+        # Use configurable settings if not explicitly provided
+        if threshold is None:
+            threshold = get_failed_login_threshold()
+        if window_hours is None:
+            window_hours = get_failed_login_window_hours()
         # Calculate the time window
         cutoff_time = timezone.now() - timedelta(hours=window_hours)
 
@@ -70,7 +100,7 @@ def check_failed_login_attempts(
         last_failure = recent_failures.first()
 
         # Prepare response data
-        result = {
+        result: dict[str, Any] = {
             "alert_triggered": False,
             "failure_count": failure_count,
             "last_failure_time": last_failure.timestamp if last_failure else None,
@@ -118,8 +148,14 @@ def check_failed_login_attempts(
                     "threshold": threshold,
                     "window_hours": window_hours,
                     "attempted_usernames": attempted_usernames,
-                    "first_failure_time": recent_failures.last().timestamp.isoformat(),
-                    "last_failure_time": last_failure.timestamp.isoformat(),
+                    "first_failure_time": (
+                        last_record.timestamp.isoformat()
+                        if (last_record := recent_failures.last()) is not None
+                        else None
+                    ),
+                    "last_failure_time": last_failure.timestamp.isoformat()
+                    if last_failure
+                    else None,
                 },
             )
 
@@ -153,9 +189,9 @@ def check_failed_login_attempts(
 
 
 def detect_unusual_export_activity(
-    user: User,
-    threshold: int = DEFAULT_EXPORT_THRESHOLD,
-    window_hours: int = DEFAULT_EXPORT_WINDOW_HOURS,
+    user: "User",
+    threshold: int | None = None,
+    window_hours: int | None = None,
 ) -> dict[str, Any]:
     """
     Detect unusual data export activity patterns that may indicate data exfiltration.
@@ -165,8 +201,9 @@ def detect_unusual_export_activity(
 
     Args:
         user: The user to check for export activity
-        threshold: Number of exports that trigger an alert (default: 10)
-        window_hours: Time window in hours to check (default: 24)
+        threshold: Number of exports that trigger an alert
+                  (uses settings default if None)
+        window_hours: Time window in hours to check (uses settings default if None)
 
     Returns:
         Dictionary containing:
@@ -176,13 +213,18 @@ def detect_unusual_export_activity(
         - metadata: dict with additional context
     """
     try:
+        # Use configurable settings if not explicitly provided
+        if threshold is None:
+            threshold = get_export_threshold()
+        if window_hours is None:
+            window_hours = get_export_window_hours()
         # Calculate the time window
         cutoff_time = timezone.now() - timedelta(hours=window_hours)
 
         # Query recent export operations by this user
         recent_exports = AuditLog.objects.filter(
             action=AuditLog.ACTION_EXPORT,
-            user=user,
+            user=cast(Any, user),
             timestamp__gte=cutoff_time,
         ).order_by("-timestamp")
 
@@ -207,13 +249,13 @@ def detect_unusual_export_activity(
             )
 
         # Prepare response data
-        result = {
+        result: dict[str, Any] = {
             "alert_triggered": False,
             "export_count": export_count,
             "total_records_exported": total_records_exported,
             "metadata": {
-                "user_id": user.id,
-                "username": user.username,
+                "user_id": cast(Any, user).id,
+                "username": cast(Any, user).username,
                 "threshold": threshold,
                 "window_hours": window_hours,
                 "cutoff_time": cutoff_time.isoformat(),
@@ -228,9 +270,9 @@ def detect_unusual_export_activity(
             # Create critical audit log entry
             alert_message = (
                 f"SECURITY ALERT: Unusual export activity detected. "
-                f"User {user.username} (ID: {user.id}) performed {export_count} "
-                f"export operations in the last {window_hours} hour(s), "
-                f"totaling {total_records_exported} records."
+                f"User {cast(Any, user).username} (ID: {cast(Any, user).id}) "
+                f"performed {export_count} export operations in the last "
+                f"{window_hours} hour(s), totaling {total_records_exported} records."
             )
 
             critical_audit_log = AuditLog.log_action(
@@ -251,11 +293,14 @@ def detect_unusual_export_activity(
 
             # Send email alert to administrators
             _send_security_alert_email(
-                subject=f"Security Alert: Unusual Export Activity by {user.username}",
+                subject=(
+                    f"Security Alert: Unusual Export Activity by "
+                    f"{cast(Any, user).username}"
+                ),
                 message=alert_message,
                 additional_context={
-                    "user_id": user.id,
-                    "username": user.username,
+                    "user_id": cast(Any, user).id,
+                    "username": cast(Any, user).username,
                     "export_count": export_count,
                     "total_records_exported": total_records_exported,
                     "audit_log_id": str(critical_audit_log.id),
@@ -277,39 +322,42 @@ def detect_unusual_export_activity(
 
 
 def detect_privilege_escalation_attempts(
-    user: User,
-    window_hours: int = 24,
+    user: "User",
+    window_hours: int | None = None,
 ) -> dict[str, Any]:
     """
     Detect potential privilege escalation attempts by monitoring permission changes.
 
     Args:
         user: The user to check for privilege changes
-        window_hours: Time window in hours to check (default: 24)
+        window_hours: Time window in hours to check (uses settings default if None)
 
     Returns:
         Dictionary containing alert information
     """
     try:
+        # Use configurable settings if not explicitly provided
+        if window_hours is None:
+            window_hours = get_privilege_escalation_window_hours()
         # Calculate the time window
         cutoff_time = timezone.now() - timedelta(hours=window_hours)
 
         # Query recent permission changes for this user
         permission_changes = AuditLog.objects.filter(
             action=AuditLog.ACTION_PERMISSION_CHANGE,
-            user=user,
+            user=cast(Any, user),
             timestamp__gte=cutoff_time,
         ).order_by("-timestamp")
 
         change_count = permission_changes.count()
 
         # Prepare response data
-        result = {
+        result: dict[str, Any] = {
             "alert_triggered": False,
             "permission_change_count": change_count,
             "metadata": {
-                "user_id": user.id,
-                "username": user.username,
+                "user_id": cast(Any, user).id,
+                "username": cast(Any, user).username,
                 "window_hours": window_hours,
                 "cutoff_time": cutoff_time.isoformat(),
             },
@@ -322,8 +370,9 @@ def detect_privilege_escalation_attempts(
             # Create warning audit log entry
             alert_message = (
                 f"SECURITY NOTICE: Permission changes detected for user "
-                f"{user.username} (ID: {user.id}). {change_count} permission "
-                f"change(s) in the last {window_hours} hour(s)."
+                f"{cast(Any, user).username} (ID: {cast(Any, user).id}). "
+                f"{change_count} permission change(s) in the last "
+                f"{window_hours} hour(s)."
             )
 
             AuditLog.log_action(

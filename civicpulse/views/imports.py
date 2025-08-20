@@ -8,12 +8,15 @@ with proper audit logging and error handling.
 import csv
 import logging
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
+from django.conf import settings
 from django.contrib import messages
+from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required, permission_required
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import Q
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
 from django.utils.decorators import method_decorator
@@ -22,6 +25,11 @@ from django.views import View
 from civicpulse.middleware.audit import get_request_audit_context
 from civicpulse.models import VALID_US_STATE_CODES, Person, VoterRecord
 from civicpulse.signals import log_data_import
+
+if TYPE_CHECKING:
+    from django.contrib.auth.models import AbstractUser as User
+else:
+    User = get_user_model()
 
 logger = logging.getLogger(__name__)
 
@@ -70,13 +78,33 @@ class PersonImportView(View):
 
         csv_file = request.FILES["csv_file"]
 
-        # Validate file
-        if not csv_file.name.endswith(".csv"):
+        # Validate file (ensure it's a single uploaded file)
+        filename = getattr(csv_file, "name", None)
+        if not filename or not filename.endswith(".csv"):
             messages.error(request, "Please upload a CSV file (.csv extension).")
             return self.get(request)
 
-        if csv_file.size > 10 * 1024 * 1024:  # 10MB limit
-            messages.error(request, "File size too large. Maximum size is 10MB.")
+        # Get configured file size limit
+        max_file_size = getattr(
+            settings, "PERSON_IMPORT_MAX_FILE_SIZE", 10 * 1024 * 1024
+        )
+        try:
+            # Handle invalid setting values gracefully
+            if not isinstance(max_file_size, int | float) or max_file_size <= 0:
+                max_file_size = 10 * 1024 * 1024  # Fallback to 10MB
+        except TypeError:
+            max_file_size = 10 * 1024 * 1024  # Fallback to 10MB
+
+        if (
+            hasattr(csv_file, "size")
+            and csv_file.size
+            and csv_file.size > max_file_size
+        ):
+            # Convert bytes to human-readable format
+            max_size_mb = max_file_size / (1024 * 1024)
+            messages.error(
+                request, f"File size too large. Maximum size is {max_size_mb:.0f}MB."
+            )
             return self.get(request)
 
         try:
@@ -88,10 +116,10 @@ class PersonImportView(View):
 
             # Log the import operation
             log_data_import(
-                user=request.user,
+                user=cast(Any, request.user),
                 import_type="persons",
                 record_count=results["imported_count"],
-                filename=csv_file.name,
+                filename=getattr(csv_file, "name", "unknown"),
                 ip_address=audit_context.get("ip_address"),
                 user_agent=audit_context.get("user_agent"),
                 errors_count=len(results["errors"]),
@@ -214,8 +242,8 @@ class PersonImportView(View):
         Returns:
             Tuple of (person_data, voter_data) dictionaries
         """
-        person_data = {}
-        voter_data = {}
+        person_data: dict[str, Any] = {}
+        voter_data: dict[str, Any] = {}
 
         # Person fields
         person_data["first_name"] = row.get("First Name", "").strip()
@@ -333,7 +361,8 @@ class PersonImportView(View):
 
     def _is_duplicate_person(self, person_data: dict[str, Any]) -> bool:
         """
-        Check if a person with the same data already exists.
+        Check if a person with the same data already exists using efficient
+        QuerySet operations.
 
         Args:
             person_data: Dictionary of person data
@@ -341,10 +370,70 @@ class PersonImportView(View):
         Returns:
             True if duplicate exists, False otherwise
         """
-        # Create a temporary person instance to use the duplicate detection
-        temp_person = Person(**person_data)
-        duplicates = temp_person.get_potential_duplicates()
-        return duplicates.exists()
+        return self._check_duplicate_efficient(person_data)
+
+    def _check_duplicate_efficient(self, person_data: dict[str, Any]) -> bool:
+        """
+        Efficiently check for duplicate persons using database queries without
+        creating temporary instances.
+
+        This method replicates the logic from Person.get_potential_duplicates()
+        but without instantiating temporary Person objects, making it much more
+        efficient for large imports.
+
+        Args:
+            person_data: Dictionary of person data to check for duplicates
+
+        Returns:
+            True if duplicate exists, False otherwise
+        """
+        filters = Q()
+
+        # Extract values safely with defaults
+        first_name = person_data.get("first_name", "").strip()
+        last_name = person_data.get("last_name", "").strip()
+        date_of_birth = person_data.get("date_of_birth")
+        email = person_data.get("email", "").strip()
+        phone_primary = person_data.get("phone_primary", "").strip()
+        phone_secondary = person_data.get("phone_secondary", "").strip()
+        street_address = person_data.get("street_address", "").strip()
+        zip_code = person_data.get("zip_code", "").strip()
+
+        # Same name and DOB - highest priority duplicate detection
+        if first_name and last_name and date_of_birth:
+            filters |= Q(
+                first_name__iexact=first_name,
+                last_name__iexact=last_name,
+                date_of_birth=date_of_birth,
+            )
+
+        # Same email (if provided and not empty)
+        if email:
+            filters |= Q(email__iexact=email)
+
+        # Same primary phone (if provided and not empty)
+        if phone_primary:
+            filters |= Q(phone_primary=phone_primary)
+
+        # Same secondary phone (if provided and not empty)
+        if phone_secondary:
+            filters |= Q(phone_secondary=phone_secondary)
+
+        # Same name and address (if all required fields provided)
+        if first_name and last_name and street_address and zip_code:
+            filters |= Q(
+                first_name__iexact=first_name,
+                last_name__iexact=last_name,
+                street_address__iexact=street_address,
+                zip_code=zip_code,
+            )
+
+        # If no meaningful criteria for duplicate detection, return False
+        if not filters:
+            return False
+
+        # Use select_related to optimize queries and only check active persons
+        return Person.objects.filter(filters).exists()
 
     def _format_validation_error(self, error: ValidationError) -> str:
         """
@@ -406,6 +495,25 @@ class PersonImportView(View):
         Returns:
             Dictionary of field help text
         """
+        # Get configured file size limit and convert to MB
+        max_file_size = getattr(
+            settings, "PERSON_IMPORT_MAX_FILE_SIZE", 10 * 1024 * 1024
+        )
+        try:
+            # Handle invalid setting values gracefully
+            if not isinstance(max_file_size, int | float) or max_file_size <= 0:
+                max_file_size = 10 * 1024 * 1024  # Fallback to 10MB
+            max_size_mb = max_file_size / (1024 * 1024)
+            # Round up for display (e.g., 0.5MB shows as 1MB)
+            max_size_mb_display = (
+                int(max_size_mb)
+                if max_size_mb == int(max_size_mb)
+                else int(max_size_mb) + 1
+            )
+        except (TypeError, ZeroDivisionError):
+            # Fallback for any arithmetic errors
+            max_size_mb_display = 10
+
         return {
             "required_fields": "First Name and Last Name are required fields.",
             "date_formats": (
@@ -424,5 +532,7 @@ class PersonImportView(View):
             "voter_score": (
                 "Voter Score: Number between 0-100 indicating voting frequency."
             ),
-            "file_limits": "File size limit: 10MB. Duplicates will be skipped.",
+            "file_limits": (
+                f"File size limit: {max_size_mb_display}MB. Duplicates will be skipped."
+            ),
         }

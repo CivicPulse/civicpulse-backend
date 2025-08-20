@@ -18,8 +18,10 @@ from civicpulse.middleware.current_user import (
 @pytest.fixture
 def middleware():
     """Create a CurrentUserMiddleware instance."""
+
     def get_response(request):
         return HttpResponse()
+
     return CurrentUserMiddleware(get_response)
 
 

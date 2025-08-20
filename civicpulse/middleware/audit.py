@@ -5,6 +5,7 @@ This middleware captures request metadata and provides context for audit logging
 """
 
 import logging
+from typing import Any
 
 from django.contrib.auth import get_user_model
 from django.http import HttpRequest, HttpResponse
@@ -54,13 +55,19 @@ class AuditMiddleware(MiddlewareMixin):
             request: The HTTP request object
         """
         # Store audit context in request for later use
-        request.audit_context = {
-            "ip_address": self.get_client_ip(request),
-            "user_agent": request.META.get("HTTP_USER_AGENT", "")[:500],
-            "session_key": (
-                request.session.session_key if hasattr(request, "session") else None
-            ),
-        }
+        setattr(
+            request,
+            "audit_context",
+            {
+                "ip_address": self.get_client_ip(request),
+                "user_agent": request.META.get("HTTP_USER_AGENT", "")[:500],
+                "session_key": (
+                    request.session.session_key
+                    if hasattr(request, "session")
+                    else None
+                ),
+            },
+        )
 
     def process_response(
         self, request: HttpRequest, response: HttpResponse
@@ -148,7 +155,7 @@ class AuditMiddleware(MiddlewareMixin):
             category = self._determine_category(request.path)
 
             # Build metadata
-            metadata = {
+            metadata: dict[str, Any] = {
                 "method": request.method,
                 "path": request.path,
                 "status_code": response.status_code,
@@ -163,7 +170,7 @@ class AuditMiddleware(MiddlewareMixin):
                     if k not in ["password", "token", "secret", "key"]
                 }
                 if safe_params:
-                    metadata["query_params"] = safe_params
+                    metadata["query_params"] = dict(safe_params)
 
             # Try to get the view name
             try:
@@ -191,8 +198,8 @@ class AuditMiddleware(MiddlewareMixin):
                 message=message,
                 category=category,
                 severity=severity,
-                ip_address=request.audit_context.get("ip_address"),
-                user_agent=request.audit_context.get("user_agent"),
+                ip_address=getattr(request, "audit_context", {}).get("ip_address"),
+                user_agent=getattr(request, "audit_context", {}).get("user_agent"),
                 metadata=metadata,
             )
 
@@ -208,7 +215,7 @@ class AuditMiddleware(MiddlewareMixin):
         """
         try:
             username = request.POST.get("username", "unknown")
-            ip_address = request.audit_context.get("ip_address")
+            ip_address = getattr(request, "audit_context", {}).get("ip_address")
 
             # Log the individual failed login attempt
             AuditLog.log_action(
@@ -218,7 +225,7 @@ class AuditMiddleware(MiddlewareMixin):
                 category=AuditLog.CATEGORY_SECURITY,
                 severity=AuditLog.SEVERITY_WARNING,
                 ip_address=ip_address,
-                user_agent=request.audit_context.get("user_agent"),
+                user_agent=getattr(request, "audit_context", {}).get("user_agent"),
                 metadata={
                     "username_attempted": username,
                     "path": request.path,
@@ -230,7 +237,7 @@ class AuditMiddleware(MiddlewareMixin):
             from civicpulse.utils.security_monitor import check_failed_login_attempts
 
             security_check = check_failed_login_attempts(
-                ip_address=ip_address, username=username
+                ip_address=ip_address or "unknown", username=username
             )
 
             if security_check.get("alert_triggered"):
@@ -286,7 +293,7 @@ class AuditMiddleware(MiddlewareMixin):
                 "PATCH": AuditLog.ACTION_UPDATE,
                 "DELETE": AuditLog.ACTION_DELETE,
             }
-            return method_action_map.get(request.method, AuditLog.ACTION_VIEW)
+            return method_action_map.get(request.method or "GET", AuditLog.ACTION_VIEW)
 
         # For failed requests, just log as VIEW with error
         return AuditLog.ACTION_VIEW
@@ -354,7 +361,7 @@ def get_request_audit_context(request: HttpRequest) -> dict:
         Dictionary with audit context
     """
     if hasattr(request, "audit_context"):
-        return request.audit_context
+        return getattr(request, "audit_context", {})
 
     # Fallback if middleware hasn't run
     return {

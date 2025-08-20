@@ -27,8 +27,6 @@ from civicpulse.signals import (
     log_data_import,
 )
 
-User = get_user_model()
-
 
 @pytest.mark.django_db
 class TestAuditLogModel(TestCase):
@@ -36,22 +34,21 @@ class TestAuditLogModel(TestCase):
 
     def setUp(self):
         """Set up test data."""
+        User = get_user_model()
         self.user = User.objects.create_user(
-            username=f"testuser_{str(uuid.uuid4())[:8]}",
+            username="testuser_%s" % str(uuid.uuid4())[:8],
             email="test@example.com",
-            password="testpass123"
+            password="testpass123",
         )
         self.person = Person.objects.create(
-            first_name="John",
-            last_name="Doe",
-            email="john@example.com"
+            first_name="John", last_name="Doe", email="john@example.com"
         )
 
     def tearDown(self):
         """Clean up test data."""
         AuditLog.objects.all().delete()
         Person.objects.all().delete()
-        User.objects.all().delete()
+        get_user_model().objects.all().delete()
 
     def test_audit_log_creation(self):
         """Test basic audit log creation."""
@@ -60,7 +57,7 @@ class TestAuditLogModel(TestCase):
             user=self.user,
             obj=self.person,
             message="Created person record",
-            category=AuditLog.CATEGORY_VOTER_DATA
+            category=AuditLog.CATEGORY_VOTER_DATA,
         )
 
         self.assertIsInstance(audit_log.id, uuid.UUID)
@@ -74,9 +71,7 @@ class TestAuditLogModel(TestCase):
     def test_audit_log_immutability(self):
         """Test that audit logs cannot be modified after creation."""
         audit_log = AuditLog.log_action(
-            action=AuditLog.ACTION_CREATE,
-            user=self.user,
-            message="Test message"
+            action=AuditLog.ACTION_CREATE, user=self.user, message="Test message"
         )
 
         # Try to modify the audit log
@@ -92,7 +87,7 @@ class TestAuditLogModel(TestCase):
             user=self.user,
             obj=self.person,
             message="Updated person record",
-            changes={"email": {"old": "old@example.com", "new": "new@example.com"}}
+            changes={"email": {"old": "old@example.com", "new": "new@example.com"}},
         )
 
         self.assertIn("John", audit_log.search_vector)
@@ -104,14 +99,14 @@ class TestAuditLogModel(TestCase):
         """Test human-readable changes display."""
         changes = {
             "email": {"old": "old@example.com", "new": "new@example.com"},
-            "first_name": {"old": "Jane", "new": "John"}
+            "first_name": {"old": "Jane", "new": "John"},
         }
 
         audit_log = AuditLog.log_action(
             action=AuditLog.ACTION_UPDATE,
             user=self.user,
             obj=self.person,
-            changes=changes
+            changes=changes,
         )
 
         display = audit_log.get_changes_display()
@@ -125,7 +120,7 @@ class TestAuditLogModel(TestCase):
             user=self.user,
             obj=self.person,
             message="Test export",
-            metadata={"test_key": "test_value"}
+            metadata={"test_key": "test_value"},
         )
 
         data = audit_log.to_dict()
@@ -145,14 +140,11 @@ class TestAuditLogManager(TestCase):
         # Clear any existing audit logs to ensure clean test state
         AuditLog.objects.all().delete()
 
+        User = get_user_model()
         self.user = User.objects.create_user(
-            username=f"testuser_{str(uuid.uuid4())[:8]}",
-            email="test@example.com"
+            username="testuser_%s" % str(uuid.uuid4())[:8], email="test@example.com"
         )
-        self.person = Person.objects.create(
-            first_name="John",
-            last_name="Doe"
-        )
+        self.person = Person.objects.create(first_name="John", last_name="Doe")
 
         # Clear audit logs created by signals during model creation
         AuditLog.objects.all().delete()
@@ -162,27 +154,27 @@ class TestAuditLogManager(TestCase):
             action=AuditLog.ACTION_CREATE,
             user=self.user,
             obj=self.person,
-            category=AuditLog.CATEGORY_VOTER_DATA
+            category=AuditLog.CATEGORY_VOTER_DATA,
         )
 
         self.audit2 = AuditLog.log_action(
             action=AuditLog.ACTION_LOGIN,
             user=self.user,
             category=AuditLog.CATEGORY_AUTH,
-            severity=AuditLog.SEVERITY_WARNING
+            severity=AuditLog.SEVERITY_WARNING,
         )
 
         self.audit3 = AuditLog.log_action(
             action=AuditLog.ACTION_LOGIN_FAILED,
             category=AuditLog.CATEGORY_SECURITY,
-            severity=AuditLog.SEVERITY_CRITICAL
+            severity=AuditLog.SEVERITY_CRITICAL,
         )
 
     def tearDown(self):
         """Clean up test data."""
         AuditLog.objects.all().delete()
         Person.objects.all().delete()
-        User.objects.all().delete()
+        get_user_model().objects.all().delete()
 
     def test_for_object_query(self):
         """Test filtering by object."""
@@ -244,9 +236,9 @@ class TestSignalHandlers(TestCase):
         # Clear any existing audit logs
         AuditLog.objects.all().delete()
 
+        User = get_user_model()
         self.user = User.objects.create_user(
-            username=f"testuser_{str(uuid.uuid4())[:8]}",
-            email="test@example.com"
+            username="testuser_%s" % str(uuid.uuid4())[:8], email="test@example.com"
         )
 
         # Clear audit logs created by user creation
@@ -256,7 +248,7 @@ class TestSignalHandlers(TestCase):
         """Clean up test data."""
         AuditLog.objects.all().delete()
         Person.objects.all().delete()
-        User.objects.all().delete()
+        get_user_model().objects.all().delete()
 
     def test_person_creation_audit(self):
         """Test that creating a Person creates an audit log."""
@@ -267,7 +259,7 @@ class TestSignalHandlers(TestCase):
             first_name="John",
             last_name="Doe",
             email="john@example.com",
-            created_by=self.user
+            created_by=self.user,
         )
 
         # Should have exactly one audit log
@@ -282,9 +274,7 @@ class TestSignalHandlers(TestCase):
     def test_person_update_audit(self):
         """Test that updating a Person creates an audit log."""
         person = Person.objects.create(
-            first_name="John",
-            last_name="Doe",
-            email="john@example.com"
+            first_name="John", last_name="Doe", email="john@example.com"
         )
 
         # Clear existing audit logs
@@ -301,21 +291,12 @@ class TestSignalHandlers(TestCase):
         self.assertEqual(audit_log.action, AuditLog.ACTION_UPDATE)
         self.assertEqual(audit_log.content_object, person)
         self.assertIn("email", audit_log.changes)
-        self.assertEqual(
-            audit_log.changes["email"]["old"],
-            "john@example.com"
-        )
-        self.assertEqual(
-            audit_log.changes["email"]["new"],
-            "john.updated@example.com"
-        )
+        self.assertEqual(audit_log.changes["email"]["old"], "john@example.com")
+        self.assertEqual(audit_log.changes["email"]["new"], "john.updated@example.com")
 
     def test_person_deletion_audit(self):
         """Test that deleting a Person creates an audit log."""
-        person = Person.objects.create(
-            first_name="John",
-            last_name="Doe"
-        )
+        person = Person.objects.create(first_name="John", last_name="Doe")
         person_str = str(person)
 
         # Clear audit logs created by person creation
@@ -337,9 +318,7 @@ class TestSignalHandlers(TestCase):
     def test_get_model_changes(self):
         """Test the get_model_changes utility function."""
         person = Person.objects.create(
-            first_name="John",
-            last_name="Doe",
-            email="john@example.com"
+            first_name="John", last_name="Doe", email="john@example.com"
         )
 
         # Test new instance
@@ -358,18 +337,13 @@ class TestSignalHandlers(TestCase):
     def test_determine_category(self):
         """Test the determine_category utility function."""
         person = Person.objects.create(first_name="John", last_name="Doe")
+        User = get_user_model()
         test_user = User.objects.create_user(
-            username=f"testuser_{str(uuid.uuid4())[:8]}"
+            username="testuser_%s" % str(uuid.uuid4())[:8]
         )
 
-        self.assertEqual(
-            determine_category(person),
-            AuditLog.CATEGORY_VOTER_DATA
-        )
-        self.assertEqual(
-            determine_category(test_user),
-            AuditLog.CATEGORY_AUTH
-        )
+        self.assertEqual(determine_category(person), AuditLog.CATEGORY_VOTER_DATA)
+        self.assertEqual(determine_category(test_user), AuditLog.CATEGORY_AUTH)
 
     def test_data_export_logging(self):
         """Test the log_data_export function."""
@@ -378,10 +352,10 @@ class TestSignalHandlers(TestCase):
             export_type="persons",
             record_count=100,
             filters={"state": "CA"},
-            format="csv"
+            format="csv",
         )
 
-        audit_log = AuditLog.objects.latest('timestamp')
+        audit_log = AuditLog.objects.latest("timestamp")
         self.assertEqual(audit_log.action, AuditLog.ACTION_EXPORT)
         self.assertEqual(audit_log.user, self.user)
         self.assertEqual(audit_log.category, AuditLog.CATEGORY_VOTER_DATA)
@@ -397,10 +371,10 @@ class TestSignalHandlers(TestCase):
             user=self.user,
             import_type="voter_records",
             record_count=50,
-            filename="voters.csv"
+            filename="voters.csv",
         )
 
-        audit_log = AuditLog.objects.latest('timestamp')
+        audit_log = AuditLog.objects.latest("timestamp")
         self.assertEqual(audit_log.action, AuditLog.ACTION_IMPORT)
         self.assertEqual(audit_log.user, self.user)
         self.assertEqual(audit_log.category, AuditLog.CATEGORY_VOTER_DATA)
@@ -420,7 +394,7 @@ class TestAuditMiddleware(TestCase):
         self.middleware = AuditMiddleware(lambda x: HttpResponse())
         self.user = Mock()
         self.user.is_authenticated = True
-        self.user.username = f"testuser_{str(uuid.uuid4())[:8]}"
+        self.user.username = "testuser_%s" % str(uuid.uuid4())[:8]
 
     def tearDown(self):
         """Clean up test data."""
@@ -429,89 +403,79 @@ class TestAuditMiddleware(TestCase):
     def test_get_client_ip(self):
         """Test IP address extraction."""
         # Test with X-Forwarded-For header
-        request = self.factory.get('/')
-        request.META['HTTP_X_FORWARDED_FOR'] = '192.168.1.1, 10.0.0.1'
+        request = self.factory.get("/")
+        request.META["HTTP_X_FORWARDED_FOR"] = "192.168.1.1, 10.0.0.1"
         ip = AuditMiddleware.get_client_ip(request)
-        self.assertEqual(ip, '192.168.1.1')
+        self.assertEqual(ip, "192.168.1.1")
 
         # Test with REMOTE_ADDR
-        request = self.factory.get('/')
-        request.META['REMOTE_ADDR'] = '192.168.1.2'
+        request = self.factory.get("/")
+        request.META["REMOTE_ADDR"] = "192.168.1.2"
         ip = AuditMiddleware.get_client_ip(request)
-        self.assertEqual(ip, '192.168.1.2')
+        self.assertEqual(ip, "192.168.1.2")
 
     def test_process_request(self):
         """Test request processing."""
-        request = self.factory.get('/')
-        request.META['HTTP_USER_AGENT'] = 'TestAgent/1.0'
-        request.META['REMOTE_ADDR'] = '192.168.1.1'
+        request = self.factory.get("/")
+        request.META["HTTP_USER_AGENT"] = "TestAgent/1.0"
+        request.META["REMOTE_ADDR"] = "192.168.1.1"
         request.session = Mock()
-        request.session.session_key = 'test_session_key'
+        request.session.session_key = "test_session_key"
 
         self.middleware.process_request(request)
 
-        self.assertTrue(hasattr(request, 'audit_context'))
-        self.assertEqual(request.audit_context['ip_address'], '192.168.1.1')
-        self.assertEqual(request.audit_context['user_agent'], 'TestAgent/1.0')
-        self.assertEqual(request.audit_context['session_key'], 'test_session_key')
+        self.assertTrue(hasattr(request, "audit_context"))
+        self.assertEqual(request.audit_context["ip_address"], "192.168.1.1")
+        self.assertEqual(request.audit_context["user_agent"], "TestAgent/1.0")
+        self.assertEqual(request.audit_context["session_key"], "test_session_key")
 
     def test_should_audit_request(self):
         """Test request auditing logic."""
         # Test write method
-        request = self.factory.post('/api/persons/')
+        request = self.factory.post("/api/persons/")
         response = HttpResponse()
-        self.assertTrue(
-            self.middleware.should_audit_request(request, response)
-        )
+        self.assertTrue(self.middleware.should_audit_request(request, response))
 
         # Test admin URL
-        request = self.factory.get('/admin/civicpulse/person/')
+        request = self.factory.get("/admin/civicpulse/person/")
         response = HttpResponse()
-        self.assertTrue(
-            self.middleware.should_audit_request(request, response)
-        )
+        self.assertTrue(self.middleware.should_audit_request(request, response))
 
         # Test export URL
-        request = self.factory.get('/api/export/persons/')
+        request = self.factory.get("/api/export/persons/")
         response = HttpResponse()
-        self.assertTrue(
-            self.middleware.should_audit_request(request, response)
-        )
+        self.assertTrue(self.middleware.should_audit_request(request, response))
 
         # Test failed API request
-        request = self.factory.get('/api/persons/')
+        request = self.factory.get("/api/persons/")
         response = HttpResponse(status=404)
-        self.assertTrue(
-            self.middleware.should_audit_request(request, response)
-        )
+        self.assertTrue(self.middleware.should_audit_request(request, response))
 
         # Test regular GET request
-        request = self.factory.get('/about/')
+        request = self.factory.get("/about/")
         response = HttpResponse()
-        self.assertFalse(
-            self.middleware.should_audit_request(request, response)
-        )
+        self.assertFalse(self.middleware.should_audit_request(request, response))
 
     def test_get_request_audit_context(self):
         """Test audit context helper function."""
-        request = self.factory.get('/')
+        request = self.factory.get("/")
         request.audit_context = {
-            'ip_address': '192.168.1.1',
-            'user_agent': 'TestAgent/1.0'
+            "ip_address": "192.168.1.1",
+            "user_agent": "TestAgent/1.0",
         }
 
         context = get_request_audit_context(request)
-        self.assertEqual(context['ip_address'], '192.168.1.1')
-        self.assertEqual(context['user_agent'], 'TestAgent/1.0')
+        self.assertEqual(context["ip_address"], "192.168.1.1")
+        self.assertEqual(context["user_agent"], "TestAgent/1.0")
 
         # Test fallback when no audit_context
-        request2 = self.factory.get('/')
-        request2.META['REMOTE_ADDR'] = '10.0.0.1'
+        request2 = self.factory.get("/")
+        request2.META["REMOTE_ADDR"] = "10.0.0.1"
         request2.session = Mock()
         request2.session.session_key = None
 
         context2 = get_request_audit_context(request2)
-        self.assertEqual(context2['ip_address'], '10.0.0.1')
+        self.assertEqual(context2["ip_address"], "10.0.0.1")
 
 
 @pytest.mark.django_db
@@ -522,7 +486,7 @@ class TestAuditMixin(TestCase):
         """Clean up test data."""
         AuditLog.objects.all().delete()
         Person.objects.all().delete()
-        User.objects.all().delete()
+        get_user_model().objects.all().delete()
 
     def test_audit_mixin_integration(self):
         """Test that AuditMixin works correctly."""
@@ -543,22 +507,23 @@ class TestAuditLogAdmin(TestCase):
 
     def setUp(self):
         """Set up test data."""
+        User = get_user_model()
         self.user = User.objects.create_superuser(
-            username=f"admin_{str(uuid.uuid4())[:8]}",
+            username="admin_%s" % str(uuid.uuid4())[:8],
             email="admin@example.com",
-            password="adminpass123"
+            password="adminpass123",
         )
         self.audit_log = AuditLog.log_action(
             action=AuditLog.ACTION_CREATE,
             user=self.user,
             message="Test audit log",
-            metadata={"test": "data"}
+            metadata={"test": "data"},
         )
 
     def tearDown(self):
         """Clean up test data."""
         AuditLog.objects.all().delete()
-        User.objects.all().delete()
+        get_user_model().objects.all().delete()
 
     def test_audit_log_read_only_permissions(self):
         """Test that audit logs are read-only in admin."""

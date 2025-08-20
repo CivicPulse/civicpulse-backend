@@ -7,6 +7,7 @@ track password history for enhanced security.
 """
 
 import logging
+from typing import TYPE_CHECKING, Any, cast
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.signals import (
@@ -19,12 +20,21 @@ from django.db.models.signals import post_save, pre_delete, pre_save
 from django.dispatch import receiver
 
 from civicpulse.audit import AuditLog
+from civicpulse.audit_context import (
+    get_model_audit_data,
+    remove_model_audit_data,
+    store_model_audit_data,
+)
 from civicpulse.middleware.audit import get_request_audit_context
 from civicpulse.middleware.current_user import get_current_user
 from civicpulse.models import ContactAttempt, PasswordHistory, Person, VoterRecord
 
 logger = logging.getLogger(__name__)
-User = get_user_model()
+
+if TYPE_CHECKING:
+    from django.contrib.auth.models import AbstractUser as User
+else:
+    User = get_user_model()
 
 
 # Models to automatically audit
@@ -53,7 +63,7 @@ def get_model_changes(instance: Model, created: bool = False) -> dict:
 
     # Existing instance - compare with database
     try:
-        old_instance = instance.__class__.objects.get(pk=instance.pk)
+        old_instance = cast(Any, instance.__class__).objects.get(pk=instance.pk)
         changes = {}
 
         for field in instance._meta.fields:
@@ -77,7 +87,7 @@ def get_model_changes(instance: Model, created: bool = False) -> dict:
 
         return changes
 
-    except instance.__class__.DoesNotExist:
+    except cast(Any, instance.__class__).DoesNotExist:
         # Instance doesn't exist yet (shouldn't happen in pre_save)
         return {}
 
@@ -114,6 +124,9 @@ def audit_model_pre_save(sender, instance, **kwargs):
     """
     Capture the state of a model before saving for change tracking.
 
+    This function now uses thread-local storage instead of private attributes
+    on the model instance for improved thread safety and reliability.
+
     Args:
         sender: The model class
         instance: The model instance being saved
@@ -123,15 +136,42 @@ def audit_model_pre_save(sender, instance, **kwargs):
     if sender not in AUDITED_MODELS:
         return
 
-    # Store the changes on the instance for use in post_save
-    instance._audit_changes = get_model_changes(instance, created=not instance.pk)
-    instance._audit_is_new = not bool(instance.pk)
+    try:
+        # Calculate changes and determine if this is a new instance
+        changes = get_model_changes(instance, created=not instance.pk)
+        is_new = not bool(instance.pk)
+
+        # Store audit data in thread-local storage with additional metadata
+        metadata = {
+            "sender_name": sender.__name__,
+            "signal_name": "pre_save",
+            "instance_pk": instance.pk,
+        }
+
+        # Store the audit data using thread-local storage
+        audit_key = store_model_audit_data(
+            instance=instance, changes=changes, is_new=is_new, metadata=metadata
+        )
+
+        # Store the audit key on the instance for retrieval in post_save
+        # This is safe because it's just a reference key, not the actual data
+        instance._audit_key = audit_key
+
+    except Exception as e:
+        logger.error(
+            f"Error in audit_model_pre_save for {sender.__name__}: {e}", exc_info=True
+        )
+        # Ensure we don't break the save operation if audit fails
+        pass
 
 
 @receiver(post_save)
 def audit_model_post_save(sender, instance, created, **kwargs):
     """
     Create audit log entry after a model is saved.
+
+    This function now retrieves audit data from thread-local storage instead
+    of private attributes on the model instance for improved thread safety.
 
     Args:
         sender: The model class
@@ -143,14 +183,50 @@ def audit_model_post_save(sender, instance, created, **kwargs):
     if sender not in AUDITED_MODELS:
         return
 
+    audit_key = None
     try:
-        # Get changes from pre_save
-        changes = getattr(instance, "_audit_changes", {})
-        # Use the created parameter from the signal, not pre-computed value
+        # Get the audit key from the instance
+        audit_key = getattr(instance, "_audit_key", None)
+
+        if not audit_key:
+            # Fallback: If no audit key, create minimal audit data
+            # This can happen if pre_save didn't run or failed
+            logger.warning(
+                f"No audit key found for {sender.__name__} instance {instance.pk}. "
+                "Creating minimal audit log."
+            )
+            changes = {} if not created else get_model_changes(instance, created=True)
+        else:
+            # Retrieve audit data from thread-local storage
+            audit_data = get_model_audit_data(audit_key)
+
+            if not audit_data:
+                logger.warning(
+                    f"Audit data not found for key {audit_key}. "
+                    "Creating minimal audit log."
+                )
+                if created:
+                    changes = get_model_changes(instance, created=True)
+                else:
+                    changes = {}
+            else:
+                changes = audit_data.get("changes", {})
+                # Validate that our stored data matches the current state
+                stored_is_new = audit_data.get("is_new", False)
+                if stored_is_new != created:
+                    logger.warning(
+                        f"Audit data mismatch for {sender.__name__}: "
+                        f"stored is_new={stored_is_new}, signal created={created}"
+                    )
+
+        # Use the created parameter from the signal (most reliable)
         is_new = created
 
-        # Skip if no changes (shouldn't happen, but be safe)
+        # Skip if no changes for existing records (shouldn't happen, but be safe)
         if not is_new and not changes:
+            logger.debug(
+                f"Skipping audit log for {sender.__name__} - no changes detected"
+            )
             return
 
         # Determine action
@@ -185,16 +261,18 @@ def audit_model_post_save(sender, instance, created, **kwargs):
             severity=AuditLog.SEVERITY_INFO,
         )
 
-        # Clean up temporary attributes
-        if hasattr(instance, "_audit_changes"):
-            delattr(instance, "_audit_changes")
-        if hasattr(instance, "_audit_is_new"):
-            delattr(instance, "_audit_is_new")
-
     except Exception as e:
         logger.error(
             f"Error creating audit log for {sender.__name__}: {e}", exc_info=True
         )
+    finally:
+        # Clean up thread-local storage and temporary attributes
+        if audit_key:
+            remove_model_audit_data(audit_key)
+
+        # Clean up the audit key from the instance
+        if hasattr(instance, "_audit_key"):
+            delattr(instance, "_audit_key")
 
 
 @receiver(pre_delete)
@@ -385,17 +463,36 @@ def track_password_changes(sender, instance, **kwargs):
     Track the current password state before saving for comparison.
 
     This signal runs before the user is saved to capture the previous password.
+    Now uses thread-local storage instead of private attributes for thread safety.
     """
-    if instance.pk:
-        try:
-            # Get the current password from database
-            old_user = User.objects.get(pk=instance.pk)
-            instance._old_password = old_user.password
-        except User.DoesNotExist:
-            instance._old_password = None
-    else:
-        # New user - no old password
-        instance._old_password = None
+    try:
+        old_password = None
+        if instance.pk:
+            try:
+                # Get the current password from database
+                old_user = User.objects.get(pk=instance.pk)
+                old_password = old_user.password
+            except User.DoesNotExist:
+                old_password = None
+
+        # Store password data in thread-local storage
+        password_key = store_model_audit_data(
+            instance=instance,
+            changes={"old_password": old_password},
+            is_new=not bool(instance.pk),
+            metadata={
+                "signal_type": "password_tracking",
+                "sender_name": sender.__name__,
+            },
+        )
+
+        # Store the key for retrieval in post_save
+        instance._password_audit_key = password_key
+
+    except Exception as e:
+        logger.error(f"Error in track_password_changes: {e}", exc_info=True)
+        # Don't break the save operation if password tracking fails
+        pass
 
 
 @receiver(post_save, sender=User)
@@ -404,7 +501,8 @@ def save_password_history(sender, instance, created, **kwargs):
     Save password to history when user is created or password changes.
 
     This signal handler tracks password changes and stores them in the
-    PasswordHistory model to prevent password reuse.
+    PasswordHistory model to prevent password reuse. Now uses thread-local
+    storage instead of private attributes for improved thread safety.
 
     Args:
         sender: The model class (User)
@@ -412,29 +510,53 @@ def save_password_history(sender, instance, created, **kwargs):
         created: Boolean indicating if this is a new user
         **kwargs: Additional keyword arguments
     """
-    password_changed = False
+    password_audit_key = None
+    try:
+        password_changed = False
 
-    if created:
-        # For new users, always save the initial password
-        password_changed = True
-    else:
-        # For existing users, check if password has changed
-        old_password = getattr(instance, "_old_password", None)
-        if old_password != instance.password:
+        # Get the password audit key from the instance
+        password_audit_key = getattr(instance, "_password_audit_key", None)
+
+        if created:
+            # For new users, always save the initial password
             password_changed = True
+        else:
+            # For existing users, check if password has changed
+            old_password = None
+            if password_audit_key:
+                audit_data = get_model_audit_data(password_audit_key)
+                if audit_data:
+                    old_password = audit_data.get("changes", {}).get("old_password")
 
-    if password_changed:
-        # Save the current password to history
-        PasswordHistory.objects.create(user=instance, password_hash=instance.password)
+            # Compare old password with current password
+            if old_password != instance.password:
+                password_changed = True
 
-        # Clean up old password history entries (keep only last 10)
-        # This prevents the table from growing indefinitely
-        old_entries = PasswordHistory.objects.filter(user=instance).order_by(
-            "-created_at"
-        )[10:]
+        if password_changed:
+            # Save the current password to history
+            PasswordHistory.objects.create(
+                user=instance, password_hash=instance.password
+            )
 
-        for entry in old_entries:
-            entry.delete()
+            # Clean up old password history entries (keep only last 10)
+            # This prevents the table from growing indefinitely
+            old_entries = PasswordHistory.objects.filter(user=instance).order_by(
+                "-created_at"
+            )[10:]
+
+            for entry in old_entries:
+                entry.delete()
+
+    except Exception as e:
+        logger.error(f"Error in save_password_history: {e}", exc_info=True)
+    finally:
+        # Clean up thread-local storage and temporary attributes
+        if password_audit_key:
+            remove_model_audit_data(password_audit_key)
+
+        # Clean up the audit key from the instance
+        if hasattr(instance, "_password_audit_key"):
+            delattr(instance, "_password_audit_key")
 
 
 # ============================================================================
@@ -443,10 +565,10 @@ def save_password_history(sender, instance, created, **kwargs):
 
 
 def log_data_export(
-    user: User,
+    user: "User",
     export_type: str,
     record_count: int,
-    filters: dict = None,
+    filters: dict[Any, Any] | None = None,
     **kwargs,
 ):
     """
@@ -486,7 +608,7 @@ def log_data_export(
 
         if security_check.get("alert_triggered"):
             logger.warning(
-                f"Security alert triggered for user {user.username}: "
+                f"Security alert triggered for user {cast(Any, user).username}: "
                 f"{security_check.get('export_count')} export operations detected"
             )
 
@@ -495,10 +617,10 @@ def log_data_export(
 
 
 def log_data_import(
-    user: User,
+    user: "User",
     import_type: str,
     record_count: int,
-    filename: str = None,
+    filename: str | None = None,
     **kwargs,
 ):
     """

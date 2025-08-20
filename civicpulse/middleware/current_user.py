@@ -7,12 +7,16 @@ the current user without requiring the request to be passed around.
 """
 
 import threading
+from typing import TYPE_CHECKING
 
 from django.contrib.auth import get_user_model
 from django.http import HttpRequest, HttpResponse
 from django.utils.deprecation import MiddlewareMixin
 
-User = get_user_model()
+if TYPE_CHECKING:
+    from django.contrib.auth.models import AbstractUser as User
+else:
+    User = get_user_model()
 
 # Thread-local storage for current request data
 _thread_locals = threading.local()

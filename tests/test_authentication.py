@@ -18,6 +18,8 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
+User = get_user_model()
+
 from civicpulse.forms import (
     PasswordChangeForm,
     SecureLoginForm,
@@ -29,8 +31,6 @@ from civicpulse.validators import (
     PasswordComplexityValidator,
     PasswordStrengthValidator,
 )
-
-User = get_user_model()
 
 
 class UserModelTest(TestCase):
@@ -51,6 +51,7 @@ class UserModelTest(TestCase):
 
     def test_create_user(self):
         """Test creating a new user."""
+        User = get_user_model()
         user = User.objects.create_user(**self.user_data)
 
         self.assertEqual(user.username, "testuser")
@@ -62,12 +63,14 @@ class UserModelTest(TestCase):
 
     def test_user_str_representation(self):
         """Test user string representation."""
+        User = get_user_model()
         user = User.objects.create_user(**self.user_data)
         expected = f"{user.username} ({user.role})"
         self.assertEqual(str(user), expected)
 
     def test_formatted_phone_number(self):
         """Test phone number formatting."""
+        User = get_user_model()
         user = User.objects.create_user(**self.user_data)
         formatted = user.get_formatted_phone_number()
         self.assertIn("555", formatted)
@@ -100,6 +103,8 @@ class AuthenticationFormsTest(TestCase):
 
     def setUp(self):
         """Set up test data."""
+        User = get_user_model()
+        User = get_user_model()
         self.user = User.objects.create_user(
             username="testuser",
             email="test@example.com",
@@ -330,6 +335,7 @@ class PasswordValidatorsTest(TestCase):
         from civicpulse.validators import PasswordHistoryValidator
 
         # Create a user
+        User = get_user_model()
         user = User.objects.create_user(
             username="historyuser",
             email="history@example.com",
@@ -356,6 +362,7 @@ class PasswordValidatorsTest(TestCase):
         from civicpulse.models import PasswordHistory
 
         # Create a user - the current implementation saves initial password to history
+        User = get_user_model()
         user = User.objects.create_user(
             username="signaluser", email="signal@example.com", password="FirstPass123!"
         )
@@ -421,6 +428,8 @@ class AuthenticationViewsTest(TestCase):
 
     def setUp(self):
         """Set up test data."""
+        User = get_user_model()
+        User = get_user_model()
         self.user = User.objects.create_user(
             username="testuser",
             email="test@example.com",
@@ -594,6 +603,7 @@ class RoleBasedAccessTest(TestCase):
 
     def setUp(self):
         """Set up test users with different roles."""
+        User = get_user_model()
         self.admin_user = User.objects.create_user(
             username="admin",
             email="admin@example.com",
@@ -603,6 +613,7 @@ class RoleBasedAccessTest(TestCase):
             is_verified=True,
         )
 
+        User = get_user_model()
         self.organizer_user = User.objects.create_user(
             username="organizer",
             email="organizer@example.com",
@@ -612,6 +623,7 @@ class RoleBasedAccessTest(TestCase):
             is_verified=True,
         )
 
+        User = get_user_model()
         self.volunteer_user = User.objects.create_user(
             username="volunteer",
             email="volunteer@example.com",
@@ -620,6 +632,7 @@ class RoleBasedAccessTest(TestCase):
             is_verified=True,
         )
 
+        User = get_user_model()
         self.viewer_user = User.objects.create_user(
             username="viewer",
             email="viewer@example.com",
@@ -661,6 +674,8 @@ class SecurityFeaturesTest(TestCase):
 
     def setUp(self):
         """Set up test data."""
+        User = get_user_model()
+        User = get_user_model()
         self.user = User.objects.create_user(
             username="testuser",
             email="test@example.com",
@@ -674,7 +689,7 @@ class SecurityFeaturesTest(TestCase):
         """Test rate limiting utility functions."""
         from django.test import RequestFactory
 
-        from civicpulse.views import (
+        from civicpulse.views_old import (
             clear_rate_limit,
             increment_rate_limit,
             is_rate_limited,
@@ -834,6 +849,7 @@ class IntegrationTest(TestCase):
     def test_password_reset_workflow(self):
         """Test complete password reset workflow."""
         # Create user
+        User = get_user_model()
         user = User.objects.create_user(
             username="resetuser",
             email="reset@example.com",

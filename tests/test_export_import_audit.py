@@ -15,8 +15,6 @@ from django.urls import reverse
 from civicpulse.audit import AuditLog
 from civicpulse.models import Person, VoterRecord
 
-User = get_user_model()
-
 
 class ExportImportAuditTestCase(TestCase):
     """Test cases for export/import audit logging."""
@@ -27,11 +25,13 @@ class ExportImportAuditTestCase(TestCase):
 
         # Create a test user with appropriate permissions (use UUID for uniqueness)
         unique_id = str(uuid.uuid4())[:8]
+        User = get_user_model()
+        User = get_user_model()
         self.user = User.objects.create_user(
-            username=f"testuser_{unique_id}",
+            username="testuser_%s" % unique_id,
             email="test@gmail.com",
             password="testpass123",
-            role="admin"
+            role="admin",
         )
 
         # Add permissions to the user
@@ -40,19 +40,17 @@ class ExportImportAuditTestCase(TestCase):
 
         person_ct = ContentType.objects.get_for_model(Person)
         view_permission = Permission.objects.get(
-            codename="view_person",
-            content_type=person_ct
+            codename="view_person", content_type=person_ct
         )
         add_permission = Permission.objects.get(
-            codename="add_person",
-            content_type=person_ct
+            codename="add_person", content_type=person_ct
         )
 
         self.user.user_permissions.add(view_permission, add_permission)
         self.user.save()
 
         # Log in the user
-        self.client.login(username=f"testuser_{unique_id}", password="testpass123")
+        self.client.login(username="testuser_%s" % unique_id, password="testpass123")
 
         # Create test persons
         self.person1 = Person.objects.create(
@@ -63,7 +61,7 @@ class ExportImportAuditTestCase(TestCase):
             city="Springfield",
             state="IL",
             zip_code="62701",
-            created_by=self.user
+            created_by=self.user,
         )
 
         # Create voter record for person1
@@ -72,7 +70,7 @@ class ExportImportAuditTestCase(TestCase):
             voter_id="IL123456789",
             registration_status="active",
             party_affiliation="DEM",
-            voter_score=85
+            voter_score=85,
         )
 
         self.person2 = Person.objects.create(
@@ -83,7 +81,7 @@ class ExportImportAuditTestCase(TestCase):
             city="Chicago",
             state="IL",
             zip_code="60601",
-            created_by=self.user
+            created_by=self.user,
         )
 
     def test_export_creates_audit_log(self):
@@ -122,8 +120,7 @@ class ExportImportAuditTestCase(TestCase):
 
         # Perform export with filters
         response = self.client.get(
-            reverse("civicpulse:person_export"),
-            {"state": "IL", "zip_code": "62701"}
+            reverse("civicpulse:person_export"), {"state": "IL", "zip_code": "62701"}
         )
 
         # Check that response is successful
@@ -155,15 +152,12 @@ class ExportImportAuditTestCase(TestCase):
 
         # Create uploaded file
         csv_file = SimpleUploadedFile(
-            "test_import.csv",
-            csv_content.encode("utf-8"),
-            content_type="text/csv"
+            "test_import.csv", csv_content.encode("utf-8"), content_type="text/csv"
         )
 
         # Perform import
         response = self.client.post(
-            reverse("civicpulse:person_import"),
-            {"csv_file": csv_file}
+            reverse("civicpulse:person_import"), {"csv_file": csv_file}
         )
 
         # Check that response is successful
@@ -213,13 +207,12 @@ class ExportImportAuditTestCase(TestCase):
         csv_file = SimpleUploadedFile(
             "test_import_errors.csv",
             csv_content.encode("utf-8"),
-            content_type="text/csv"
+            content_type="text/csv",
         )
 
         # Perform import
         response = self.client.post(
-            reverse("civicpulse:person_import"),
-            {"csv_file": csv_file}
+            reverse("civicpulse:person_import"), {"csv_file": csv_file}
         )
 
         # Check that response is successful (even with errors)
@@ -249,7 +242,7 @@ class ExportImportAuditTestCase(TestCase):
             first_name="Duplicate",
             last_name="Person",
             email="duplicate@outlook.com",
-            created_by=self.user
+            created_by=self.user,
         )
 
         # Create CSV content that includes a duplicate
@@ -263,14 +256,11 @@ class ExportImportAuditTestCase(TestCase):
         csv_file = SimpleUploadedFile(
             "test_import_duplicates.csv",
             csv_content.encode("utf-8"),
-            content_type="text/csv"
+            content_type="text/csv",
         )
 
         # Perform import
-        self.client.post(
-            reverse("civicpulse:person_import"),
-            {"csv_file": csv_file}
-        )
+        self.client.post(reverse("civicpulse:person_import"), {"csv_file": csv_file})
 
         # Check that audit log was created
         audit_log = AuditLog.objects.filter(action=AuditLog.ACTION_IMPORT).first()
@@ -285,9 +275,9 @@ class ExportImportAuditTestCase(TestCase):
 
         # At minimum, we should have attempted to process some records
         total_attempted = (
-            metadata["record_count"] +
-            metadata.get("errors_count", 0) +
-            metadata.get("duplicate_count", 0)
+            metadata["record_count"]
+            + metadata.get("errors_count", 0)
+            + metadata.get("duplicate_count", 0)
         )
         self.assertGreater(total_attempted, 0)
 
@@ -319,15 +309,16 @@ class ExportImportAuditTestCase(TestCase):
         """Test that export requires appropriate permission."""
         # Create user without permissions
         unique_id = str(uuid.uuid4())[:8]
+        User = get_user_model()
         User.objects.create_user(
-            username=f"noperms_{unique_id}",
+            username="noperms_%s" % unique_id,
             email="noperms@gmail.com",
-            password="testpass123"
+            password="testpass123",
         )
 
         # Log in user without permissions
         self.client.logout()
-        self.client.login(username=f"noperms_{unique_id}", password="testpass123")
+        self.client.login(username="noperms_%s" % unique_id, password="testpass123")
 
         # Try to access export
         response = self.client.get(reverse("civicpulse:person_export"))
@@ -339,15 +330,16 @@ class ExportImportAuditTestCase(TestCase):
         """Test that import requires appropriate permission."""
         # Create user without permissions
         unique_id = str(uuid.uuid4())[:8]
+        User = get_user_model()
         User.objects.create_user(
-            username=f"noperms2_{unique_id}",
+            username="noperms2_%s" % unique_id,
             email="noperms2@gmail.com",
-            password="testpass123"
+            password="testpass123",
         )
 
         # Log in user without permissions
         self.client.logout()
-        self.client.login(username=f"noperms2_{unique_id}", password="testpass123")
+        self.client.login(username="noperms2_%s" % unique_id, password="testpass123")
 
         # Try to access import
         response = self.client.get(reverse("civicpulse:person_import"))

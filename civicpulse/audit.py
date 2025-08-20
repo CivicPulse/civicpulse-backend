@@ -9,7 +9,8 @@ This module provides comprehensive audit logging functionality including:
 """
 
 import uuid
-from typing import Any
+from datetime import datetime, timedelta
+from typing import TYPE_CHECKING, Any, cast
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.fields import GenericForeignKey
@@ -18,7 +19,10 @@ from django.db import models
 from django.db.models import Q, QuerySet
 from django.utils import timezone
 
-User = get_user_model()
+if TYPE_CHECKING:
+    from django.contrib.auth.models import AbstractUser as User
+else:
+    User = get_user_model()
 
 
 class AuditLogManager(models.Manager):
@@ -33,9 +37,7 @@ class AuditLogManager(models.Manager):
         """Get audit logs for actions performed by a specific user."""
         return self.filter(user=user).select_related("user", "content_type")
 
-    def by_date_range(
-        self, start_date: timezone.datetime, end_date: timezone.datetime
-    ) -> QuerySet:
+    def by_date_range(self, start_date: datetime, end_date: datetime) -> QuerySet:
         """Get audit logs within a specific date range."""
         return self.filter(timestamp__range=(start_date, end_date))
 
@@ -71,7 +73,7 @@ class AuditLogManager(models.Manager):
 
     def recent_activity(self, hours: int = 24) -> QuerySet:
         """Get audit logs from the last N hours."""
-        cutoff = timezone.now() - timezone.timedelta(hours=hours)
+        cutoff = timezone.now() - timedelta(hours=hours)
         return self.filter(timestamp__gte=cutoff).select_related("user", "content_type")
 
 
@@ -237,10 +239,9 @@ class AuditLog(models.Model):
 
     def __str__(self) -> str:
         """String representation of the audit log entry."""
-        user_display = self.user_repr or 'System'
+        user_display = self.user_repr or "System"
         return (
-            f"{self.action} - {self.object_repr} by {user_display} "
-            f"at {self.timestamp}"
+            f"{self.action} - {self.object_repr} by {user_display} at {self.timestamp}"
         )
 
     def save(self, *args, **kwargs):
@@ -348,14 +349,14 @@ class AuditLog(models.Model):
             The created AuditLog instance
         """
         audit_log = cls(
-            user=user,
+            user=cast(Any, user),
             action=action,
             category=category,
             severity=severity,
             changes=changes or {},
             message=message,
             ip_address=ip_address,
-            user_agent=user_agent,
+            user_agent=user_agent or "",
             metadata=metadata or {},
         )
 
@@ -368,7 +369,7 @@ class AuditLog(models.Model):
         return audit_log
 
 
-class AuditMixin:
+class AuditMixin(models.Model):
     """
     Mixin class to add audit logging capabilities to models.
 
@@ -377,6 +378,9 @@ class AuditMixin:
     class MyModel(AuditMixin, models.Model):
         ...
     """
+
+    class Meta:
+        abstract = True
 
     # Override these in your model if needed
     audit_category = AuditLog.CATEGORY_SYSTEM

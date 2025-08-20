@@ -7,8 +7,9 @@ with proper audit logging.
 
 import csv
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
+from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required, permission_required
 from django.db.models import QuerySet
 from django.http import HttpRequest, HttpResponse
@@ -19,6 +20,11 @@ from django.views import View
 from civicpulse.middleware.audit import get_request_audit_context
 from civicpulse.models import Person
 from civicpulse.signals import log_data_export
+
+if TYPE_CHECKING:
+    from django.contrib.auth.models import AbstractUser as User
+else:
+    User = get_user_model()
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +81,7 @@ class PersonExportView(View):
 
             # Log the export operation
             log_data_export(
-                user=request.user,
+                user=cast(Any, request.user),
                 export_type="persons",
                 record_count=queryset.count(),
                 filters=filters,
@@ -109,7 +115,7 @@ class PersonExportView(View):
         Returns:
             Dictionary of validated filters
         """
-        filters = {}
+        filters: dict[str, Any] = {}
 
         # State filter
         state = request.GET.get("state", "").strip().upper()
@@ -168,7 +174,7 @@ class PersonExportView(View):
 
         # Apply age filters
         if "min_age" in filters or "max_age" in filters:
-            queryset = queryset.by_age_range(
+            queryset = cast(Any, queryset).by_age_range(
                 min_age=filters.get("min_age"), max_age=filters.get("max_age")
             )
 

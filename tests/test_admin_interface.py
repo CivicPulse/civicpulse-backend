@@ -22,8 +22,6 @@ from civicpulse.admin import AuditLogAdmin
 from civicpulse.audit import AuditLog
 from civicpulse.models import Person
 
-User = get_user_model()
-
 
 @pytest.mark.django_db
 class TestAuditLogAdminPermissions(TestCase):
@@ -39,16 +37,17 @@ class TestAuditLogAdminPermissions(TestCase):
         AuditLog.objects.all().delete()
 
         # Create users
+        User = get_user_model()
         self.superuser = User.objects.create_superuser(
-            username=f"admin_{str(uuid.uuid4())[:8]}",
+            username="admin_%s" % str(uuid.uuid4())[:8],
             email="admin@example.com",
-            password="adminpass123"
+            password="adminpass123",
         )
 
         self.regular_user = User.objects.create_user(
-            username=f"user_{str(uuid.uuid4())[:8]}",
+            username="user_%s" % str(uuid.uuid4())[:8],
             email="user@example.com",
-            password="userpass123"
+            password="userpass123",
         )
 
         # Create test audit log
@@ -57,13 +56,13 @@ class TestAuditLogAdminPermissions(TestCase):
             user=self.superuser,
             message="Test audit log",
             category=AuditLog.CATEGORY_SYSTEM,
-            metadata={"test": "data"}
+            metadata={"test": "data"},
         )
 
     def tearDown(self):
         """Clean up test data."""
         AuditLog.objects.all().delete()
-        User.objects.all().delete()
+        get_user_model().objects.all().delete()
 
     def test_has_add_permission_false(self):
         """Test that adding audit logs is not permitted."""
@@ -78,7 +77,9 @@ class TestAuditLogAdminPermissions(TestCase):
         request.user = self.superuser
 
         self.assertFalse(self.admin_class.has_change_permission(request))
-        self.assertFalse(self.admin_class.has_change_permission(request, self.audit_log))
+        self.assertFalse(
+            self.admin_class.has_change_permission(request, self.audit_log)
+        )
 
     def test_has_delete_permission_false(self):
         """Test that deleting audit logs is not permitted."""
@@ -86,7 +87,9 @@ class TestAuditLogAdminPermissions(TestCase):
         request.user = self.superuser
 
         self.assertFalse(self.admin_class.has_delete_permission(request))
-        self.assertFalse(self.admin_class.has_delete_permission(request, self.audit_log))
+        self.assertFalse(
+            self.admin_class.has_delete_permission(request, self.audit_log)
+        )
 
     def test_has_view_permission_superuser(self):
         """Test that superusers can view audit logs."""
@@ -104,10 +107,23 @@ class TestAuditLogAdminPermissions(TestCase):
 
         # Should include all model fields
         expected_fields = [
-            'id', 'timestamp', 'action', 'user', 'user_repr', 'object_id',
-            'object_repr', 'content_type', 'message', 'category', 'severity',
-            'ip_address', 'user_agent', 'session_key', 'metadata', 'changes',
-            'search_vector'
+            "id",
+            "timestamp",
+            "action",
+            "user",
+            "user_repr",
+            "object_id",
+            "object_repr",
+            "content_type",
+            "message",
+            "category",
+            "severity",
+            "ip_address",
+            "user_agent",
+            "session_key",
+            "metadata",
+            "changes",
+            "search_vector",
         ]
 
         for field in expected_fields:
@@ -122,17 +138,18 @@ class TestAuditLogAdminDisplayMethods(TestCase):
         """Set up test data."""
         self.admin_class = AuditLogAdmin(AuditLog, admin.site)
 
+        User = get_user_model()
         self.user = User.objects.create_user(
-            username=f"testuser_{str(uuid.uuid4())[:8]}",
+            username="testuser_%s" % str(uuid.uuid4())[:8],
             email="test@example.com",
-            password="testpass123"
+            password="testpass123",
         )
 
         self.person = Person.objects.create(
             first_name="John",
             last_name="Doe",
             email="john@example.com",
-            created_by=self.user
+            created_by=self.user,
         )
 
         # Clear audit logs from setup
@@ -142,7 +159,7 @@ class TestAuditLogAdminDisplayMethods(TestCase):
         """Clean up test data."""
         AuditLog.objects.all().delete()
         Person.objects.all().delete()
-        User.objects.all().delete()
+        get_user_model().objects.all().delete()
 
     def test_action_display_formatting(self):
         """Test action display method formatting."""
@@ -159,38 +176,32 @@ class TestAuditLogAdminDisplayMethods(TestCase):
         for action, expected_text, expected_color in actions_and_expected:
             with self.subTest(action=action):
                 audit_log = AuditLog.log_action(
-                    action=action,
-                    user=self.user,
-                    message="Test message"
+                    action=action, user=self.user, message="Test message"
                 )
 
                 display = self.admin_class.action_display(audit_log)
 
                 self.assertIn(expected_text, display)
                 self.assertIn(expected_color, display)
-                self.assertIn('<span', display)
-                self.assertIn('style=', display)
+                self.assertIn("<span", display)
+                self.assertIn("style=", display)
 
     def test_user_link_with_user(self):
         """Test user link display when user exists."""
         audit_log = AuditLog.log_action(
-            action=AuditLog.ACTION_CREATE,
-            user=self.user,
-            message="Test message"
+            action=AuditLog.ACTION_CREATE, user=self.user, message="Test message"
         )
 
         user_link = self.admin_class.user_link(audit_log)
 
-        self.assertIn('<a href=', user_link)
+        self.assertIn("<a href=", user_link)
         self.assertIn(str(self.user), user_link)
-        self.assertIn('/admin/civicpulse/user/', user_link)
+        self.assertIn("/admin/civicpulse/user/", user_link)
 
     def test_user_link_without_user(self):
         """Test user link display when no user (system action)."""
         audit_log = AuditLog.log_action(
-            action=AuditLog.ACTION_CREATE,
-            user=None,
-            message="System action"
+            action=AuditLog.ACTION_CREATE, user=None, message="System action"
         )
 
         user_link = self.admin_class.user_link(audit_log)
@@ -200,12 +211,12 @@ class TestAuditLogAdminDisplayMethods(TestCase):
     def test_category_badge_formatting(self):
         """Test category badge display formatting."""
         categories_and_colors = [
-            (AuditLog.CATEGORY_AUTH, "#1565C0"),      # Blue
-            (AuditLog.CATEGORY_VOTER_DATA, "#2E7D32"), # Green
-            (AuditLog.CATEGORY_CONTACT, "#00838F"),   # Teal
-            (AuditLog.CATEGORY_ADMIN, "#6A1B9A"),     # Purple
+            (AuditLog.CATEGORY_AUTH, "#1565C0"),  # Blue
+            (AuditLog.CATEGORY_VOTER_DATA, "#2E7D32"),  # Green
+            (AuditLog.CATEGORY_CONTACT, "#00838F"),  # Teal
+            (AuditLog.CATEGORY_ADMIN, "#6A1B9A"),  # Purple
             (AuditLog.CATEGORY_SECURITY, "#C62828"),  # Red
-            (AuditLog.CATEGORY_SYSTEM, "#616161"),    # Gray
+            (AuditLog.CATEGORY_SYSTEM, "#616161"),  # Gray
         ]
 
         for category, expected_color in categories_and_colors:
@@ -214,13 +225,13 @@ class TestAuditLogAdminDisplayMethods(TestCase):
                     action=AuditLog.ACTION_CREATE,
                     user=self.user,
                     category=category,
-                    message="Test message"
+                    message="Test message",
                 )
 
                 badge = self.admin_class.category_badge(audit_log)
 
-                self.assertIn('<span', badge)
-                self.assertIn('background-color', badge)
+                self.assertIn("<span", badge)
+                self.assertIn("background-color", badge)
                 self.assertIn(expected_color, badge)
                 # Check that category display name is shown
                 self.assertIn(audit_log.get_category_display(), badge)
@@ -228,9 +239,9 @@ class TestAuditLogAdminDisplayMethods(TestCase):
     def test_severity_badge_formatting(self):
         """Test severity badge display formatting."""
         severities_and_colors = [
-            (AuditLog.SEVERITY_INFO, "#90A4AE"),      # Blue gray
-            (AuditLog.SEVERITY_WARNING, "#FFA726"),   # Orange
-            (AuditLog.SEVERITY_ERROR, "#EF5350"),     # Red
+            (AuditLog.SEVERITY_INFO, "#90A4AE"),  # Blue gray
+            (AuditLog.SEVERITY_WARNING, "#FFA726"),  # Orange
+            (AuditLog.SEVERITY_ERROR, "#EF5350"),  # Red
             (AuditLog.SEVERITY_CRITICAL, "#E53935"),  # Dark red
         ]
 
@@ -240,13 +251,13 @@ class TestAuditLogAdminDisplayMethods(TestCase):
                     action=AuditLog.ACTION_CREATE,
                     user=self.user,
                     severity=severity,
-                    message="Test message"
+                    message="Test message",
                 )
 
                 badge = self.admin_class.severity_badge(audit_log)
 
-                self.assertIn('<span', badge)
-                self.assertIn('background-color', badge)
+                self.assertIn("<span", badge)
+                self.assertIn("background-color", badge)
                 self.assertIn(expected_color, badge)
                 # Check that severity display name is shown
                 self.assertIn(audit_log.get_severity_display(), badge)
@@ -257,13 +268,13 @@ class TestAuditLogAdminDisplayMethods(TestCase):
             action=AuditLog.ACTION_UPDATE,
             user=self.user,
             obj=self.person,
-            message="Updated person"
+            message="Updated person",
         )
 
         object_display = self.admin_class.object_display(audit_log)
 
         if audit_log.content_object:  # Object might be soft-deleted
-            self.assertIn('<a href=', object_display)
+            self.assertIn("<a href=", object_display)
             self.assertIn(str(self.person), object_display)
         else:
             # If object was soft-deleted, should show object_repr
@@ -272,28 +283,25 @@ class TestAuditLogAdminDisplayMethods(TestCase):
     def test_object_display_without_object(self):
         """Test object display when no content object."""
         audit_log = AuditLog.log_action(
-            action=AuditLog.ACTION_CREATE,
-            user=self.user,
-            message="System action"
+            action=AuditLog.ACTION_CREATE, user=self.user, message="System action"
         )
 
         object_display = self.admin_class.object_display(audit_log)
 
         self.assertEqual(object_display, "-")
 
-
     def test_changes_summary_display(self):
         """Test changes summary display."""
         changes = {
             "email": {"old": "old@example.com", "new": "new@example.com"},
-            "first_name": {"old": "Jane", "new": "John"}
+            "first_name": {"old": "Jane", "new": "John"},
         }
 
         audit_log = AuditLog.log_action(
             action=AuditLog.ACTION_UPDATE,
             user=self.user,
             obj=self.person,
-            changes=changes
+            changes=changes,
         )
 
         changes_summary = self.admin_class.changes_summary(audit_log)
@@ -306,15 +314,13 @@ class TestAuditLogAdminDisplayMethods(TestCase):
 
     def test_changes_summary_single_field(self):
         """Test changes summary display for single field."""
-        changes = {
-            "email": {"old": "old@example.com", "new": "new@example.com"}
-        }
+        changes = {"email": {"old": "old@example.com", "new": "new@example.com"}}
 
         audit_log = AuditLog.log_action(
             action=AuditLog.ACTION_UPDATE,
             user=self.user,
             obj=self.person,
-            changes=changes
+            changes=changes,
         )
 
         changes_summary = self.admin_class.changes_summary(audit_log)
@@ -323,9 +329,7 @@ class TestAuditLogAdminDisplayMethods(TestCase):
     def test_changes_summary_no_changes(self):
         """Test changes summary display when no changes."""
         audit_log = AuditLog.log_action(
-            action=AuditLog.ACTION_CREATE,
-            user=self.user,
-            obj=self.person
+            action=AuditLog.ACTION_CREATE, user=self.user, obj=self.person
         )
 
         changes_summary = self.admin_class.changes_summary(audit_log)
@@ -340,14 +344,13 @@ class TestAuditLogAdminFiltering(TestCase):
         """Set up test data."""
         self.admin_class = AuditLogAdmin(AuditLog, admin.site)
 
+        User = get_user_model()
         self.user1 = User.objects.create_user(
-            username=f"user1_{str(uuid.uuid4())[:8]}",
-            email="user1@example.com"
+            username="user1_%s" % str(uuid.uuid4())[:8], email="user1@example.com"
         )
 
         self.user2 = User.objects.create_user(
-            username=f"user2_{str(uuid.uuid4())[:8]}",
-            email="user2@example.com"
+            username="user2_%s" % str(uuid.uuid4())[:8], email="user2@example.com"
         )
 
         # Clear existing audit logs
@@ -359,7 +362,7 @@ class TestAuditLogAdminFiltering(TestCase):
             user=self.user1,
             category=AuditLog.CATEGORY_VOTER_DATA,
             severity=AuditLog.SEVERITY_INFO,
-            message="Created voter record"
+            message="Created voter record",
         )
 
         self.log2 = AuditLog.log_action(
@@ -368,7 +371,7 @@ class TestAuditLogAdminFiltering(TestCase):
             category=AuditLog.CATEGORY_SECURITY,
             severity=AuditLog.SEVERITY_WARNING,
             message="Failed login attempt",
-            ip_address="192.168.1.100"
+            ip_address="192.168.1.100",
         )
 
         self.log3 = AuditLog.log_action(
@@ -376,13 +379,13 @@ class TestAuditLogAdminFiltering(TestCase):
             user=self.user2,
             category=AuditLog.CATEGORY_VOTER_DATA,
             severity=AuditLog.SEVERITY_CRITICAL,
-            message="Large data export"
+            message="Large data export",
         )
 
     def tearDown(self):
         """Clean up test data."""
         AuditLog.objects.all().delete()
-        User.objects.all().delete()
+        get_user_model().objects.all().delete()
 
     def test_list_filter_configuration(self):
         """Test that list filters are properly configured."""
@@ -395,7 +398,12 @@ class TestAuditLogAdminFiltering(TestCase):
                 filter_names.append(filter_item)
 
         expected_filters = [
-            'action', 'category', 'severity', 'timestamp', 'user', 'content_type'
+            "action",
+            "category",
+            "severity",
+            "timestamp",
+            "user",
+            "content_type",
         ]
 
         for filter_name in expected_filters:
@@ -404,8 +412,13 @@ class TestAuditLogAdminFiltering(TestCase):
     def test_search_fields_configuration(self):
         """Test that search fields are properly configured."""
         expected_search_fields = [
-            'object_repr', 'user_repr', 'message', 'search_vector',
-            'ip_address', 'user__username', 'user__email'
+            "object_repr",
+            "user_repr",
+            "message",
+            "search_vector",
+            "ip_address",
+            "user__username",
+            "user__email",
         ]
 
         for field in expected_search_fields:
@@ -414,8 +427,14 @@ class TestAuditLogAdminFiltering(TestCase):
     def test_list_display_configuration(self):
         """Test that list display fields are properly configured."""
         expected_display_fields = [
-            'timestamp', 'action_display', 'user_link', 'object_display',
-            'category_badge', 'severity_badge', 'ip_address', 'changes_summary'
+            "timestamp",
+            "action_display",
+            "user_link",
+            "object_display",
+            "category_badge",
+            "severity_badge",
+            "ip_address",
+            "changes_summary",
         ]
 
         for field in expected_display_fields:
@@ -423,11 +442,11 @@ class TestAuditLogAdminFiltering(TestCase):
 
     def test_ordering_configuration(self):
         """Test that default ordering is by timestamp descending."""
-        self.assertEqual(self.admin_class.ordering, ('-timestamp',))
+        self.assertEqual(self.admin_class.ordering, ("-timestamp",))
 
     def test_date_hierarchy_configuration(self):
         """Test that date hierarchy is configured for timestamp."""
-        self.assertEqual(self.admin_class.date_hierarchy, 'timestamp')
+        self.assertEqual(self.admin_class.date_hierarchy, "timestamp")
 
 
 @pytest.mark.django_db
@@ -438,23 +457,23 @@ class TestAuditLogAdminQueryOptimization(TestCase):
         """Set up test data."""
         self.admin_class = AuditLogAdmin(AuditLog, admin.site)
 
+        User = get_user_model()
         self.user = User.objects.create_user(
-            username=f"testuser_{str(uuid.uuid4())[:8]}",
-            email="test@example.com"
+            username="testuser_%s" % str(uuid.uuid4())[:8], email="test@example.com"
         )
 
         self.person = Person.objects.create(
             first_name="John",
             last_name="Doe",
             email="john@example.com",
-            created_by=self.user
+            created_by=self.user,
         )
 
     def tearDown(self):
         """Clean up test data."""
         AuditLog.objects.all().delete()
         Person.objects.all().delete()
-        User.objects.all().delete()
+        get_user_model().objects.all().delete()
 
     def test_get_queryset_optimization(self):
         """Test that get_queryset includes necessary select_related."""
@@ -480,10 +499,11 @@ class TestAuditLogAdminActions(TestCase):
         self.admin_class = AuditLogAdmin(AuditLog, admin.site)
         self.factory = RequestFactory()
 
+        User = get_user_model()
         self.superuser = User.objects.create_superuser(
-            username=f"admin_{str(uuid.uuid4())[:8]}",
+            username="admin_%s" % str(uuid.uuid4())[:8],
             email="admin@example.com",
-            password="adminpass123"
+            password="adminpass123",
         )
 
         # Clear existing audit logs
@@ -494,14 +514,14 @@ class TestAuditLogAdminActions(TestCase):
             AuditLog.log_action(
                 action=AuditLog.ACTION_CREATE,
                 user=self.superuser,
-                message=f"Test log {i+1}",
-                category=AuditLog.CATEGORY_SYSTEM
+                message="Test log %d" % (i + 1),
+                category=AuditLog.CATEGORY_SYSTEM,
             )
 
     def tearDown(self):
         """Clean up test data."""
         AuditLog.objects.all().delete()
-        User.objects.all().delete()
+        get_user_model().objects.all().delete()
 
     def test_export_selected_audit_logs_action_exists(self):
         """Test that export action exists if implemented."""
@@ -535,9 +555,9 @@ class TestAuditLogAdminFieldsets(TestCase):
         """Set up test data."""
         self.admin_class = AuditLogAdmin(AuditLog, admin.site)
 
+        User = get_user_model()
         self.user = User.objects.create_user(
-            username=f"testuser_{str(uuid.uuid4())[:8]}",
-            email="test@example.com"
+            username="testuser_%s" % str(uuid.uuid4())[:8], email="test@example.com"
         )
 
         self.audit_log = AuditLog.log_action(
@@ -545,13 +565,13 @@ class TestAuditLogAdminFieldsets(TestCase):
             user=self.user,
             message="Test audit log",
             metadata={"test": "data"},
-            changes={"field": {"old": "value1", "new": "value2"}}
+            changes={"field": {"old": "value1", "new": "value2"}},
         )
 
     def tearDown(self):
         """Clean up test data."""
         AuditLog.objects.all().delete()
-        User.objects.all().delete()
+        get_user_model().objects.all().delete()
 
     def test_fieldsets_configuration(self):
         """Test that fieldsets are properly configured for detail view."""
@@ -566,17 +586,20 @@ class TestAuditLogAdminFieldsets(TestCase):
         # Flatten fieldsets to get all fields
         all_fields = []
         for name, opts in fieldsets:
-            all_fields.extend(opts['fields'])
+            all_fields.extend(opts["fields"])
 
         # Should include key fields
-        key_fields = ['timestamp', 'action', 'user', 'message', 'category', 'severity']
+        key_fields = ["timestamp", "action", "user", "message", "category", "severity"]
         for field in key_fields:
             self.assertIn(field, all_fields)
 
     def test_fields_configuration_fallback(self):
         """Test fields configuration if fieldsets not used."""
         # If fieldsets is None, Django uses fields
-        if not hasattr(self.admin_class, 'fieldsets') or self.admin_class.fieldsets is None:
+        if (
+            not hasattr(self.admin_class, "fieldsets")
+            or self.admin_class.fieldsets is None
+        ):
             self.assertIsNotNone(self.admin_class.fields)
 
 
@@ -588,22 +611,23 @@ class TestAuditLogAdminSecurity(TestCase):
         """Set up test data."""
         self.admin_class = AuditLogAdmin(AuditLog, admin.site)
 
+        User = get_user_model()
         self.superuser = User.objects.create_superuser(
-            username=f"admin_{str(uuid.uuid4())[:8]}",
+            username="admin_%s" % str(uuid.uuid4())[:8],
             email="admin@example.com",
-            password="adminpass123"
+            password="adminpass123",
         )
 
         self.regular_user = User.objects.create_user(
-            username=f"user_{str(uuid.uuid4())[:8]}",
+            username="user_%s" % str(uuid.uuid4())[:8],
             email="user@example.com",
-            password="userpass123"
+            password="userpass123",
         )
 
     def tearDown(self):
         """Clean up test data."""
         AuditLog.objects.all().delete()
-        User.objects.all().delete()
+        get_user_model().objects.all().delete()
 
     def test_save_model_prevented(self):
         """Test that save_model doesn't actually save (read-only enforcement)."""

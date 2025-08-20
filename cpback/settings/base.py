@@ -19,6 +19,7 @@ env: environ.Env = environ.Env(
     SECRET_KEY=(str, ""),
     ALLOWED_HOSTS=(list, []),
     DATABASE_URL=(str, ""),
+    PERSON_IMPORT_MAX_FILE_SIZE=(int, 10 * 1024 * 1024),  # 10MB default
 )
 
 # Read environment variables from .env file
@@ -258,6 +259,24 @@ ACCOUNT_EMAIL_REQUIRED = True
 ACCOUNT_USERNAME_REQUIRED = True
 ACCOUNT_AUTHENTICATION_METHOD = "username_email"  # Allow login with username or email
 
+# Security Monitoring Threshold Configuration
+# These settings control when security alerts are triggered
+SECURITY_FAILED_LOGIN_THRESHOLD = env(
+    "SECURITY_FAILED_LOGIN_THRESHOLD", default=5, cast=int
+)  # failures per time window
+SECURITY_FAILED_LOGIN_WINDOW_HOURS = env(
+    "SECURITY_FAILED_LOGIN_WINDOW_HOURS", default=1, cast=int
+)  # time window in hours
+SECURITY_EXPORT_THRESHOLD = env(
+    "SECURITY_EXPORT_THRESHOLD", default=10, cast=int
+)  # exports per time window
+SECURITY_EXPORT_WINDOW_HOURS = env(
+    "SECURITY_EXPORT_WINDOW_HOURS", default=24, cast=int
+)  # time window in hours
+SECURITY_PRIVILEGE_ESCALATION_WINDOW_HOURS = env(
+    "SECURITY_PRIVILEGE_ESCALATION_WINDOW_HOURS", default=24, cast=int
+)  # time window in hours
+
 # Ensure logs directory exists
 logs_dir = BASE_DIR / "logs"
 os.makedirs(logs_dir, exist_ok=True)
@@ -343,3 +362,7 @@ AUTHENTICATION_BACKENDS = [
     "axes.backends.AxesBackend",  # AxesBackend should be first
     "django.contrib.auth.backends.ModelBackend",
 ]
+
+# File Upload Settings
+# Maximum file size for person imports (in bytes)
+PERSON_IMPORT_MAX_FILE_SIZE: int = env("PERSON_IMPORT_MAX_FILE_SIZE")
