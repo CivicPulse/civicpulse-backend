@@ -19,6 +19,7 @@ env: environ.Env = environ.Env(
     SECRET_KEY=(str, ""),
     ALLOWED_HOSTS=(list, []),
     DATABASE_URL=(str, ""),
+    PERSON_IMPORT_MAX_FILE_SIZE=(int, 10 * 1024 * 1024),  # 10MB default
 )
 
 # Read environment variables from .env file
@@ -81,9 +82,13 @@ MIDDLEWARE: list[str] = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    # Current user middleware - stores user in thread-local storage for audit trail
+    "civicpulse.middleware.current_user.CurrentUserMiddleware",
     "axes.middleware.AxesMiddleware",  # Account lockout middleware
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    # Audit middleware - tracks all HTTP requests and user actions
+    "civicpulse.middleware.audit.AuditMiddleware",
 ]
 
 ROOT_URLCONF: str = "cpback.urls"
@@ -228,21 +233,49 @@ CACHES = {
     }
 }
 
-# Email Configuration (for password reset, verification, etc.)
-EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"  # Development
-# EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'  # Production
+# Email Configuration
+# Default email settings (can be overridden in environment-specific settings)
+EMAIL_BACKEND = env(
+    "EMAIL_BACKEND", default="django.core.mail.backends.console.EmailBackend"
+)
 EMAIL_HOST = env("EMAIL_HOST", default="localhost")
 EMAIL_PORT = env("EMAIL_PORT", default=587, cast=int)
 EMAIL_USE_TLS = env("EMAIL_USE_TLS", default=True, cast=bool)
+EMAIL_USE_SSL = env("EMAIL_USE_SSL", default=False, cast=bool)
 EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
 EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
-DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="noreply@civicpulse.org")
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="noreply@civicpulse.com")
+SERVER_EMAIL = env("SERVER_EMAIL", default="admin@civicpulse.com")
+
+# Admin notification settings
+ADMINS = [
+    ("CivicPulse Admin", env("ADMIN_EMAIL", default="admin@civicpulse.com")),
+]
+MANAGERS = ADMINS
 
 # Account Security Settings
 ACCOUNT_EMAIL_VERIFICATION = "mandatory"  # Require email verification
 ACCOUNT_EMAIL_REQUIRED = True
 ACCOUNT_USERNAME_REQUIRED = True
 ACCOUNT_AUTHENTICATION_METHOD = "username_email"  # Allow login with username or email
+
+# Security Monitoring Threshold Configuration
+# These settings control when security alerts are triggered
+SECURITY_FAILED_LOGIN_THRESHOLD = env(
+    "SECURITY_FAILED_LOGIN_THRESHOLD", default=5, cast=int
+)  # failures per time window
+SECURITY_FAILED_LOGIN_WINDOW_HOURS = env(
+    "SECURITY_FAILED_LOGIN_WINDOW_HOURS", default=1, cast=int
+)  # time window in hours
+SECURITY_EXPORT_THRESHOLD = env(
+    "SECURITY_EXPORT_THRESHOLD", default=10, cast=int
+)  # exports per time window
+SECURITY_EXPORT_WINDOW_HOURS = env(
+    "SECURITY_EXPORT_WINDOW_HOURS", default=24, cast=int
+)  # time window in hours
+SECURITY_PRIVILEGE_ESCALATION_WINDOW_HOURS = env(
+    "SECURITY_PRIVILEGE_ESCALATION_WINDOW_HOURS", default=24, cast=int
+)  # time window in hours
 
 # Ensure logs directory exists
 logs_dir = BASE_DIR / "logs"
@@ -329,3 +362,7 @@ AUTHENTICATION_BACKENDS = [
     "axes.backends.AxesBackend",  # AxesBackend should be first
     "django.contrib.auth.backends.ModelBackend",
 ]
+
+# File Upload Settings
+# Maximum file size for person imports (in bytes)
+PERSON_IMPORT_MAX_FILE_SIZE: int = env("PERSON_IMPORT_MAX_FILE_SIZE")

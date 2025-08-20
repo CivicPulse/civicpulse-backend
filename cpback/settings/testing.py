@@ -66,6 +66,9 @@ SECURE_SSL_REDIRECT = False  # noqa: F405
 SESSION_COOKIE_SECURE = False  # noqa: F405
 CSRF_COOKIE_SECURE = False  # noqa: F405
 
+# Allow all email domains for testing
+SUSPICIOUS_EMAIL_DOMAINS = []  # noqa: F405
+
 # Override authentication backends for testing to avoid AXES issues
 AUTHENTICATION_BACKENDS = [  # noqa: F405
     "django.contrib.auth.backends.ModelBackend",

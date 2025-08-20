@@ -6,5 +6,5 @@ class CivicpulseConfig(AppConfig):
     name = "civicpulse"
 
     def ready(self):
-        """Import signal handlers when app is ready."""
+        """Import signal handlers when the app is ready."""
         import civicpulse.signals  # noqa: F401
