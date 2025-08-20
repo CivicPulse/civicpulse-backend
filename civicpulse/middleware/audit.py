@@ -62,9 +62,7 @@ class AuditMiddleware(MiddlewareMixin):
                 "ip_address": self.get_client_ip(request),
                 "user_agent": request.META.get("HTTP_USER_AGENT", "")[:500],
                 "session_key": (
-                    request.session.session_key
-                    if hasattr(request, "session")
-                    else None
+                    request.session.session_key if hasattr(request, "session") else None
                 ),
             },
         )
