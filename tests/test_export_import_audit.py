@@ -28,7 +28,7 @@ class ExportImportAuditTestCase(TestCase):
         User = get_user_model()
         User = get_user_model()
         self.user = User.objects.create_user(
-            username="testuser_%s" % unique_id,
+            username=f"testuser_{unique_id}",
             email="test@gmail.com",
             password="testpass123",
             role="admin",
@@ -50,7 +50,7 @@ class ExportImportAuditTestCase(TestCase):
         self.user.save()
 
         # Log in the user
-        self.client.login(username="testuser_%s" % unique_id, password="testpass123")
+        self.client.login(username=f"testuser_{unique_id}", password="testpass123")
 
         # Create test persons
         self.person1 = Person.objects.create(
@@ -311,14 +311,14 @@ class ExportImportAuditTestCase(TestCase):
         unique_id = str(uuid.uuid4())[:8]
         User = get_user_model()
         User.objects.create_user(
-            username="noperms_%s" % unique_id,
+            username=f"noperms_{unique_id}",
             email="noperms@gmail.com",
             password="testpass123",
         )
 
         # Log in user without permissions
         self.client.logout()
-        self.client.login(username="noperms_%s" % unique_id, password="testpass123")
+        self.client.login(username=f"noperms_{unique_id}", password="testpass123")
 
         # Try to access export
         response = self.client.get(reverse("civicpulse:person_export"))
@@ -332,14 +332,14 @@ class ExportImportAuditTestCase(TestCase):
         unique_id = str(uuid.uuid4())[:8]
         User = get_user_model()
         User.objects.create_user(
-            username="noperms2_%s" % unique_id,
+            username=f"noperms2_{unique_id}",
             email="noperms2@gmail.com",
             password="testpass123",
         )
 
         # Log in user without permissions
         self.client.logout()
-        self.client.login(username="noperms2_%s" % unique_id, password="testpass123")
+        self.client.login(username=f"noperms2_{unique_id}", password="testpass123")
 
         # Try to access import
         response = self.client.get(reverse("civicpulse:person_import"))

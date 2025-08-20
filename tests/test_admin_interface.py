@@ -39,13 +39,13 @@ class TestAuditLogAdminPermissions(TestCase):
         # Create users
         User = get_user_model()
         self.superuser = User.objects.create_superuser(
-            username="admin_%s" % str(uuid.uuid4())[:8],
+            username=f"admin_{str(uuid.uuid4())[:8]}",
             email="admin@example.com",
             password="adminpass123",
         )
 
         self.regular_user = User.objects.create_user(
-            username="user_%s" % str(uuid.uuid4())[:8],
+            username=f"user_{str(uuid.uuid4())[:8]}",
             email="user@example.com",
             password="userpass123",
         )
@@ -140,7 +140,7 @@ class TestAuditLogAdminDisplayMethods(TestCase):
 
         User = get_user_model()
         self.user = User.objects.create_user(
-            username="testuser_%s" % str(uuid.uuid4())[:8],
+            username=f"testuser_{str(uuid.uuid4())[:8]}",
             email="test@example.com",
             password="testpass123",
         )
@@ -346,11 +346,11 @@ class TestAuditLogAdminFiltering(TestCase):
 
         User = get_user_model()
         self.user1 = User.objects.create_user(
-            username="user1_%s" % str(uuid.uuid4())[:8], email="user1@example.com"
+            username=f"user1_{str(uuid.uuid4())[:8]}", email="user1@example.com"
         )
 
         self.user2 = User.objects.create_user(
-            username="user2_%s" % str(uuid.uuid4())[:8], email="user2@example.com"
+            username=f"user2_{str(uuid.uuid4())[:8]}", email="user2@example.com"
         )
 
         # Clear existing audit logs
@@ -459,7 +459,7 @@ class TestAuditLogAdminQueryOptimization(TestCase):
 
         User = get_user_model()
         self.user = User.objects.create_user(
-            username="testuser_%s" % str(uuid.uuid4())[:8], email="test@example.com"
+            username=f"testuser_{str(uuid.uuid4())[:8]}", email="test@example.com"
         )
 
         self.person = Person.objects.create(
@@ -501,7 +501,7 @@ class TestAuditLogAdminActions(TestCase):
 
         User = get_user_model()
         self.superuser = User.objects.create_superuser(
-            username="admin_%s" % str(uuid.uuid4())[:8],
+            username=f"admin_{str(uuid.uuid4())[:8]}",
             email="admin@example.com",
             password="adminpass123",
         )
@@ -514,7 +514,7 @@ class TestAuditLogAdminActions(TestCase):
             AuditLog.log_action(
                 action=AuditLog.ACTION_CREATE,
                 user=self.superuser,
-                message="Test log %d" % (i + 1),
+                message=f"Test log {i + 1}",
                 category=AuditLog.CATEGORY_SYSTEM,
             )
 
@@ -557,7 +557,7 @@ class TestAuditLogAdminFieldsets(TestCase):
 
         User = get_user_model()
         self.user = User.objects.create_user(
-            username="testuser_%s" % str(uuid.uuid4())[:8], email="test@example.com"
+            username=f"testuser_{str(uuid.uuid4())[:8]}", email="test@example.com"
         )
 
         self.audit_log = AuditLog.log_action(
@@ -585,7 +585,7 @@ class TestAuditLogAdminFieldsets(TestCase):
 
         # Flatten fieldsets to get all fields
         all_fields = []
-        for name, opts in fieldsets:
+        for _name, opts in fieldsets:
             all_fields.extend(opts["fields"])
 
         # Should include key fields
@@ -613,13 +613,13 @@ class TestAuditLogAdminSecurity(TestCase):
 
         User = get_user_model()
         self.superuser = User.objects.create_superuser(
-            username="admin_%s" % str(uuid.uuid4())[:8],
+            username=f"admin_{str(uuid.uuid4())[:8]}",
             email="admin@example.com",
             password="adminpass123",
         )
 
         self.regular_user = User.objects.create_user(
-            username="user_%s" % str(uuid.uuid4())[:8],
+            username=f"user_{str(uuid.uuid4())[:8]}",
             email="user@example.com",
             password="userpass123",
         )
@@ -632,7 +632,8 @@ class TestAuditLogAdminSecurity(TestCase):
     def test_save_model_prevented(self):
         """Test that save_model doesn't actually save (read-only enforcement)."""
         # Since the admin class relies on has_add_permission and has_change_permission
-        # returning False to prevent saves, we test that these permissions are properly set
+        # returning False to prevent saves, we test that these permissions are properly
+        # set
         request = Mock()
         request.user = self.superuser
 

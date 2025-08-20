@@ -63,7 +63,7 @@ class TestFailedLoginDetection(TestCase):
         for i in range(3):
             AuditLog.log_action(
                 action=AuditLog.ACTION_LOGIN_FAILED,
-                message="Failed login attempt %d" % (i + 1),
+                message=f"Failed login attempt {i + 1}",
                 category=AuditLog.CATEGORY_SECURITY,
                 ip_address=self.ip_address,
                 metadata={"username_attempted": self.username},
@@ -83,7 +83,7 @@ class TestFailedLoginDetection(TestCase):
         for i in range(5):
             AuditLog.log_action(
                 action=AuditLog.ACTION_LOGIN_FAILED,
-                message="Failed login attempt %d" % (i + 1),
+                message=f"Failed login attempt {i + 1}",
                 category=AuditLog.CATEGORY_SECURITY,
                 ip_address=self.ip_address,
                 metadata={"username_attempted": self.username},
@@ -123,7 +123,7 @@ class TestFailedLoginDetection(TestCase):
         for i in range(3):
             AuditLog.log_action(
                 action=AuditLog.ACTION_LOGIN_FAILED,
-                message="Failed login attempt %d" % (i + 1),
+                message=f"Failed login attempt {i + 1}",
                 category=AuditLog.CATEGORY_SECURITY,
                 ip_address=self.ip_address,
                 metadata={"username_attempted": self.username},
@@ -158,7 +158,7 @@ class TestFailedLoginDetection(TestCase):
         for i in range(3):
             AuditLog.log_action(
                 action=AuditLog.ACTION_LOGIN_FAILED,
-                message="Recent failed login %d" % (i + 1),
+                message=f"Recent failed login {i + 1}",
                 category=AuditLog.CATEGORY_SECURITY,
                 ip_address=self.ip_address,
                 metadata={"username_attempted": self.username},
@@ -179,10 +179,10 @@ class TestFailedLoginDetection(TestCase):
 
         # Create failed attempts for different usernames
         for username in usernames:
-            for i in range(2):
+            for _i in range(2):
                 AuditLog.log_action(
                     action=AuditLog.ACTION_LOGIN_FAILED,
-                    message="Failed login for %s" % username,
+                    message=f"Failed login for {username}",
                     category=AuditLog.CATEGORY_SECURITY,
                     ip_address=self.ip_address,
                     metadata={"username_attempted": username},
@@ -227,7 +227,7 @@ class TestUnusualExportActivityDetection(TestCase):
 
         User = get_user_model()
         self.user = User.objects.create_user(
-            username="testuser_%s" % str(uuid.uuid4())[:8],
+            username=f"testuser_{str(uuid.uuid4())[:8]}",
             email="test@example.com",
             password="testpass123",
         )
@@ -252,7 +252,7 @@ class TestUnusualExportActivityDetection(TestCase):
             AuditLog.log_action(
                 action=AuditLog.ACTION_EXPORT,
                 user=self.user,
-                message="Export operation %d" % (i + 1),
+                message=f"Export operation {i + 1}",
                 category=AuditLog.CATEGORY_VOTER_DATA,
                 metadata={
                     "export_type": "persons",
@@ -274,7 +274,7 @@ class TestUnusualExportActivityDetection(TestCase):
             AuditLog.log_action(
                 action=AuditLog.ACTION_EXPORT,
                 user=self.user,
-                message="Export operation %d" % (i + 1),
+                message=f"Export operation {i + 1}",
                 category=AuditLog.CATEGORY_VOTER_DATA,
                 metadata={
                     "export_type": "persons",
@@ -316,7 +316,7 @@ class TestUnusualExportActivityDetection(TestCase):
             AuditLog.log_action(
                 action=AuditLog.ACTION_EXPORT,
                 user=self.user,
-                message="Export operation %d" % (i + 1),
+                message=f"Export operation {i + 1}",
                 category=AuditLog.CATEGORY_VOTER_DATA,
                 metadata={"export_type": "persons", "record_count": 100},
             )
@@ -348,7 +348,7 @@ class TestUnusualExportActivityDetection(TestCase):
             AuditLog.log_action(
                 action=AuditLog.ACTION_EXPORT,
                 user=self.user,
-                message="Recent export %d" % (i + 1),
+                message=f"Recent export {i + 1}",
                 category=AuditLog.CATEGORY_VOTER_DATA,
                 metadata={"export_type": "persons", "record_count": 100},
             )
@@ -376,7 +376,7 @@ class TestUnusualExportActivityDetection(TestCase):
             AuditLog.log_action(
                 action=AuditLog.ACTION_EXPORT,
                 user=self.user,
-                message="Export %d" % (i + 1),
+                message=f"Export {i + 1}",
                 category=AuditLog.CATEGORY_VOTER_DATA,
                 metadata=metadata,
             )
@@ -392,7 +392,7 @@ class TestUnusualExportActivityDetection(TestCase):
             AuditLog.log_action(
                 action=AuditLog.ACTION_EXPORT,
                 user=self.user,
-                message="Export %d" % (i + 1),
+                message=f"Export {i + 1}",
                 category=AuditLog.CATEGORY_VOTER_DATA,
                 metadata={
                     "export_type": f"type_{i + 1}",
@@ -437,7 +437,7 @@ class TestPrivilegeEscalationDetection(TestCase):
 
         User = get_user_model()
         self.user = User.objects.create_user(
-            username="testuser_%s" % str(uuid.uuid4())[:8],
+            username=f"testuser_{str(uuid.uuid4())[:8]}",
             email="test@example.com",
             password="testpass123",
         )
@@ -541,10 +541,10 @@ class TestSecurityDashboard(TestCase):
         for i in range(3):
             AuditLog.log_action(
                 action=AuditLog.ACTION_LOGIN_FAILED,
-                message="Critical security event %d" % (i + 1),
+                message=f"Critical security event {i + 1}",
                 category=AuditLog.CATEGORY_SECURITY,
                 severity=AuditLog.SEVERITY_CRITICAL,
-                ip_address="192.168.1.%d" % (i + 1),
+                ip_address=f"192.168.1.{i + 1}",
                 metadata={"alert_type": "security_breach"},
             )
 
@@ -552,19 +552,19 @@ class TestSecurityDashboard(TestCase):
         for i in range(5):
             AuditLog.log_action(
                 action=AuditLog.ACTION_LOGIN_FAILED,
-                message="Failed login %d" % (i + 1),
+                message=f"Failed login {i + 1}",
                 category=AuditLog.CATEGORY_SECURITY,
-                ip_address="10.0.0.%d" % (i % 2 + 1),  # 2 unique IPs
+                ip_address=f"10.0.0.{i % 2 + 1}",  # 2 unique IPs
             )
 
         # Create export operations
         User = get_user_model()
-        user = User.objects.create_user(username="user_%s" % uuid.uuid4())
+        user = User.objects.create_user(username=f"user_{uuid.uuid4()}")
         for i in range(2):
             AuditLog.log_action(
                 action=AuditLog.ACTION_EXPORT,
                 user=user,
-                message="Export operation %d" % (i + 1),
+                message=f"Export operation {i + 1}",
                 category=AuditLog.CATEGORY_VOTER_DATA,
             )
 
@@ -619,10 +619,10 @@ class TestSecurityDashboard(TestCase):
         for i in range(15):
             AuditLog.log_action(
                 action=AuditLog.ACTION_LOGIN_FAILED,
-                message="Critical event %d" % (i + 1),
+                message=f"Critical event {i + 1}",
                 category=AuditLog.CATEGORY_SECURITY,
                 severity=AuditLog.SEVERITY_CRITICAL,
-                ip_address="192.168.1.%d" % (i + 1),
+                ip_address=f"192.168.1.{i + 1}",
             )
 
         result = get_security_dashboard_data(hours=24)
@@ -670,7 +670,7 @@ class TestEmailAlerts(TestCase):
         for i in range(5):
             AuditLog.log_action(
                 action=AuditLog.ACTION_LOGIN_FAILED,
-                message="Failed login attempt %d" % (i + 1),
+                message=f"Failed login attempt {i + 1}",
                 category=AuditLog.CATEGORY_SECURITY,
                 ip_address=self.ip_address,
                 metadata={"username_attempted": self.username},
@@ -698,7 +698,7 @@ class TestEmailAlerts(TestCase):
         """Test that export activity alerts send emails."""
         User = get_user_model()
         user = User.objects.create_user(
-            username="testuser_%s" % str(uuid.uuid4())[:8], email="test@example.com"
+            username=f"testuser_{str(uuid.uuid4())[:8]}", email="test@example.com"
         )
 
         # Create enough exports to trigger alert
@@ -706,7 +706,7 @@ class TestEmailAlerts(TestCase):
             AuditLog.log_action(
                 action=AuditLog.ACTION_EXPORT,
                 user=user,
-                message="Export operation %d" % (i + 1),
+                message=f"Export operation {i + 1}",
                 category=AuditLog.CATEGORY_VOTER_DATA,
                 metadata={"export_type": "persons", "record_count": 100},
             )
@@ -734,7 +734,7 @@ class TestEmailAlerts(TestCase):
         for i in range(5):
             AuditLog.log_action(
                 action=AuditLog.ACTION_LOGIN_FAILED,
-                message="Failed login attempt %d" % (i + 1),
+                message=f"Failed login attempt {i + 1}",
                 category=AuditLog.CATEGORY_SECURITY,
                 ip_address=self.ip_address,
                 metadata={"username_attempted": self.username},

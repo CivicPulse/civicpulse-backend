@@ -39,7 +39,7 @@ class TestSecurityThresholdConfiguration(TestCase):
         self.ip_address = "192.168.1.100"
         self.username = "test_user"
         self.user = User.objects.create_user(
-            username="testuser_%s" % str(uuid.uuid4())[:8],
+            username=f"testuser_{str(uuid.uuid4())[:8]}",
             email="test@example.com",
             password="testpass123",
         )
@@ -50,7 +50,8 @@ class TestSecurityThresholdConfiguration(TestCase):
         User.objects.all().delete()
 
     def test_default_threshold_getters(self):
-        """Test that threshold getters return default values when no settings are configured."""
+        """Test that threshold getters return default values when no settings are
+        configured."""
         # Test without any custom settings
         self.assertEqual(get_failed_login_threshold(), 5)
         self.assertEqual(get_failed_login_window_hours(), 1)
@@ -66,7 +67,8 @@ class TestSecurityThresholdConfiguration(TestCase):
         SECURITY_PRIVILEGE_ESCALATION_WINDOW_HOURS=48,
     )
     def test_custom_threshold_getters(self):
-        """Test that threshold getters return custom values when settings are configured."""
+        """Test that threshold getters return custom values when settings are
+        configured."""
         self.assertEqual(get_failed_login_threshold(), 3)
         self.assertEqual(get_failed_login_window_hours(), 2)
         self.assertEqual(get_export_threshold(), 5)
@@ -80,7 +82,7 @@ class TestSecurityThresholdConfiguration(TestCase):
         for i in range(3):
             AuditLog.log_action(
                 action=AuditLog.ACTION_LOGIN_FAILED,
-                message="Failed login attempt %d" % (i + 1),
+                message=f"Failed login attempt {i + 1}",
                 category=AuditLog.CATEGORY_SECURITY,
                 ip_address=self.ip_address,
                 metadata={"username_attempted": self.username},
@@ -100,7 +102,7 @@ class TestSecurityThresholdConfiguration(TestCase):
             AuditLog.log_action(
                 action=AuditLog.ACTION_EXPORT,
                 user=self.user,
-                message="Export operation %d" % (i + 1),
+                message=f"Export operation {i + 1}",
                 category=AuditLog.CATEGORY_VOTER_DATA,
                 metadata={
                     "export_type": "persons",
@@ -137,7 +139,7 @@ class TestSecurityThresholdConfiguration(TestCase):
         for i in range(2):
             AuditLog.log_action(
                 action=AuditLog.ACTION_LOGIN_FAILED,
-                message="Failed login attempt %d" % (i + 1),
+                message=f"Failed login attempt {i + 1}",
                 category=AuditLog.CATEGORY_SECURITY,
                 ip_address=self.ip_address,
                 metadata={"username_attempted": self.username},
@@ -160,7 +162,7 @@ class TestSecurityThresholdConfiguration(TestCase):
         for i in range(3):
             AuditLog.log_action(
                 action=AuditLog.ACTION_LOGIN_FAILED,
-                message="Failed login attempt %d" % (i + 1),
+                message=f"Failed login attempt {i + 1}",
                 category=AuditLog.CATEGORY_SECURITY,
                 ip_address=self.ip_address,
                 metadata={"username_attempted": self.username},
@@ -193,14 +195,15 @@ class TestSecurityThresholdConfiguration(TestCase):
         SECURITY_FAILED_LOGIN_WINDOW_HOURS=3,
     )
     def test_all_functions_respect_settings(self):
-        """Test that all security monitoring functions respect their respective settings."""
+        """Test that all security monitoring functions respect their respective
+        settings."""
         # Create just enough activity to test settings are being used
 
         # Failed logins - should trigger with threshold 2
         for i in range(2):
             AuditLog.log_action(
                 action=AuditLog.ACTION_LOGIN_FAILED,
-                message="Failed login %d" % (i + 1),
+                message=f"Failed login {i + 1}",
                 category=AuditLog.CATEGORY_SECURITY,
                 ip_address=self.ip_address,
                 metadata={"username_attempted": self.username},
@@ -222,7 +225,7 @@ class TestSecurityThresholdConfiguration(TestCase):
             AuditLog.log_action(
                 action=AuditLog.ACTION_EXPORT,
                 user=self.user,
-                message="Export %d" % (i + 1),
+                message=f"Export {i + 1}",
                 category=AuditLog.CATEGORY_VOTER_DATA,
                 metadata={"export_type": "persons", "record_count": 100},
             )

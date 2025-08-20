@@ -37,7 +37,7 @@ class TestAuditMiddlewareIntegration(TestCase):
 
         User = get_user_model()
         self.user = User.objects.create_user(
-            username="testuser_%s" % str(uuid.uuid4())[:8],
+            username=f"testuser_{str(uuid.uuid4())[:8]}",
             email="test@example.com",
             password="testpass123",
         )
@@ -94,7 +94,7 @@ class TestAuditMiddlewareIntegration(TestCase):
         # Process request and response
         self.middleware.process_request(request)
         response = HttpResponse(status=201)
-        result = self.middleware.process_response(request, response)
+        self.middleware.process_response(request, response)
 
         # Check that audit log was created
         self.assertEqual(AuditLog.objects.count(), 1)
@@ -121,7 +121,8 @@ class TestAuditMiddlewareIntegration(TestCase):
         response = HttpResponse(status=200)
         self.middleware.process_response(request, response)
 
-        # Successful GET requests to admin should NOT be audited by middleware (too noisy)
+        # Successful GET requests to admin should NOT be audited by middleware
+        # (too noisy)
         audit_logs = AuditLog.objects.all()
         middleware_logs = [log for log in audit_logs if "GET /admin/" in log.message]
         self.assertEqual(
@@ -157,7 +158,8 @@ class TestAuditMiddlewareIntegration(TestCase):
         # Clear any existing audit logs before the test
         AuditLog.objects.all().delete()
 
-        # Test export request that should be audited (contains 'export' in path but not our specific views)
+        # Test export request that should be audited (contains 'export' in path but
+        # not our specific views)
         request = self.factory.get("/api/export/data/?state=CA")
         request.user = self.user
         request.META["REMOTE_ADDR"] = "192.168.1.1"
@@ -176,7 +178,8 @@ class TestAuditMiddlewareIntegration(TestCase):
         # Check that query parameters are captured (but sensitive ones filtered)
         self.assertEqual(audit_log.metadata["query_params"]["state"], "CA")
 
-        # Clear logs and test our specific export view (should NOT be audited by middleware)
+        # Clear logs and test our specific export view (should NOT be audited by
+        # middleware)
         AuditLog.objects.all().delete()
 
         request = self.factory.get("/export/persons/?state=CA")
@@ -189,7 +192,8 @@ class TestAuditMiddlewareIntegration(TestCase):
         response = HttpResponse(status=200)
         self.middleware.process_response(request, response)
 
-        # Our specific export views should NOT be audited by middleware (they handle their own logging)
+        # Our specific export views should NOT be audited by middleware (they
+        # handle their own logging)
         self.assertEqual(AuditLog.objects.count(), 0)
 
     def test_middleware_failed_api_request_audit(self):
@@ -463,7 +467,7 @@ class TestAuditMiddlewareErrorHandling(TestCase):
 
         User = get_user_model()
         self.user = User.objects.create_user(
-            username="testuser_%s" % str(uuid.uuid4())[:8],
+            username=f"testuser_{str(uuid.uuid4())[:8]}",
             email="test@example.com",
             password="testpass123",
         )

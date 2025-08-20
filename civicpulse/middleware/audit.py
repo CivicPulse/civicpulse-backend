@@ -55,17 +55,13 @@ class AuditMiddleware(MiddlewareMixin):
             request: The HTTP request object
         """
         # Store audit context in request for later use
-        setattr(
-            request,
-            "audit_context",
-            {
-                "ip_address": self.get_client_ip(request),
-                "user_agent": request.META.get("HTTP_USER_AGENT", "")[:500],
-                "session_key": (
-                    request.session.session_key if hasattr(request, "session") else None
-                ),
-            },
-        )
+        request.audit_context = {
+            "ip_address": self.get_client_ip(request),
+            "user_agent": request.META.get("HTTP_USER_AGENT", "")[:500],
+            "session_key": (
+                request.session.session_key if hasattr(request, "session") else None
+            ),
+        }
 
     def process_response(
         self, request: HttpRequest, response: HttpResponse

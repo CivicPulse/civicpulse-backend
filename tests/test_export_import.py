@@ -43,7 +43,7 @@ class TestPersonExportView(TestCase):
         AuditLog.objects.all().delete()
 
         self.user = User.objects.create_user(
-            username="testuser_%s" % str(uuid.uuid4())[:8],
+            username=f"testuser_{str(uuid.uuid4())[:8]}",
             email="test@example.com",
             password="testpass123",
         )
@@ -279,7 +279,7 @@ class TestPersonImportView(TestCase):
         AuditLog.objects.all().delete()
 
         self.user = User.objects.create_user(
-            username="testuser_%s" % str(uuid.uuid4())[:8],
+            username=f"testuser_{str(uuid.uuid4())[:8]}",
             email="test@example.com",
             password="testpass123",
         )

@@ -44,7 +44,7 @@ class TestAuditContext(TestCase):
     def setUp(self):
         """Set up test data."""
         self.user = User.objects.create_user(
-            username="testuser_%s" % str(uuid.uuid4())[:8],
+            username=f"testuser_{str(uuid.uuid4())[:8]}",
             email="test@example.com",
         )
         self.person = Person.objects.create(
@@ -244,9 +244,7 @@ class TestAuditContextManager(TestCase):
             self.assertIsInstance(context, AuditContext)
 
             # Store some data
-            key = context.store_instance_data(
-                instance=self.person, changes={}, is_new=True
-            )
+            context.store_instance_data(instance=self.person, changes={}, is_new=True)
             self.assertEqual(context.get_active_count(), 1)
 
         # Context should be cleared after exiting
@@ -297,7 +295,7 @@ class TestAuditContextMiddleware(TestCase):
         self.assertGreater(initial_count, 0)
 
         # Process request through middleware
-        response = self.middleware(self.request)
+        self.middleware(self.request)
 
         # Should have cleaned up audit context
         stats = get_audit_stats()
@@ -345,7 +343,7 @@ class TestThreadSafetyAndConcurrency(TransactionTestCase):
     def setUp(self):
         """Set up test data."""
         self.user = User.objects.create_user(
-            username="testuser_%s" % str(uuid.uuid4())[:8],
+            username=f"testuser_{str(uuid.uuid4())[:8]}",
             email="test@example.com",
         )
 
@@ -544,7 +542,7 @@ class TestBackwardCompatibility(TestCase):
     def setUp(self):
         """Set up test data."""
         self.user = User.objects.create_user(
-            username="testuser_%s" % str(uuid.uuid4())[:8],
+            username=f"testuser_{str(uuid.uuid4())[:8]}",
             email="test@example.com",
         )
 
@@ -613,7 +611,7 @@ class TestBackwardCompatibility(TestCase):
 
         # Create a new user (should create password history)
         new_user = User.objects.create_user(
-            username="pwdtest_%s" % str(uuid.uuid4())[:8],
+            username=f"pwdtest_{str(uuid.uuid4())[:8]}",
             email="pwd@test.com",
             password="testpass123",
         )
@@ -724,6 +722,11 @@ class TestErrorHandlingAndEdgeCases(TestCase):
         # Context should be clean after all operations
         final_stats = get_audit_stats()
         self.assertEqual(final_stats["active_instances"], 0)
+
+        # Verify that active instance count returned to initial state
+        self.assertEqual(
+            final_stats["active_instances"], initial_stats["active_instances"]
+        )
 
         # Clean up created persons
         Person.objects.filter(last_name="Test").delete()

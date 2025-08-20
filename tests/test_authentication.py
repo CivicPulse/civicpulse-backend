@@ -18,8 +18,6 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
-User = get_user_model()
-
 from civicpulse.forms import (
     PasswordChangeForm,
     SecureLoginForm,
@@ -31,6 +29,8 @@ from civicpulse.validators import (
     PasswordComplexityValidator,
     PasswordStrengthValidator,
 )
+
+User = get_user_model()
 
 
 class UserModelTest(TestCase):

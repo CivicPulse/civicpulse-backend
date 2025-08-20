@@ -36,7 +36,7 @@ class TestAuditLogModel(TestCase):
         """Set up test data."""
         User = get_user_model()
         self.user = User.objects.create_user(
-            username="testuser_%s" % str(uuid.uuid4())[:8],
+            username=f"testuser_{str(uuid.uuid4())[:8]}",
             email="test@example.com",
             password="testpass123",
         )
@@ -142,7 +142,7 @@ class TestAuditLogManager(TestCase):
 
         User = get_user_model()
         self.user = User.objects.create_user(
-            username="testuser_%s" % str(uuid.uuid4())[:8], email="test@example.com"
+            username=f"testuser_{str(uuid.uuid4())[:8]}", email="test@example.com"
         )
         self.person = Person.objects.create(first_name="John", last_name="Doe")
 
@@ -238,7 +238,7 @@ class TestSignalHandlers(TestCase):
 
         User = get_user_model()
         self.user = User.objects.create_user(
-            username="testuser_%s" % str(uuid.uuid4())[:8], email="test@example.com"
+            username=f"testuser_{str(uuid.uuid4())[:8]}", email="test@example.com"
         )
 
         # Clear audit logs created by user creation
@@ -339,7 +339,7 @@ class TestSignalHandlers(TestCase):
         person = Person.objects.create(first_name="John", last_name="Doe")
         User = get_user_model()
         test_user = User.objects.create_user(
-            username="testuser_%s" % str(uuid.uuid4())[:8]
+            username=f"testuser_{str(uuid.uuid4())[:8]}"
         )
 
         self.assertEqual(determine_category(person), AuditLog.CATEGORY_VOTER_DATA)
@@ -394,7 +394,7 @@ class TestAuditMiddleware(TestCase):
         self.middleware = AuditMiddleware(lambda x: HttpResponse())
         self.user = Mock()
         self.user.is_authenticated = True
-        self.user.username = "testuser_%s" % str(uuid.uuid4())[:8]
+        self.user.username = f"testuser_{str(uuid.uuid4())[:8]}"
 
     def tearDown(self):
         """Clean up test data."""
@@ -509,7 +509,7 @@ class TestAuditLogAdmin(TestCase):
         """Set up test data."""
         User = get_user_model()
         self.user = User.objects.create_superuser(
-            username="admin_%s" % str(uuid.uuid4())[:8],
+            username=f"admin_{str(uuid.uuid4())[:8]}",
             email="admin@example.com",
             password="adminpass123",
         )
