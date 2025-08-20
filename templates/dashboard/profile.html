@@ -1,0 +1,258 @@
+{% extends 'base.html' %}
+
+{% block title %}User Profile - CivicPulse{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <!-- Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h1 class="h3 mb-1">User Profile</h1>
+                    <p class="text-muted mb-0">Manage your personal information and preferences</p>
+                </div>
+                <a href="{% url 'civicpulse:dashboard' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left me-2"></i>Back to Dashboard
+                </a>
+            </div>
+
+            <!-- Profile Information Card -->
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">Personal Information</h5>
+                    <span class="role-badge role-{{ user.role }}">{{ user.get_role_display }}</span>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <dl class="row">
+                                <dt class="col-sm-4">Username:</dt>
+                                <dd class="col-sm-8">{{ user.username }}</dd>
+
+                                <dt class="col-sm-4">Full Name:</dt>
+                                <dd class="col-sm-8">{{ user.first_name }} {{ user.last_name }}</dd>
+
+                                <dt class="col-sm-4">Email:</dt>
+                                <dd class="col-sm-8">
+                                    {{ user.email }}
+                                    {% if user.is_verified %}
+                                        <i class="bi bi-check-circle-fill text-success ms-1" title="Verified"></i>
+                                    {% else %}
+                                        <i class="bi bi-exclamation-triangle-fill text-warning ms-1" title="Not verified"></i>
+                                    {% endif %}
+                                </dd>
+
+                                <dt class="col-sm-4">Role:</dt>
+                                <dd class="col-sm-8">{{ user.get_role_display }}</dd>
+                            </dl>
+                        </div>
+                        <div class="col-md-6">
+                            <dl class="row">
+                                {% if user.organization %}
+                                <dt class="col-sm-4">Organization:</dt>
+                                <dd class="col-sm-8">{{ user.organization }}</dd>
+                                {% endif %}
+
+                                {% if user.phone_number %}
+                                <dt class="col-sm-4">Phone:</dt>
+                                <dd class="col-sm-8">{{ user.get_formatted_phone_number }}</dd>
+                                {% endif %}
+
+                                <dt class="col-sm-4">Member Since:</dt>
+                                <dd class="col-sm-8">{{ user.date_joined|date:"M d, Y" }}</dd>
+
+                                <dt class="col-sm-4">Last Login:</dt>
+                                <dd class="col-sm-8">{{ user.last_login|date:"M d, Y g:i A"|default:"Never" }}</dd>
+                            </dl>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Account Security Card -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-shield-lock me-2"></i>Account Security
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Password</h6>
+                            <p class="text-muted small">
+                                Keep your account secure with a strong password.
+                            </p>
+                            <a href="{% url 'civicpulse:password_change' %}" class="btn btn-outline-primary btn-sm">
+                                <i class="bi bi-key me-1"></i>Change Password
+                            </a>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Account Status</h6>
+                            <div class="mb-2">
+                                {% if user.is_active %}
+                                    <span class="badge bg-success">Active</span>
+                                {% else %}
+                                    <span class="badge bg-danger">Inactive</span>
+                                {% endif %}
+                                
+                                {% if user.is_verified %}
+                                    <span class="badge bg-success ms-1">Verified</span>
+                                {% else %}
+                                    <span class="badge bg-warning ms-1">Unverified</span>
+                                {% endif %}
+                            </div>
+                            {% if not user.is_verified %}
+                            <p class="text-muted small">
+                                Please check your email to verify your account.
+                            </p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Role Information Card -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-person-badge me-2"></i>Role & Permissions
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <h6>{{ user.get_role_display }}</h6>
+                    {% if user.role == 'admin' %}
+                        <p class="text-muted small">
+                            As an administrator, you have full access to all system features, 
+                            including user management, data administration, and system configuration.
+                        </p>
+                        <div class="small">
+                            <strong>Permissions include:</strong>
+                            <ul class="mb-0 mt-1">
+                                <li>Full system administration</li>
+                                <li>User and role management</li>
+                                <li>Data export and import</li>
+                                <li>System configuration</li>
+                                <li>Advanced reporting and analytics</li>
+                            </ul>
+                        </div>
+                    {% elif user.role == 'organizer' %}
+                        <p class="text-muted small">
+                            As an organizer, you can manage campaigns, oversee volunteers, 
+                            and access detailed reporting and analytics.
+                        </p>
+                        <div class="small">
+                            <strong>Permissions include:</strong>
+                            <ul class="mb-0 mt-1">
+                                <li>Campaign management</li>
+                                <li>Volunteer coordination</li>
+                                <li>Contact and voter management</li>
+                                <li>Reporting and analytics</li>
+                                <li>Data import and export</li>
+                            </ul>
+                        </div>
+                    {% elif user.role == 'volunteer' %}
+                        <p class="text-muted small">
+                            As a volunteer, you can log contact attempts, view assigned tasks, 
+                            and contribute to campaign activities.
+                        </p>
+                        <div class="small">
+                            <strong>Permissions include:</strong>
+                            <ul class="mb-0 mt-1">
+                                <li>Contact logging and tracking</li>
+                                <li>Task management</li>
+                                <li>Basic reporting</li>
+                                <li>Data entry</li>
+                            </ul>
+                        </div>
+                    {% else %}
+                        <p class="text-muted small">
+                            As a viewer, you have read-only access to view data and reports 
+                            relevant to your organization.
+                        </p>
+                        <div class="small">
+                            <strong>Permissions include:</strong>
+                            <ul class="mb-0 mt-1">
+                                <li>View-only access to data</li>
+                                <li>Basic reporting</li>
+                                <li>Export limited data</li>
+                            </ul>
+                        </div>
+                    {% endif %}
+                    {% if user.organization %}
+                    <hr class="my-3">
+                    <h6>Organization</h6>
+                    <p class="mb-0"><strong>{{ user.organization }}</strong></p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Activity Summary -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-activity me-2"></i>Account Activity
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-4">
+                            <div class="border-end">
+                                <h4 class="text-primary mb-1">{{ user.date_joined|timesince }}</h4>
+                                <p class="text-muted small mb-0">Member for</p>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="border-end">
+                                <h4 class="text-success mb-1">
+                                    {% if user.last_login %}
+                                        {{ user.last_login|timesince }}
+                                    {% else %}
+                                        Never
+                                    {% endif %}
+                                </h4>
+                                <p class="text-muted small mb-0">Last active</p>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <h4 class="text-info mb-1">{{ user.get_role_display }}</h4>
+                            <p class="text-muted small mb-0">Current role</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.role-badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+}
+
+.role-admin {
+    background-color: #dc3545;
+    color: white;
+}
+
+.role-organizer {
+    background-color: #fd7e14;
+    color: white;
+}
+
+.role-volunteer {
+    background-color: #198754;
+    color: white;
+}
+
+.role-viewer {
+    background-color: #6c757d;
+    color: white;
+}
+</style>
+{% endblock %}

@@ -12,6 +12,9 @@ dependencies = [
     "bandit>=1.8.6",
     "django-stubs>=5.2.2",
     "phonenumbers>=9.0.12",
+    "django-axes>=8.0.0",
+    "redis>=6.4.0",
+    "django-redis>=6.0.0",
     "dj-database-url>=2.3.0",
 ]
 
@@ -59,6 +62,7 @@ addopts = [
     "--cov-report=html",
     "--cov-report=term-missing",
     "--cov-fail-under=50",
+    "--ignore=migrations",
 ]
 
 [tool.bandit]

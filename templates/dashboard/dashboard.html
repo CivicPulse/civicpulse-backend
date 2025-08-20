@@ -1,0 +1,251 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard - CivicPulse{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <!-- Welcome Header -->
+    <div class="row mb-4">
+        <div class="col">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h3 mb-1">Welcome, {{ user_full_name }}!</h1>
+                    <p class="text-muted mb-0">
+                        <span class="role-badge role-{{ user_role }}">{{ user.get_role_display }}</span>
+                        {% if organization %}
+                            <span class="ms-2">{{ organization }}</span>
+                        {% endif %}
+                    </p>
+                </div>
+                <div class="text-end">
+                    <small class="text-muted">
+                        Last login: {{ user.last_login|date:"M d, Y g:i A"|default:"First time" }}
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Quick Stats Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="card-title">Total Users</h6>
+                            <h4 class="mb-0">1,234</h4>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="bi bi-people-fill" style="font-size: 2rem; opacity: 0.7;"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3 mb-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="card-title">Active Campaigns</h6>
+                            <h4 class="mb-0">8</h4>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="bi bi-megaphone-fill" style="font-size: 2rem; opacity: 0.7;"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3 mb-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="card-title">Recent Contacts</h6>
+                            <h4 class="mb-0">456</h4>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="bi bi-telephone-fill" style="font-size: 2rem; opacity: 0.7;"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3 mb-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="card-title">Pending Follow-ups</h6>
+                            <h4 class="mb-0">23</h4>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="bi bi-clock-fill" style="font-size: 2rem; opacity: 0.7;"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <!-- Recent Activity -->
+        <div class="col-lg-8 mb-4">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">Recent Activity</h5>
+                    <small class="text-muted">Last 24 hours</small>
+                </div>
+                <div class="card-body">
+                    <div class="list-group list-group-flush">
+                        <div class="list-group-item d-flex align-items-center px-0 py-3">
+                            <div class="me-3">
+                                <div class="bg-primary rounded-circle p-2">
+                                    <i class="bi bi-person-plus text-white"></i>
+                                </div>
+                            </div>
+                            <div class="flex-grow-1">
+                                <h6 class="mb-1">New volunteer registered</h6>
+                                <p class="text-muted mb-0 small">Jane Smith joined as a volunteer</p>
+                            </div>
+                            <small class="text-muted">2 hours ago</small>
+                        </div>
+                        
+                        <div class="list-group-item d-flex align-items-center px-0 py-3">
+                            <div class="me-3">
+                                <div class="bg-success rounded-circle p-2">
+                                    <i class="bi bi-telephone text-white"></i>
+                                </div>
+                            </div>
+                            <div class="flex-grow-1">
+                                <h6 class="mb-1">Contact attempt completed</h6>
+                                <p class="text-muted mb-0 small">Successfully contacted 15 voters</p>
+                            </div>
+                            <small class="text-muted">4 hours ago</small>
+                        </div>
+                        
+                        <div class="list-group-item d-flex align-items-center px-0 py-3">
+                            <div class="me-3">
+                                <div class="bg-info rounded-circle p-2">
+                                    <i class="bi bi-clipboard-data text-white"></i>
+                                </div>
+                            </div>
+                            <div class="flex-grow-1">
+                                <h6 class="mb-1">Campaign update</h6>
+                                <p class="text-muted mb-0 small">"Community Outreach 2024" metrics updated</p>
+                            </div>
+                            <small class="text-muted">6 hours ago</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Quick Actions -->
+        <div class="col-lg-4 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Quick Actions</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        {% if user_role == 'admin' or user_role == 'organizer' %}
+                        <button type="button" class="btn btn-primary">
+                            <i class="bi bi-person-plus me-2"></i>
+                            Add New Contact
+                        </button>
+                        
+                        <button type="button" class="btn btn-outline-primary">
+                            <i class="bi bi-megaphone me-2"></i>
+                            Create Campaign
+                        </button>
+                        {% endif %}
+                        
+                        {% if user_role == 'admin' or user_role == 'organizer' or user_role == 'volunteer' %}
+                        <button type="button" class="btn btn-outline-success">
+                            <i class="bi bi-telephone me-2"></i>
+                            Log Contact Attempt
+                        </button>
+                        
+                        <button type="button" class="btn btn-outline-info">
+                            <i class="bi bi-file-earmark-text me-2"></i>
+                            Generate Report
+                        </button>
+                        {% endif %}
+                        
+                        <hr class="my-2">
+                        
+                        <a href="{% url 'civicpulse:profile' %}" class="btn btn-outline-secondary">
+                            <i class="bi bi-person me-2"></i>
+                            Edit Profile
+                        </a>
+                        
+                        <a href="{% url 'civicpulse:password_change' %}" class="btn btn-outline-secondary">
+                            <i class="bi bi-shield-lock me-2"></i>
+                            Change Password
+                        </a>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Role-based Information -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i class="bi bi-info-circle me-2"></i>
+                        Your Role: {{ user.get_role_display }}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    {% if user_role == 'admin' %}
+                        <p class="card-text small text-muted">
+                            As an administrator, you have full access to all system features, 
+                            including user management, data administration, and system configuration.
+                        </p>
+                    {% elif user_role == 'organizer' %}
+                        <p class="card-text small text-muted">
+                            As an organizer, you can manage campaigns, oversee volunteers, 
+                            and access detailed reporting and analytics.
+                        </p>
+                    {% elif user_role == 'volunteer' %}
+                        <p class="card-text small text-muted">
+                            As a volunteer, you can log contact attempts, view assigned tasks, 
+                            and contribute to campaign activities.
+                        </p>
+                    {% else %}
+                        <p class="card-text small text-muted">
+                            As a viewer, you have read-only access to view data and reports 
+                            relevant to your organization.
+                        </p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Placeholder for dashboard interactivity
+    console.log('Dashboard loaded for user role: {{ user_role }}');
+    
+    // Add click handlers for quick action buttons
+    const actionButtons = document.querySelectorAll('.btn[type="button"]');
+    actionButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            // For now, just show an alert
+            // In a real implementation, these would navigate to appropriate pages
+            const action = this.textContent.trim();
+            alert(`Feature coming soon: ${action}`);
+        });
+    });
+});
+</script>
+{% endblock %}

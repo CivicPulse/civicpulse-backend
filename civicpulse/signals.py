@@ -1,8 +1,9 @@
 """
-Signal handlers for automatic audit trail logging.
+Signal handlers for automatic audit trail logging and password history tracking.
 
 This module provides Django signal handlers that automatically create
-audit log entries for model changes and authentication events.
+audit log entries for model changes and authentication events, as well as
+track password history for enhanced security.
 """
 
 import logging
@@ -20,7 +21,7 @@ from django.dispatch import receiver
 from civicpulse.audit import AuditLog
 from civicpulse.middleware.audit import get_request_audit_context
 from civicpulse.middleware.current_user import get_current_user
-from civicpulse.models import ContactAttempt, Person, VoterRecord
+from civicpulse.models import ContactAttempt, PasswordHistory, Person, VoterRecord
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
@@ -103,7 +104,11 @@ def determine_category(model: Model) -> str:
     return category_map.get(model_name, AuditLog.CATEGORY_SYSTEM)
 
 
-# Model change signals
+# ============================================================================
+# AUDIT TRAIL SIGNALS
+# ============================================================================
+
+
 @receiver(pre_save)
 def audit_model_pre_save(sender, instance, **kwargs):
     """
@@ -258,7 +263,11 @@ def audit_model_pre_delete(sender, instance, **kwargs):
         )
 
 
-# Authentication signals
+# ============================================================================
+# AUTHENTICATION AUDIT SIGNALS
+# ============================================================================
+
+
 @receiver(user_logged_in)
 def audit_user_login(sender, request, user, **kwargs):
     """
@@ -365,7 +374,74 @@ def audit_login_failed(sender, credentials, request, **kwargs):
         logger.error(f"Error logging failed login: {e}", exc_info=True)
 
 
-# Custom signals for import/export operations
+# ============================================================================
+# PASSWORD HISTORY SIGNALS
+# ============================================================================
+
+
+@receiver(pre_save, sender=User)
+def track_password_changes(sender, instance, **kwargs):
+    """
+    Track the current password state before saving for comparison.
+
+    This signal runs before the user is saved to capture the previous password.
+    """
+    if instance.pk:
+        try:
+            # Get the current password from database
+            old_user = User.objects.get(pk=instance.pk)
+            instance._old_password = old_user.password
+        except User.DoesNotExist:
+            instance._old_password = None
+    else:
+        # New user - no old password
+        instance._old_password = None
+
+
+@receiver(post_save, sender=User)
+def save_password_history(sender, instance, created, **kwargs):
+    """
+    Save password to history when user is created or password changes.
+
+    This signal handler tracks password changes and stores them in the
+    PasswordHistory model to prevent password reuse.
+
+    Args:
+        sender: The model class (User)
+        instance: The user instance being saved
+        created: Boolean indicating if this is a new user
+        **kwargs: Additional keyword arguments
+    """
+    password_changed = False
+
+    if created:
+        # For new users, always save the initial password
+        password_changed = True
+    else:
+        # For existing users, check if password has changed
+        old_password = getattr(instance, "_old_password", None)
+        if old_password != instance.password:
+            password_changed = True
+
+    if password_changed:
+        # Save the current password to history
+        PasswordHistory.objects.create(user=instance, password_hash=instance.password)
+
+        # Clean up old password history entries (keep only last 10)
+        # This prevents the table from growing indefinitely
+        old_entries = PasswordHistory.objects.filter(user=instance).order_by(
+            "-created_at"
+        )[10:]
+
+        for entry in old_entries:
+            entry.delete()
+
+
+# ============================================================================
+# CUSTOM AUDIT LOGGING FUNCTIONS
+# ============================================================================
+
+
 def log_data_export(
     user: User,
     export_type: str,

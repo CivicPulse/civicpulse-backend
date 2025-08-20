@@ -3,155 +3,262 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="CivicPulse - Multi-tenant CRM/CMS platform for nonprofits and civic organizations">
+    <meta name="robots" content="noindex, nofollow">
     <title>{% block title %}CivicPulse{% endblock %}</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    
+    <!-- Custom CSS -->
     <style>
+        :root {
+            --cp-primary: #2563eb;
+            --cp-secondary: #64748b;
+            --cp-success: #059669;
+            --cp-danger: #dc2626;
+            --cp-warning: #d97706;
+            --cp-info: #0891b2;
+        }
+        
         body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f5f5f5;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f8fafc;
         }
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background-color: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        
+        .navbar-brand {
+            font-weight: 600;
+            color: var(--cp-primary) !important;
         }
-        .header {
-            border-bottom: 2px solid #007bff;
-            padding-bottom: 10px;
-            margin-bottom: 20px;
+        
+        .btn-primary {
+            background-color: var(--cp-primary);
+            border-color: var(--cp-primary);
         }
-        h1 {
-            color: #007bff;
-            margin: 0;
+        
+        .btn-primary:hover {
+            background-color: #1d4ed8;
+            border-color: #1d4ed8;
         }
-        .messages {
-            margin-bottom: 20px;
+        
+        .form-control:focus {
+            border-color: var(--cp-primary);
+            box-shadow: 0 0 0 0.2rem rgba(37, 99, 235, 0.25);
         }
+        
+        .auth-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .auth-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            border: 1px solid #e2e8f0;
+        }
+        
         .alert {
-            padding: 10px;
-            margin-bottom: 10px;
-            border-radius: 4px;
-        }
-        .alert-success {
-            background-color: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-        .alert-warning {
-            background-color: #fff3cd;
-            color: #856404;
-            border: 1px solid #ffeaa7;
-        }
-        .alert-error {
-            background-color: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-        .form-group {
-            margin-bottom: 15px;
-        }
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-        }
-        input[type="file"] {
-            width: 100%;
-            padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-        }
-        .btn {
-            background-color: #007bff;
-            color: white;
-            padding: 10px 20px;
             border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            text-decoration: none;
-            display: inline-block;
+            border-radius: 8px;
         }
-        .btn:hover {
-            background-color: #0056b3;
+        
+        .card {
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
         }
-        .btn-secondary {
-            background-color: #6c757d;
+        
+        .nav-link {
+            color: var(--cp-secondary);
         }
-        .btn-secondary:hover {
-            background-color: #545b62;
+        
+        .nav-link:hover {
+            color: var(--cp-primary);
         }
-        .help-text {
-            background-color: #f8f9fa;
-            border: 1px solid #dee2e6;
-            border-radius: 4px;
-            padding: 15px;
-            margin-bottom: 20px;
+        
+        .text-primary {
+            color: var(--cp-primary) !important;
         }
-        .help-text h3 {
-            margin-top: 0;
-            color: #495057;
+        
+        .bg-primary {
+            background-color: var(--cp-primary) !important;
         }
-        .help-text ul {
-            margin-bottom: 0;
+        
+        .footer {
+            background-color: #f1f5f9;
+            border-top: 1px solid #e2e8f0;
+            padding: 2rem 0;
+            margin-top: auto;
         }
-        .results {
-            margin-top: 20px;
+        
+        .role-badge {
+            font-size: 0.75rem;
+            font-weight: 500;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.375rem;
         }
-        .error-list {
-            background-color: #f8f9fa;
-            border: 1px solid #dee2e6;
-            border-radius: 4px;
-            padding: 15px;
-            max-height: 300px;
-            overflow-y: auto;
-        }
-        .error-list h4 {
-            margin-top: 0;
-            color: #dc3545;
-        }
-        .nav {
-            margin-bottom: 20px;
-        }
-        .nav a {
-            margin-right: 15px;
-            text-decoration: none;
-            color: #007bff;
-        }
-        .nav a:hover {
-            text-decoration: underline;
-        }
+        
+        .role-admin { background-color: #fef3c7; color: #92400e; }
+        .role-organizer { background-color: #dbeafe; color: #1e40af; }
+        .role-volunteer { background-color: #dcfce7; color: #166534; }
+        .role-viewer { background-color: #f3f4f6; color: #374151; }
     </style>
+    
+    {% block extra_css %}{% endblock %}
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>{% block page_title %}CivicPulse{% endblock %}</h1>
-        </div>
-        
-        <nav class="nav">
-            <a href="{% url 'civicpulse:person_import' %}">Import Persons</a>
-            <a href="{% url 'civicpulse:person_export' %}">Export Persons</a>
-            <a href="/admin/">Admin</a>
-        </nav>
-
-        {% if messages %}
-            <div class="messages">
-                {% for message in messages %}
-                    <div class="alert alert-{{ message.tags }}">
-                        {{ message }}
-                    </div>
-                {% endfor %}
+    <!-- Navigation -->
+    {% if user.is_authenticated %}
+    <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom">
+        <div class="container">
+            <a class="navbar-brand" href="{% url 'civicpulse:home' %}">
+                <i class="bi bi-people-fill me-2"></i>CivicPulse
+            </a>
+            
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'civicpulse:dashboard' %}">
+                            <i class="bi bi-speedometer2 me-1"></i>Dashboard
+                        </a>
+                    </li>
+                    <!-- Data Management Dropdown -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="dataDropdown" role="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-database me-1"></i>Data Management
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{% url 'civicpulse:person_import' %}">
+                                <i class="bi bi-upload me-2"></i>Import Persons
+                            </a></li>
+                            <li><a class="dropdown-item" href="{% url 'civicpulse:person_export' %}">
+                                <i class="bi bi-download me-2"></i>Export Persons
+                            </a></li>
+                        </ul>
+                    </li>
+                    {% if user.is_staff %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="/admin/">
+                            <i class="bi bi-gear me-1"></i>Admin
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+                
+                <ul class="navbar-nav">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-person-circle me-1"></i>
+                            {{ user.first_name|default:user.username }}
+                            <span class="role-badge role-{{ user.role }}">{{ user.get_role_display }}</span>
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{% url 'civicpulse:profile' %}">
+                                <i class="bi bi-person me-2"></i>Profile
+                            </a></li>
+                            <li><a class="dropdown-item" href="{% url 'civicpulse:password_change' %}">
+                                <i class="bi bi-shield-lock me-2"></i>Change Password
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{% url 'civicpulse:logout' %}">
+                                <i class="bi bi-box-arrow-right me-2"></i>Logout
+                            </a></li>
+                        </ul>
+                    </li>
+                </ul>
             </div>
-        {% endif %}
-
-        <main>
-            {% block content %}
-            {% endblock %}
-        </main>
+        </div>
+    </nav>
+    {% endif %}
+    
+    <!-- Messages -->
+    {% if messages %}
+    <div class="container mt-3">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+            {% if message.tags == 'error' %}
+                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            {% elif message.tags == 'success' %}
+                <i class="bi bi-check-circle-fill me-2"></i>
+            {% elif message.tags == 'warning' %}
+                <i class="bi bi-exclamation-circle-fill me-2"></i>
+            {% elif message.tags == 'info' %}
+                <i class="bi bi-info-circle-fill me-2"></i>
+            {% endif %}
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        {% endfor %}
     </div>
+    {% endif %}
+    
+    <!-- Main Content -->
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+    
+    <!-- Footer -->
+    {% if user.is_authenticated %}
+    <footer class="footer mt-5">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-6">
+                    <p class="text-muted mb-0">
+                        &copy; 2024 CivicPulse. All rights reserved.
+                    </p>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <small class="text-muted">
+                        {% if user.organization %}
+                            {{ user.organization }} | 
+                        {% endif %}
+                        Logged in as {{ user.username }}
+                    </small>
+                </div>
+            </div>
+        </div>
+    </footer>
+    {% endif %}
+    
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Custom JS -->
+    <script>
+        // Auto-dismiss alerts after 5 seconds
+        document.addEventListener('DOMContentLoaded', function() {
+            const alerts = document.querySelectorAll('.alert');
+            alerts.forEach(function(alert) {
+                setTimeout(function() {
+                    const bsAlert = new bootstrap.Alert(alert);
+                    bsAlert.close();
+                }, 5000);
+            });
+        });
+        
+        // Form validation enhancement
+        document.addEventListener('DOMContentLoaded', function() {
+            const forms = document.querySelectorAll('.needs-validation');
+            forms.forEach(function(form) {
+                form.addEventListener('submit', function(event) {
+                    if (!form.checkValidity()) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                    }
+                    form.classList.add('was-validated');
+                });
+            });
+        });
+    </script>
+    
+    {% block extra_js %}{% endblock %}
 </body>
 </html>

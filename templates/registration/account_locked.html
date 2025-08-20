@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Account Temporarily Locked{% endblock %}
+
+{% block extra_css %}
+<style>
+.lock-icon {
+    color: #dc3545;
+    font-size: 4rem;
+    margin-bottom: 1rem;
+}
+.lock-container {
+    max-width: 500px;
+    margin: 0 auto;
+    text-align: center;
+    padding: 2rem;
+}
+.alert-lockout {
+    border-left: 4px solid #dc3545;
+    background-color: #f8d7da;
+    border-color: #f5c6cb;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="lock-container">
+                <div class="lock-icon">
+                    <i class="fas fa-lock"></i>
+                </div>
+                
+                <h2 class="mb-4 text-danger">Account Temporarily Locked</h2>
+                
+                <div class="alert alert-lockout mb-4" role="alert">
+                    <h5 class="alert-heading">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        Too Many Failed Login Attempts
+                    </h5>
+                    <p class="mb-3">
+                        Your account has been temporarily locked due to multiple failed login attempts.
+                        This is a security measure to protect your account from unauthorized access.
+                    </p>
+                    <hr>
+                    <p class="mb-0">
+                        <strong>Your account will be automatically unlocked in 30 minutes.</strong>
+                    </p>
+                </div>
+
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">What can you do?</h5>
+                        <div class="row text-start">
+                            <div class="col-md-6">
+                                <h6><i class="fas fa-clock text-primary me-2"></i>Wait</h6>
+                                <p class="small text-muted">
+                                    Wait 30 minutes for the lockout to expire, then try logging in again.
+                                </p>
+                            </div>
+                            <div class="col-md-6">
+                                <h6><i class="fas fa-key text-warning me-2"></i>Reset Password</h6>
+                                <p class="small text-muted">
+                                    If you've forgotten your password, you can reset it using the link below.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-4">
+                    <a href="{% url 'civicpulse:password_reset' %}" class="btn btn-warning me-3">
+                        <i class="fas fa-key me-2"></i>Reset Password
+                    </a>
+                    <a href="{% url 'civicpulse:login' %}" class="btn btn-outline-primary">
+                        <i class="fas fa-arrow-left me-2"></i>Back to Login
+                    </a>
+                </div>
+
+                <div class="mt-4 text-muted">
+                    <small>
+                        <i class="fas fa-shield-alt me-1"></i>
+                        This security measure helps protect your account from brute force attacks.
+                        If you believe this lockout is in error, please contact support.
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Optional: Add a countdown timer showing remaining lockout time
+document.addEventListener('DOMContentLoaded', function() {
+    // This could be enhanced to show an actual countdown timer
+    // based on the lockout expiry time passed from the backend
+});
+</script>
+{% endblock %}

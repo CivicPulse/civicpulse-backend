@@ -22,7 +22,7 @@ from django.urls import include, path
 
 urlpatterns: list = [
     path("admin/", admin.site.urls),
-    # CivicPulse app URLs
+    # Include civicpulse app URLs
     path("", include("civicpulse.urls")),
 ]
 

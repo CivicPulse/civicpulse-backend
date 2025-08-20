@@ -1,0 +1,135 @@
+{% extends 'base.html' %}
+
+{% block title %}Registration Complete - CivicPulse{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-8 col-lg-6">
+                <div class="auth-card">
+                    <div class="card-body p-5 text-center">
+                        <!-- Success Icon -->
+                        <div class="mb-4">
+                            <i class="bi bi-envelope-check-fill text-primary" style="font-size: 4rem;"></i>
+                        </div>
+                        
+                        <!-- Main Message -->
+                        <h2 class="h4 mb-3">Registration Successful!</h2>
+                        <p class="text-muted mb-4">
+                            Thank you for registering with CivicPulse. We've sent a verification email 
+                            to your email address.
+                        </p>
+                        
+                        <!-- Instructions -->
+                        <div class="alert alert-info text-start">
+                            <h6 class="alert-heading">
+                                <i class="bi bi-info-circle me-2"></i>
+                                Next Steps:
+                            </h6>
+                            <ol class="mb-0">
+                                <li>Check your email inbox (and spam folder)</li>
+                                <li>Click the verification link in the email</li>
+                                <li>Complete the verification process</li>
+                                <li>Sign in to your account</li>
+                            </ol>
+                        </div>
+                        
+                        <!-- Action Buttons -->
+                        <div class="d-grid gap-2 mb-4">
+                            <a href="{% url 'civicpulse:login' %}" class="btn btn-primary">
+                                <i class="bi bi-box-arrow-in-right me-2"></i>
+                                Go to Sign In
+                            </a>
+                        </div>
+                        
+                        <!-- Help Section -->
+                        <div class="text-start">
+                            <h6 class="text-muted mb-3">Need Help?</h6>
+                            <ul class="list-unstyled text-muted small">
+                                <li class="mb-2">
+                                    <i class="bi bi-clock me-2"></i>
+                                    Verification emails may take up to 5 minutes to arrive
+                                </li>
+                                <li class="mb-2">
+                                    <i class="bi bi-exclamation-triangle me-2"></i>
+                                    Check your spam or junk folder if you don't see the email
+                                </li>
+                                <li class="mb-2">
+                                    <i class="bi bi-shield-check me-2"></i>
+                                    The verification link is valid for 24 hours
+                                </li>
+                            </ul>
+                        </div>
+                        
+                        <!-- Resend Section -->
+                        <div class="mt-4 pt-3 border-top">
+                            <p class="text-muted mb-2">Didn't receive the email?</p>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" id="resendBtn" disabled>
+                                <i class="bi bi-arrow-clockwise me-2"></i>
+                                Resend Verification Email
+                            </button>
+                            <div class="mt-2">
+                                <small class="text-muted" id="resendTimer">
+                                    You can request a new email in <span id="countdown">60</span> seconds
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Resend email countdown timer
+    let countdown = 60;
+    const resendBtn = document.getElementById('resendBtn');
+    const countdownSpan = document.getElementById('countdown');
+    const resendTimer = document.getElementById('resendTimer');
+    
+    function updateCountdown() {
+        if (countdown > 0) {
+            countdownSpan.textContent = countdown;
+            countdown--;
+            setTimeout(updateCountdown, 1000);
+        } else {
+            resendBtn.disabled = false;
+            resendBtn.classList.remove('btn-outline-secondary');
+            resendBtn.classList.add('btn-primary');
+            resendTimer.style.display = 'none';
+        }
+    }
+    
+    // Start countdown
+    updateCountdown();
+    
+    // Handle resend button click
+    resendBtn.addEventListener('click', function() {
+        // Here you would implement the resend functionality
+        // For now, just show a message
+        const alert = document.createElement('div');
+        alert.className = 'alert alert-info alert-dismissible fade show mt-3';
+        alert.innerHTML = `
+            <i class="bi bi-info-circle me-2"></i>
+            Verification email has been resent! Please check your inbox.
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        this.parentNode.appendChild(alert);
+        
+        // Reset countdown
+        countdown = 60;
+        this.disabled = true;
+        this.classList.remove('btn-primary');
+        this.classList.add('btn-outline-secondary');
+        resendTimer.style.display = 'block';
+        updateCountdown();
+    });
+});
+</script>
+{% endblock %}

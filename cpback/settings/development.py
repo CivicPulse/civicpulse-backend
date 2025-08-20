@@ -14,15 +14,16 @@ env = environ.Env()
 DEBUG = True
 
 # Development-specific allowed hosts
-ALLOWED_HOSTS = ["localhost", "127.0.0.1", "0.0.0.0"]
+ALLOWED_HOSTS.extend(["localhost", "127.0.0.1", "0.0.0.0"])
 
-# Add Django Debug Toolbar in development
-THIRD_PARTY_APPS.extend(
-    [
-        "debug_toolbar",
-        "django_extensions",
-    ]
-)
+# Add Django Debug Toolbar in development (not in testing)
+if "test" not in sys.argv:
+    THIRD_PARTY_APPS.extend(
+        [
+            "debug_toolbar",
+            "django_extensions",
+        ]
+    )
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 
@@ -35,9 +36,10 @@ EMAIL_BACKEND = env(
     "EMAIL_BACKEND", default="django.core.mail.backends.console.EmailBackend"
 )
 
-# Django Debug Toolbar configuration
-MIDDLEWARE.insert(0, "debug_toolbar.middleware.DebugToolbarMiddleware")
-INTERNAL_IPS: list[str] = ["127.0.0.1", "localhost"]
+# Django Debug Toolbar configuration (not in testing)
+if "test" not in sys.argv:
+    MIDDLEWARE.insert(0, "debug_toolbar.middleware.DebugToolbarMiddleware")
+    INTERNAL_IPS: list[str] = ["127.0.0.1", "localhost"]
 
 # Debug Toolbar configuration
 IS_RUNNING_TESTS = "test" in sys.argv
