@@ -76,11 +76,15 @@ done
 # Test 5: Validate Python code syntax
 echo ""
 echo "5. 🐍 Checking Python syntax..."
-if python -m py_compile civicpulse/management/commands/setup_development.py; then
-    echo "   ✅ setup_development.py syntax is valid"
+if command -v uv &> /dev/null; then
+    if uv run python -m py_compile civicpulse/management/commands/setup_development.py; then
+        echo "   ✅ setup_development.py syntax is valid"
+    else
+        echo "   ❌ setup_development.py has syntax errors"
+        exit 1
+    fi
 else
-    echo "   ❌ setup_development.py has syntax errors"
-    exit 1
+    echo "   ℹ️ uv not available, skipping Python syntax check"
 fi
 
 # Test 6: Check documentation
