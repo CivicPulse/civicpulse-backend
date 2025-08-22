@@ -1,7 +1,7 @@
 services:
   web:
     build: .
-    command: python manage.py runserver 0.0.0.0:8000
+    command: sh -c "export VIRTUAL_ENV=/opt/venv && export PATH=/opt/venv/bin:$PATH && python manage.py runserver 0.0.0.0:8000"
     volumes:
       - .:/app
       - /app/.venv  # Exclude venv from being overwritten
