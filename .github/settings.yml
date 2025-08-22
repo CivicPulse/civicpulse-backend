@@ -1,0 +1,161 @@
+# GitHub Repository Settings Configuration
+# This file configures repository settings via the Probot Settings app
+# Install the app: https://github.com/apps/settings
+
+repository:
+  # Repository settings
+  name: civicpulse-backend
+  description: "Multi-tenant CRM/CMS platform for nonprofits, civic organizations, and political groups"
+  topics: ["django", "crm", "cms", "nonprofit", "civic", "political", "multi-tenant", "python"]
+  private: false
+  has_issues: true
+  has_projects: true
+  has_wiki: false
+  has_downloads: true
+  default_branch: main
+  allow_squash_merge: true
+  allow_merge_commit: true
+  allow_rebase_merge: false
+  delete_branch_on_merge: true
+  enable_automated_security_fixes: true
+  enable_vulnerability_alerts: true
+
+# Branch protection rules
+branches:
+  - name: main
+    protection:
+      # Require pull request reviews before merging
+      required_pull_request_reviews:
+        required_approving_review_count: 1
+        dismiss_stale_reviews: true
+        require_code_owner_reviews: false
+        require_last_push_approval: false
+        
+      # Require status checks to pass before merging
+      required_status_checks:
+        strict: true
+        checks:
+          # CI workflow checks (must match job names in ci.yml)
+          - context: "Lint & Format Check"
+            app_id: 15368  # GitHub Actions app ID
+          - context: "Type Check"
+            app_id: 15368
+          - context: "Test"
+            app_id: 15368
+          - context: "Security Scan"
+            app_id: 15368
+          - context: "CI Summary"
+            app_id: 15368
+          # PR validation checks
+          - context: "PR Quality Checks"
+            app_id: 15368
+            
+      # Restrict pushes that create files to main
+      enforce_admins: false  # Allow admins to bypass in emergencies
+      
+      # Require branches to be up to date before merging
+      require_conversation_resolution: true
+      
+      # Require linear history (no merge commits)
+      required_linear_history: false
+      
+      # Allow force pushes
+      allow_force_pushes: false
+      
+      # Allow deletions
+      allow_deletions: false
+      
+      # Restrictions on who can push to matching branches
+      restrictions:
+        users: []
+        teams: []
+        apps: []
+
+  - name: develop
+    protection:
+      required_pull_request_reviews:
+        required_approving_review_count: 1
+        dismiss_stale_reviews: true
+        require_code_owner_reviews: false
+        
+      required_status_checks:
+        strict: true
+        checks:
+          - context: "Lint & Format Check"
+            app_id: 15368
+          - context: "Type Check"  
+            app_id: 15368
+          - context: "Test"
+            app_id: 15368
+          - context: "Security Scan"
+            app_id: 15368
+          - context: "CI Summary"
+            app_id: 15368
+          - context: "PR Quality Checks"
+            app_id: 15368
+            
+      enforce_admins: false
+      require_conversation_resolution: true
+      required_linear_history: false
+      allow_force_pushes: false
+      allow_deletions: false
+
+# Environment protection rules
+environments:
+  - name: staging
+    reviewers:
+      - type: user
+        login: kerryhatcher
+    deployment_branch_policy:
+      protected_branches: true
+      custom_branch_policies: false
+    wait_timer: 0
+    prevent_self_review: true
+    
+  - name: production
+    reviewers:
+      - type: user
+        login: kerryhatcher
+    deployment_branch_policy:
+      protected_branches: true
+      custom_branch_policies: false
+    wait_timer: 300  # 5 minute wait before deployment
+    prevent_self_review: true
+
+# Repository labels for issue and PR management
+labels:
+  - name: "bug"
+    color: "d73a4a"
+    description: "Something isn't working"
+    
+  - name: "enhancement"
+    color: "a2eeef"
+    description: "New feature or request"
+    
+  - name: "documentation"
+    color: "0075ca"
+    description: "Improvements or additions to documentation"
+    
+  - name: "ci/cd"
+    color: "ffc649"
+    description: "Continuous Integration/Continuous Deployment"
+    
+  - name: "security"
+    color: "b60205"
+    description: "Security related issues"
+    
+  - name: "dependencies"
+    color: "0366d6"
+    description: "Pull requests that update dependencies"
+    
+  - name: "ready-for-review"
+    color: "0e8a16"
+    description: "Pull request is ready for review"
+    
+  - name: "work-in-progress"
+    color: "fbca04"
+    description: "Pull request is still being worked on"
+    
+  - name: "breaking-change"
+    color: "b60205"
+    description: "Changes that break backward compatibility"

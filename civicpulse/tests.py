@@ -4,7 +4,7 @@ from datetime import date, timedelta
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from .models import ContactAttempt, Person, VoterRecord
@@ -705,6 +705,7 @@ class PersonValidationTest(TestCase):
             person.clean()
         self.assertIn("date_of_birth", cm.exception.message_dict)
 
+    @override_settings(SUSPICIOUS_EMAIL_DOMAINS=["test.com"])
     def test_email_domain_validation(self):
         """Test email domain validation."""
         person = Person(

@@ -1,0 +1,159 @@
+{% extends "admin/change_list.html" %}
+{% load i18n admin_urls static admin_list %}
+
+{% block extrahead %}
+    {{ block.super }}
+    <style>
+        .audit-stats-dashboard {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .audit-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .audit-stat-card {
+            background: white;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 15px;
+            text-align: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .audit-stat-number {
+            font-size: 28px;
+            font-weight: bold;
+            color: #2c3e50;
+            display: block;
+        }
+        
+        .audit-stat-label {
+            font-size: 12px;
+            color: #6c757d;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 5px;
+        }
+        
+        .audit-stat-card.critical {
+            border-left: 4px solid #dc3545;
+        }
+        
+        .audit-stat-card.warning {
+            border-left: 4px solid #ffc107;
+        }
+        
+        .audit-stat-card.info {
+            border-left: 4px solid #17a2b8;
+        }
+        
+        .audit-stat-card.success {
+            border-left: 4px solid #28a745;
+        }
+        
+        .audit-dashboard-title {
+            margin: 0 0 10px 0;
+            font-size: 18px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        
+        .audit-dashboard-subtitle {
+            margin: 0;
+            font-size: 14px;
+            color: #6c757d;
+        }
+        
+        .last-updated {
+            font-size: 11px;
+            color: #adb5bd;
+            text-align: right;
+            margin-top: 10px;
+        }
+    </style>
+{% endblock %}
+
+{% block content_title %}
+    <h1>Audit Trail</h1>
+    
+    {% if audit_stats %}
+    <div class="audit-stats-dashboard">
+        <h2 class="audit-dashboard-title">Audit Log Statistics</h2>
+        <p class="audit-dashboard-subtitle">Real-time overview of system activity and security events</p>
+        
+        <div class="audit-stats-grid">
+            <div class="audit-stat-card info">
+                <span class="audit-stat-number">{{ audit_stats.total_logs|default:0 }}</span>
+                <div class="audit-stat-label">Total Log Entries</div>
+            </div>
+            
+            <div class="audit-stat-card success">
+                <span class="audit-stat-number">{{ audit_stats.recent_24h|default:0 }}</span>
+                <div class="audit-stat-label">Activity (24h)</div>
+            </div>
+            
+            <div class="audit-stat-card critical">
+                <span class="audit-stat-number">{{ audit_stats.critical_events|default:0 }}</span>
+                <div class="audit-stat-label">Critical Events</div>
+            </div>
+            
+            <div class="audit-stat-card warning">
+                <span class="audit-stat-number">{{ audit_stats.failed_logins|default:0 }}</span>
+                <div class="audit-stat-label">Failed Logins (24h)</div>
+            </div>
+        </div>
+        
+        <div class="last-updated">
+            Last updated: {% now "F j, Y g:i A T" %}
+        </div>
+    </div>
+    {% endif %}
+{% endblock %}
+
+{% block result_list %}
+    {% if audit_stats.critical_events > 0 %}
+        <div class="messagelist">
+            <div class="error">
+                <strong>Security Alert:</strong> 
+                {{ audit_stats.critical_events }} critical event{{ audit_stats.critical_events|pluralize }} detected. 
+                <a href="?severity__exact=CRITICAL">View critical events →</a>
+            </div>
+        </div>
+    {% endif %}
+    
+    {% if audit_stats.failed_logins > 10 %}
+        <div class="messagelist">
+            <div class="warning">
+                <strong>Authentication Warning:</strong> 
+                {{ audit_stats.failed_logins }} failed login{{ audit_stats.failed_logins|pluralize }} in the last 24 hours. 
+                <a href="?action__exact=LOGIN_FAILED&timestamp__gte={% now "Y-m-d"|add:"-1 days" %}">Review failed logins →</a>
+            </div>
+        </div>
+    {% endif %}
+    
+    {{ block.super }}
+{% endblock %}
+
+{% block pagination %}
+    {{ block.super }}
+    
+    {% if cl.result_count %}
+    <div style="margin-top: 15px; padding: 10px; background: #f8f9fa; border-radius: 4px; font-size: 12px; color: #6c757d;">
+        <strong>Quick Filters:</strong>
+        <a href="?timestamp__gte={% now "Y-m-d" %}" style="margin: 0 10px;">Today</a> |
+        <a href="?timestamp__gte={% now "Y-m-d"|add:"-1 days" %}" style="margin: 0 10px;">Yesterday</a> |
+        <a href="?timestamp__gte={% now "Y-m-d"|add:"-7 days" %}" style="margin: 0 10px;">Last 7 days</a> |
+        <a href="?action__exact=LOGIN_FAILED" style="margin: 0 10px;">Failed Logins</a> |
+        <a href="?severity__exact=CRITICAL" style="margin: 0 10px;">Critical Events</a> |
+        <a href="?category__exact=SECURITY" style="margin: 0 10px;">Security Events</a>
+    </div>
+    {% endif %}
+{% endblock %}
