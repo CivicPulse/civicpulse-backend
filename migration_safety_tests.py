@@ -23,11 +23,17 @@ import django
 
 django.setup()
 
-from django.core.management import call_command
-from django.db import connection
+from django.core.management import call_command  # noqa: E402
+from django.db import connection  # noqa: E402
 
-from civicpulse.audit import AuditLog
-from civicpulse.models import ContactAttempt, PasswordHistory, Person, User, VoterRecord
+from civicpulse.audit import AuditLog  # noqa: E402
+from civicpulse.models import (  # noqa: E402
+    ContactAttempt,
+    PasswordHistory,
+    Person,
+    User,
+    VoterRecord,
+)
 
 
 class MigrationSafetyTester:
@@ -168,7 +174,8 @@ class MigrationSafetyTester:
                             f"✓ Re-application completed in {reapply_time:.2f} seconds"
                         )
                         print(
-                            f"✓ Data integrity preserved: {pre_rollback_counts == post_rollback_counts}"
+                            f"✓ Data integrity preserved: "
+                            f"{pre_rollback_counts == post_rollback_counts}"
                         )
                     else:
                         self.test_results["migration_rollback"] = {
@@ -179,7 +186,9 @@ class MigrationSafetyTester:
                 else:
                     self.test_results["migration_rollback"] = {
                         "success": True,
-                        "note": "No civicpulse migrations available for rollback testing",
+                        "note": (
+                            "No civicpulse migrations available for rollback testing"
+                        ),
                     }
                     print("! No civicpulse migrations available for rollback testing")
 
@@ -287,7 +296,8 @@ class MigrationSafetyTester:
                     if connection.vendor == "sqlite":
                         # For SQLite, query the sqlite_master table
                         cursor.execute(
-                            f"SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='{table}'"
+                            f"SELECT name FROM sqlite_master WHERE type='index' "
+                            f"AND tbl_name='{table}'"
                         )
                         indexes = [row[0] for row in cursor.fetchall()]
                         index_results[table] = {
@@ -303,7 +313,8 @@ class MigrationSafetyTester:
                         }
 
                     print(
-                        f"✓ Table '{table}': {index_results[table]['index_count']} indexes found"
+                        f"✓ Table '{table}': "
+                        f"{index_results[table]['index_count']} indexes found"
                     )
                 except Exception as e:
                     index_results[table] = {
@@ -321,7 +332,8 @@ class MigrationSafetyTester:
                         "foreign_keys": list(relations.keys()),
                     }
                     print(
-                        f"✓ Table '{table}': {len(relations)} foreign key constraints found"
+                        f"✓ Table '{table}': "
+                        f"{len(relations)} foreign key constraints found"
                     )
                 except Exception as e:
                     constraints_results[table] = {
@@ -371,7 +383,8 @@ class MigrationSafetyTester:
                         dep_node = loader.graph.nodes.get((dep_app, dep_migration))
                         if not dep_node:
                             dependency_errors.append(
-                                f"Missing dependency: {dep_app}.{dep_migration} for {app_label}.{migration_name}"
+                                f"Missing dependency: {dep_app}.{dep_migration} "
+                                f"for {app_label}.{migration_name}"
                             )
 
             self.test_results["migration_dependencies"] = {
@@ -548,10 +561,12 @@ class Migration(migrations.Migration):
         print("\n=== Migration Safety Testing Complete ===")
         print(f"Total duration: {total_time.total_seconds():.2f} seconds")
         print(
-            f"Tests passed: {report['migration_safety_report']['summary']['tests_passed']}"
+            f"Tests passed: "
+            f"{report['migration_safety_report']['summary']['tests_passed']}"
         )
         print(
-            f"Tests failed: {report['migration_safety_report']['summary']['tests_failed']}"
+            f"Tests failed: "
+            f"{report['migration_safety_report']['summary']['tests_failed']}"
         )
         print(f"Report saved to: {report_path}")
 
@@ -567,7 +582,8 @@ class Migration(migrations.Migration):
         migration_time = forward_migration.get("migration_time_seconds")
         if migration_time is not None and migration_time > 30:
             recommendations.append(
-                "Migration time exceeds 30 seconds - consider optimization for production"
+                "Migration time exceeds 30 seconds - "
+                "consider optimization for production"
             )
 
         # Check data integrity
@@ -588,7 +604,8 @@ class Migration(migrations.Migration):
         migration_deps = self.test_results.get("migration_dependencies", {})
         if migration_deps.get("dependency_errors"):
             recommendations.append(
-                "Migration dependency errors found - resolve before production deployment"
+                "Migration dependency errors found - "
+                "resolve before production deployment"
             )
 
         if not recommendations:
