@@ -40,7 +40,10 @@ class BlueGreenMigrationStrategy:
         """Generate comprehensive blue-green migration strategy documentation."""
         return {
             "overview": {
-                "purpose": "Enable zero-downtime database migrations for CivicPulse production environment",
+                "purpose": (
+                    "Enable zero-downtime database migrations for "
+                    "CivicPulse production environment"
+                ),
                 "approach": "Blue-green deployment with database migration staging",
                 "target_downtime": "< 30 seconds for DNS/load balancer switch",
                 "supported_migration_types": [
@@ -65,7 +68,9 @@ class BlueGreenMigrationStrategy:
                     "role": "Active production database",
                 },
                 "green_environment": {
-                    "description": "Staging database for migration testing and deployment",
+                    "description": (
+                        "Staging database for migration testing and deployment"
+                    ),
                     "database_name": "civicpulse_green",
                     "connection_string": "${DATABASE_URL_GREEN}",
                     "role": "Migration target and validation environment",
@@ -94,7 +99,9 @@ class BlueGreenMigrationStrategy:
                     "risk_level": "Low",
                 },
                 "backward_incompatible": {
-                    "description": "Migrations that require coordinated code deployment",
+                    "description": (
+                        "Migrations that require coordinated code deployment"
+                    ),
                     "examples": [
                         "Dropping columns",
                         "Renaming tables",
@@ -132,7 +139,8 @@ class BlueGreenMigrationStrategy:
                     "name": "Database Backup",
                     "description": "Create full backup of blue database",
                     "commands": [
-                        "pg_dump $DATABASE_URL_BLUE > backup_$(date +%Y%m%d_%H%M%S).sql",
+                        "pg_dump $DATABASE_URL_BLUE > "
+                        "backup_$(date +%Y%m%d_%H%M%S).sql",
                         "aws s3 cp backup_*.sql s3://civicpulse-backups/",
                     ],
                     "success_criteria": [
@@ -191,7 +199,8 @@ class BlueGreenMigrationStrategy:
                     "description": "Validate green environment functionality",
                     "commands": [
                         "python manage.py check --database=green",
-                        "python -c 'from civicpulse.models import Person; print(Person.objects.count())'",
+                        "python -c 'from civicpulse.models import Person; "
+                        "print(Person.objects.count())'",
                     ],
                     "success_criteria": [
                         "All checks pass",
@@ -207,7 +216,8 @@ class BlueGreenMigrationStrategy:
                     "name": "Enable Maintenance Mode",
                     "description": "Temporarily block write operations",
                     "commands": [
-                        "python manage.py maintenance_mode on --message='Migration in progress'"
+                        "python manage.py maintenance_mode on "
+                        "--message='Migration in progress'"
                     ],
                     "success_criteria": [
                         "Maintenance mode active",
@@ -232,7 +242,8 @@ class BlueGreenMigrationStrategy:
                     "name": "Switch Load Balancer",
                     "description": "Route traffic from blue to green",
                     "commands": [
-                        "aws elb modify-target-group --target-group-arn $GREEN_TARGET_GROUP"
+                        "aws elb modify-target-group --target-group-arn "
+                        "$GREEN_TARGET_GROUP"
                     ],
                     "success_criteria": [
                         "Traffic routing to green",
@@ -304,12 +315,17 @@ class BlueGreenMigrationStrategy:
                 "steps": [
                     {
                         "action": "Switch load balancer back to blue",
-                        "command": "aws elb modify-target-group --target-group-arn $BLUE_TARGET_GROUP",
+                        "command": (
+                            "aws elb modify-target-group --target-group-arn "
+                            "$BLUE_TARGET_GROUP"
+                        ),
                         "time_limit": "30 seconds",
                     },
                     {
                         "action": "Enable maintenance mode on blue",
-                        "command": "python manage.py maintenance_mode on --database=blue",
+                        "command": (
+                            "python manage.py maintenance_mode on --database=blue"
+                        ),
                         "purpose": "Prevent data writes during rollback",
                     },
                     {
@@ -319,7 +335,9 @@ class BlueGreenMigrationStrategy:
                     },
                     {
                         "action": "Disable maintenance mode",
-                        "command": "python manage.py maintenance_mode off --database=blue",
+                        "command": (
+                            "python manage.py maintenance_mode off --database=blue"
+                        ),
                         "success_criteria": "Application fully functional on blue",
                     },
                 ],
@@ -339,7 +357,10 @@ class BlueGreenMigrationStrategy:
                     },
                     {
                         "action": "Replay recent transactions",
-                        "command": "python manage.py replay_transactions --since=migration_start",
+                        "command": (
+                            "python manage.py replay_transactions "
+                            "--since=migration_start"
+                        ),
                         "risk": "May require manual data reconciliation",
                     },
                 ],
@@ -360,7 +381,9 @@ class BlueGreenMigrationStrategy:
                     },
                     {
                         "action": "Schedule maintenance window",
-                        "description": "Coordinate with stakeholders for planned downtime",
+                        "description": (
+                            "Coordinate with stakeholders for planned downtime"
+                        ),
                         "duration": "1-4 hours depending on data volume",
                     },
                 ],
@@ -493,7 +516,8 @@ python manage.py migrate --verbosity=2
 # Step 4: Validate green environment
 log "Step 4: Validating green environment"
 python manage.py check
-python -c "from civicpulse.models import Person; print(f'Person count: {Person.objects.count()}')"
+python -c "from civicpulse.models import Person; \\
+    print(f'Person count: {Person.objects.count()}')"
 
 # Step 5: Switch traffic (requires manual confirmation)
 log "Step 5: Ready to switch traffic to green environment"

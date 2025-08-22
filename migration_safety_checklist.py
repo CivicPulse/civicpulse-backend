@@ -21,11 +21,16 @@ import django
 
 django.setup()
 
-from django.core.management import call_command
-from django.db import connection
+from django.core.management import call_command  # noqa: E402
+from django.db import connection  # noqa: E402
 
-from civicpulse.audit import AuditLog
-from civicpulse.models import ContactAttempt, Person, User, VoterRecord
+from civicpulse.audit import AuditLog  # noqa: E402
+from civicpulse.models import (  # noqa: E402
+    ContactAttempt,
+    Person,
+    User,
+    VoterRecord,
+)
 
 
 class MigrationSafetyChecklist:
@@ -47,7 +52,10 @@ class MigrationSafetyChecklist:
                     {
                         "id": "backup_verification",
                         "requirement": "Database backup created and verified",
-                        "description": "Full database backup created within last 24 hours and restore tested",
+                        "description": (
+                            "Full database backup created within last 24 hours "
+                            "and restore tested"
+                        ),
                         "validation": "automated",
                         "critical": True,
                         "acceptance_criteria": [
@@ -60,7 +68,10 @@ class MigrationSafetyChecklist:
                     {
                         "id": "migration_dependencies",
                         "requirement": "Migration dependencies verified",
-                        "description": "All migration dependencies properly resolved with no circular references",
+                        "description": (
+                            "All migration dependencies properly resolved "
+                            "with no circular references"
+                        ),
                         "validation": "automated",
                         "critical": True,
                         "acceptance_criteria": [
@@ -85,7 +96,10 @@ class MigrationSafetyChecklist:
                     {
                         "id": "disk_space_check",
                         "requirement": "Adequate disk space available",
-                        "description": "Sufficient disk space for migration operations and data growth",
+                        "description": (
+                            "Sufficient disk space for migration operations "
+                            "and data growth"
+                        ),
                         "validation": "automated",
                         "critical": True,
                         "acceptance_criteria": [
@@ -97,7 +111,10 @@ class MigrationSafetyChecklist:
                     {
                         "id": "maintenance_window",
                         "requirement": "Maintenance window scheduled and communicated",
-                        "description": "Stakeholders notified of maintenance window and expected downtime",
+                        "description": (
+                            "Stakeholders notified of maintenance window "
+                            "and expected downtime"
+                        ),
                         "validation": "manual",
                         "critical": False,
                         "acceptance_criteria": [
@@ -115,7 +132,9 @@ class MigrationSafetyChecklist:
                     {
                         "id": "migration_type_analysis",
                         "requirement": "Migration types analyzed and categorized",
-                        "description": "All migrations categorized by type and risk level",
+                        "description": (
+                            "All migrations categorized by type and risk level"
+                        ),
                         "validation": "manual",
                         "critical": True,
                         "acceptance_criteria": [
@@ -128,7 +147,9 @@ class MigrationSafetyChecklist:
                     {
                         "id": "data_volume_assessment",
                         "requirement": "Data volume impact assessed",
-                        "description": "Migration performance tested with production-volume data",
+                        "description": (
+                            "Migration performance tested with production-volume data"
+                        ),
                         "validation": "automated",
                         "critical": True,
                         "acceptance_criteria": [
@@ -141,7 +162,9 @@ class MigrationSafetyChecklist:
                     {
                         "id": "backward_compatibility",
                         "requirement": "Backward compatibility verified",
-                        "description": "Migration doesn't break existing application functionality",
+                        "description": (
+                            "Migration doesn't break existing application functionality"
+                        ),
                         "validation": "manual",
                         "critical": True,
                         "acceptance_criteria": [
@@ -154,7 +177,9 @@ class MigrationSafetyChecklist:
                     {
                         "id": "index_strategy",
                         "requirement": "Index creation strategy validated",
-                        "description": "Index creation/modification optimized for minimal downtime",
+                        "description": (
+                            "Index creation/modification optimized for minimal downtime"
+                        ),
                         "validation": "manual",
                         "critical": True,
                         "acceptance_criteria": [
@@ -172,7 +197,9 @@ class MigrationSafetyChecklist:
                     {
                         "id": "migration_test_execution",
                         "requirement": "Migration safety tests executed successfully",
-                        "description": "Comprehensive automated migration safety tests pass",
+                        "description": (
+                            "Comprehensive automated migration safety tests pass"
+                        ),
                         "validation": "automated",
                         "critical": True,
                         "acceptance_criteria": [
@@ -185,7 +212,9 @@ class MigrationSafetyChecklist:
                     {
                         "id": "rollback_procedure_test",
                         "requirement": "Rollback procedures tested and verified",
-                        "description": "Migration rollback tested on copy of production data",
+                        "description": (
+                            "Migration rollback tested on copy of production data"
+                        ),
                         "validation": "manual",
                         "critical": True,
                         "acceptance_criteria": [
@@ -198,7 +227,9 @@ class MigrationSafetyChecklist:
                     {
                         "id": "application_functionality",
                         "requirement": "Critical application functions validated",
-                        "description": "Key application workflows tested with new schema",
+                        "description": (
+                            "Key application workflows tested with new schema"
+                        ),
                         "validation": "manual",
                         "critical": True,
                         "acceptance_criteria": [
@@ -212,7 +243,9 @@ class MigrationSafetyChecklist:
                     {
                         "id": "data_integrity_validation",
                         "requirement": "Data integrity comprehensively validated",
-                        "description": "All data integrity constraints and relationships verified",
+                        "description": (
+                            "All data integrity constraints and relationships verified"
+                        ),
                         "validation": "automated",
                         "critical": True,
                         "acceptance_criteria": [
@@ -230,7 +263,10 @@ class MigrationSafetyChecklist:
                     {
                         "id": "monitoring_alerting",
                         "requirement": "Monitoring and alerting configured",
-                        "description": "Comprehensive monitoring in place for migration and post-deployment",
+                        "description": (
+                            "Comprehensive monitoring in place for migration "
+                            "and post-deployment"
+                        ),
                         "validation": "manual",
                         "critical": True,
                         "acceptance_criteria": [
@@ -243,7 +279,9 @@ class MigrationSafetyChecklist:
                     {
                         "id": "team_readiness",
                         "requirement": "Team prepared for migration execution",
-                        "description": "All team members briefed and ready for migration day",
+                        "description": (
+                            "All team members briefed and ready for migration day"
+                        ),
                         "validation": "manual",
                         "critical": False,
                         "acceptance_criteria": [
@@ -256,7 +294,9 @@ class MigrationSafetyChecklist:
                     {
                         "id": "documentation_complete",
                         "requirement": "Migration documentation complete",
-                        "description": "All migration procedures documented and accessible",
+                        "description": (
+                            "All migration procedures documented and accessible"
+                        ),
                         "validation": "manual",
                         "critical": False,
                         "acceptance_criteria": [
@@ -269,7 +309,9 @@ class MigrationSafetyChecklist:
                     {
                         "id": "communication_plan",
                         "requirement": "Communication plan implemented",
-                        "description": "Stakeholder communication plan for migration day",
+                        "description": (
+                            "Stakeholder communication plan for migration day"
+                        ),
                         "validation": "manual",
                         "critical": False,
                         "acceptance_criteria": [
@@ -287,7 +329,10 @@ class MigrationSafetyChecklist:
                     {
                         "id": "audit_compliance",
                         "requirement": "Audit trail compliance maintained",
-                        "description": "Migration preserves audit trail and compliance requirements",
+                        "description": (
+                            "Migration preserves audit trail and "
+                            "compliance requirements"
+                        ),
                         "validation": "automated",
                         "critical": True,
                         "acceptance_criteria": [
@@ -300,7 +345,9 @@ class MigrationSafetyChecklist:
                     {
                         "id": "security_review",
                         "requirement": "Security implications reviewed",
-                        "description": "Migration security implications assessed and approved",
+                        "description": (
+                            "Migration security implications assessed and approved"
+                        ),
                         "validation": "manual",
                         "critical": True,
                         "acceptance_criteria": [
@@ -313,7 +360,10 @@ class MigrationSafetyChecklist:
                     {
                         "id": "data_privacy",
                         "requirement": "Data privacy requirements met",
-                        "description": "Migration respects data privacy and protection requirements",
+                        "description": (
+                            "Migration respects data privacy and "
+                            "protection requirements"
+                        ),
                         "validation": "manual",
                         "critical": True,
                         "acceptance_criteria": [
@@ -331,7 +381,9 @@ class MigrationSafetyChecklist:
                     {
                         "id": "performance_validation",
                         "requirement": "Performance benchmarks validated",
-                        "description": "System performance meets or exceeds pre-migration levels",
+                        "description": (
+                            "System performance meets or exceeds pre-migration levels"
+                        ),
                         "validation": "automated",
                         "critical": True,
                         "acceptance_criteria": [
@@ -344,7 +396,9 @@ class MigrationSafetyChecklist:
                     {
                         "id": "user_acceptance",
                         "requirement": "User acceptance validation completed",
-                        "description": "Key users validate system functionality post-migration",
+                        "description": (
+                            "Key users validate system functionality post-migration"
+                        ),
                         "validation": "manual",
                         "critical": True,
                         "acceptance_criteria": [
@@ -432,7 +486,8 @@ class MigrationSafetyChecklist:
 
             status = "✓ PASS" if not dependency_errors else "✗ FAIL"
             print(
-                f"{status} Migration Dependencies: {len(plan)} migrations, {len(dependency_errors)} errors"
+                f"{status} Migration Dependencies: {len(plan)} migrations, "
+                f"{len(dependency_errors)} errors"
             )
 
         except Exception as e:
@@ -465,7 +520,8 @@ class MigrationSafetyChecklist:
 
             status = "✓ PASS" if schema_current else "! WARNING"
             print(
-                f"{status} Schema State: {'Current' if schema_current else 'Has unmade changes'}"
+                f"{status} Schema State: "
+                f"{'Current' if schema_current else 'Has unmade changes'}"
             )
 
         except Exception as e:
@@ -560,7 +616,8 @@ class MigrationSafetyChecklist:
             ).count()
             if orphaned_contacts > 0:
                 integrity_issues.append(
-                    f"{orphaned_contacts} contact attempts with invalid person references"
+                    f"{orphaned_contacts} contact attempts with invalid person "
+                    "references"
                 )
 
             self.results["data_integrity"] = {
@@ -677,7 +734,9 @@ class MigrationSafetyChecklist:
                 "overall_readiness": {
                     "automated_checks_ready": failed == 0 and errors == 0,
                     "critical_items_complete": "Manual verification required",
-                    "recommendation": "Complete manual checklist items before proceeding",
+                    "recommendation": (
+                        "Complete manual checklist items before proceeding"
+                    ),
                 },
             }
         }
@@ -692,7 +751,8 @@ class MigrationSafetyChecklist:
         print("\n=== Migration Safety Checklist Summary ===")
         print(f"Report saved to: {report_file}")
         print(
-            f"Automated checks: {passed} passed, {failed} failed, {warnings} warnings, {errors} errors"
+            f"Automated checks: {passed} passed, {failed} failed, "
+            f"{warnings} warnings, {errors} errors"
         )
 
         if failed > 0 or errors > 0:
