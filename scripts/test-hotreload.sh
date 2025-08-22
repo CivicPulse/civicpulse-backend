@@ -23,13 +23,14 @@ Test file for hot-reload functionality.
 This file should trigger Django's auto-reloader when saved.
 """
 
+import datetime
 from django.http import JsonResponse
 
 def test_hotreload_view(request):
     """Test view to verify hot-reload is working."""
     return JsonResponse({
         "message": "Hot-reload is working!",
-        "timestamp": "$(date)"
+        "timestamp": datetime.datetime.now().isoformat()
     })
 EOF
 

@@ -2,6 +2,8 @@
 Django management command to set up the development environment.
 """
 
+import os
+import secrets
 import time
 
 from django.contrib.auth import get_user_model
@@ -26,11 +28,22 @@ class Command(BaseCommand):
             action="store_true",
             help="Skip collecting static files",
         )
+        parser.add_argument(
+            "--use-emoji",
+            action="store_true",
+            help="Include emoji characters in log messages",
+        )
 
     def handle(self, *args, **options):
-        self.stdout.write(
-            self.style.SUCCESS("🔧 Setting up CivicPulse development environment...")
+        use_emoji = options.get("use_emoji", False)
+        self.use_emoji = use_emoji
+
+        setup_msg = (
+            "🔧 Setting up CivicPulse development environment..."
+            if use_emoji
+            else "Setting up CivicPulse development environment..."
         )
+        self.stdout.write(self.style.SUCCESS(setup_msg))
 
         # Wait for database to be ready
         self._wait_for_database()
@@ -49,19 +62,37 @@ class Command(BaseCommand):
         if not options["skip_static"]:
             self._collect_static()
 
-        self.stdout.write(
-            self.style.SUCCESS("\n✅ Development environment setup complete!")
+        complete_msg = (
+            "\n✅ Development environment setup complete!"
+            if self.use_emoji
+            else "\nDevelopment environment setup complete!"
         )
-        self.stdout.write(
+        self.stdout.write(self.style.SUCCESS(complete_msg))
+
+        access_msg = (
             "\n🚀 You can now access the application at http://localhost:8000"
+            if self.use_emoji
+            else "\nYou can now access the application at http://localhost:8000"
         )
-        self.stdout.write(
-            "🔑 Admin panel: http://localhost:8000/admin (admin/admin123)\n"
+        self.stdout.write(access_msg)
+
+        admin_msg = (
+            "🔑 Admin panel: http://localhost:8000/admin "
+            "(check superuser creation output for credentials)\n"
+            if self.use_emoji
+            else "Admin panel: http://localhost:8000/admin "
+            "(check superuser creation output for credentials)\n"
         )
+        self.stdout.write(admin_msg)
 
     def _wait_for_database(self):
         """Wait for database to be ready."""
-        self.stdout.write("⏳ Waiting for database to be ready...")
+        wait_msg = (
+            "⏳ Waiting for database to be ready..."
+            if self.use_emoji
+            else "Waiting for database to be ready..."
+        )
+        self.stdout.write(wait_msg)
         db_conn = None
         retries = 30
 
@@ -75,58 +106,121 @@ class Command(BaseCommand):
                 retries -= 1
 
         if db_conn:
-            self.stdout.write(self.style.SUCCESS("✅ Database is ready!"))
+            ready_msg = (
+                "✅ Database is ready!" if self.use_emoji else "Database is ready!"
+            )
+            self.stdout.write(self.style.SUCCESS(ready_msg))
         else:
-            self.stdout.write(self.style.ERROR("❌ Database connection failed!"))
+            error_msg = (
+                "❌ Database connection failed!"
+                if self.use_emoji
+                else "Database connection failed!"
+            )
+            self.stdout.write(self.style.ERROR(error_msg))
             raise Exception("Could not connect to database")
 
     def _run_migrations(self):
         """Run database migrations."""
-        self.stdout.write("🔄 Running database migrations...")
+        migrate_msg = (
+            "🔄 Running database migrations..."
+            if self.use_emoji
+            else "Running database migrations..."
+        )
+        self.stdout.write(migrate_msg)
         try:
             call_command("migrate", verbosity=0)
-            self.stdout.write(self.style.SUCCESS("✅ Migrations completed!"))
+            success_msg = (
+                "✅ Migrations completed!"
+                if self.use_emoji
+                else "Migrations completed!"
+            )
+            self.stdout.write(self.style.SUCCESS(success_msg))
         except Exception as e:
-            self.stdout.write(self.style.ERROR(f"❌ Migration failed: {e}"))
+            error_msg = (
+                f"❌ Migration failed: {e}"
+                if self.use_emoji
+                else f"Migration failed: {e}"
+            )
+            self.stdout.write(self.style.ERROR(error_msg))
             raise
 
     def _create_cache_table(self):
         """Create cache table for fallback scenarios."""
-        self.stdout.write("🗃️ Creating cache table...")
+        cache_msg = (
+            "🗃️ Creating cache table..." if self.use_emoji else "Creating cache table..."
+        )
+        self.stdout.write(cache_msg)
         try:
             call_command("createcachetable", verbosity=0)
-            self.stdout.write(self.style.SUCCESS("✅ Cache table created!"))
+            success_msg = (
+                "✅ Cache table created!" if self.use_emoji else "Cache table created!"
+            )
+            self.stdout.write(self.style.SUCCESS(success_msg))
         except Exception as e:
             # Cache table might already exist or not be needed
-            self.stdout.write(f"ℹ️ Cache table: {e}")
+            info_msg = f"ℹ️ Cache table: {e}" if self.use_emoji else f"Cache table: {e}"
+            self.stdout.write(info_msg)
 
     def _create_superuser(self):
         """Create default superuser if it doesn't exist."""
-        self.stdout.write("👤 Creating superuser (if needed)...")
+        create_msg = (
+            "👤 Creating superuser (if needed)..."
+            if self.use_emoji
+            else "Creating superuser (if needed)..."
+        )
+        self.stdout.write(create_msg)
         User = get_user_model()
 
         if not User.objects.filter(username="admin").exists():
             try:
+                password = os.environ.get("DJANGO_SUPERUSER_PASSWORD")
+                if not password:
+                    # Generate a secure random password
+                    password = secrets.token_urlsafe(16)
                 User.objects.create_superuser(
-                    username="admin", email="admin@civicpulse.com", password="admin123"
+                    username="admin", email="admin@civicpulse.com", password=password
                 )
-                self.stdout.write(
-                    self.style.SUCCESS("✅ Superuser created: admin/admin123")
+                success_msg = (
+                    f"✅ Superuser created: admin/{password}"
+                    if self.use_emoji
+                    else f"Superuser created: admin/{password}"
                 )
+                self.stdout.write(self.style.SUCCESS(success_msg))
             except Exception as e:
-                self.stdout.write(
-                    self.style.ERROR(f"❌ Failed to create superuser: {e}")
+                error_msg = (
+                    f"❌ Failed to create superuser: {e}"
+                    if self.use_emoji
+                    else f"Failed to create superuser: {e}"
                 )
+                self.stdout.write(self.style.ERROR(error_msg))
                 raise
         else:
-            self.stdout.write("ℹ️ Superuser already exists")
+            exists_msg = (
+                "ℹ️ Superuser already exists"
+                if self.use_emoji
+                else "Superuser already exists"
+            )
+            self.stdout.write(exists_msg)
 
     def _collect_static(self):
         """Collect static files."""
-        self.stdout.write("📁 Collecting static files...")
+        static_msg = (
+            "📁 Collecting static files..."
+            if self.use_emoji
+            else "Collecting static files..."
+        )
+        self.stdout.write(static_msg)
         try:
             call_command("collectstatic", interactive=False, verbosity=0)
-            self.stdout.write(self.style.SUCCESS("✅ Static files collected!"))
+            success_msg = (
+                "✅ Static files collected!"
+                if self.use_emoji
+                else "Static files collected!"
+            )
+            self.stdout.write(self.style.SUCCESS(success_msg))
         except Exception as e:
-            self.stdout.write(self.style.WARNING(f"⚠️ Static files: {e}"))
+            warning_msg = (
+                f"⚠️ Static files: {e}" if self.use_emoji else f"Static files: {e}"
+            )
+            self.stdout.write(self.style.WARNING(warning_msg))
             # Don't raise exception for static files - not critical for development
