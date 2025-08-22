@@ -2,7 +2,8 @@
 # Security Validation Script for CivicPulse CI/CD Pipeline
 # Tests branch protection, security scanning, and secret management
 
-set -e
+# Don't exit on error - we want to run all tests
+set +e
 
 # Colors for output
 RED='\033[0;31m'
@@ -65,13 +66,13 @@ else
     print_status "FAIL" "GitHub CLI (gh) is not installed"
 fi
 
-if check_command bandit; then
+if uv run python -c "import bandit" 2>/dev/null; then
     print_status "PASS" "Bandit security scanner is available"
 else
     print_status "FAIL" "Bandit security scanner is not available"
 fi
 
-if check_command pip-audit; then
+if uv run python -c "import pip_audit" 2>/dev/null; then
     print_status "PASS" "pip-audit vulnerability scanner is available"
 else
     print_status "FAIL" "pip-audit vulnerability scanner is not available"
