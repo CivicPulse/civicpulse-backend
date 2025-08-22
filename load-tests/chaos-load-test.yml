@@ -1,0 +1,78 @@
+config:
+  target: 'http://web:8000'
+  phases:
+    # Warm-up phase
+    - duration: 30
+      arrivalRate: 2
+      name: "Warm-up"
+    
+    # Gradual load increase
+    - duration: 60
+      arrivalRate: 5
+      name: "Ramp-up"
+    
+    # Sustained load
+    - duration: 120
+      arrivalRate: 10
+      name: "Sustained load"
+    
+    # Peak load testing
+    - duration: 60
+      arrivalRate: 20
+      name: "Peak load"
+    
+    # Gradual cool-down
+    - duration: 30
+      arrivalRate: 5
+      name: "Cool-down"
+
+  processor: "./load-test-processor.js"
+
+scenarios:
+  - name: "Health check endpoint"
+    weight: 30
+    flow:
+      - get:
+          url: "/civicpulse/health/"
+          expect:
+            - statusCode: 200
+          capture:
+            - json: "$.status"
+              as: "health_status"
+
+  - name: "Admin login page"
+    weight: 20
+    flow:
+      - get:
+          url: "/admin/"
+          expect:
+            - statusCode: [200, 302]
+
+  - name: "Static files"
+    weight: 15
+    flow:
+      - get:
+          url: "/static/admin/css/base.css"
+          expect:
+            - statusCode: [200, 404]  # 404 is acceptable if not collected
+
+  - name: "Dashboard access"
+    weight: 20
+    flow:
+      - get:
+          url: "/civicpulse/"
+          expect:
+            - statusCode: [200, 302, 403]  # Various auth states
+
+  - name: "API endpoints simulation"
+    weight: 15
+    flow:
+      - get:
+          url: "/civicpulse/health/"
+          expect:
+            - statusCode: 200
+      - think: 1
+      - get:
+          url: "/admin/"
+          expect:
+            - statusCode: [200, 302]

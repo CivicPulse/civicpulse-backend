@@ -1,0 +1,32 @@
+{
+  "test_suite": "CivicPulse Backend Chaos Engineering",
+  "test_timestamp": "2025-08-22T13:07:03-04:00",
+  "test_environment": {
+    "docker_compose_file": "docker-compose.chaos.yml",
+    "target_application": "http://web:8000",
+    "database": "PostgreSQL 16",
+    "cache": "Redis 7",
+    "load_balancer": "nginx",
+    "monitoring": [
+      "Prometheus",
+      "Grafana"
+    ]
+  },
+  "test_phases": {
+    "1_infrastructure_setup": {
+      "status": "running",
+      "details": "Setting up chaos testing infrastructure",
+      "timestamp": "2025-08-22T13:07:03-04:00"
+    },
+    "2_baseline_testing": {},
+    "3_network_chaos": {},
+    "4_database_chaos": {},
+    "5_cache_chaos": {},
+    "6_container_chaos": {},
+    "7_load_testing": {},
+    "8_recovery_testing": {},
+    "9_cleanup": {}
+  },
+  "summary": {},
+  "recommendations": []
+}

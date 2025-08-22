@@ -466,19 +466,19 @@ def health_check(request):
     try:
         with connection.cursor() as cursor:
             cursor.execute("SELECT 1")
-        health_status["checks"]["database"] = "healthy"
+        health_status["checks"]["database"] = "healthy"  # type: ignore[index]
     except Exception as e:
         health_status["status"] = "unhealthy"
-        health_status["checks"]["database"] = f"error: {str(e)}"
+        health_status["checks"]["database"] = f"error: {str(e)}"  # type: ignore[index]
 
     # Cache connectivity check
     try:
         cache.set("health_check", "test", 1)
         cache.get("health_check")
-        health_status["checks"]["cache"] = "healthy"
+        health_status["checks"]["cache"] = "healthy"  # type: ignore[index]
     except Exception as e:
         health_status["status"] = "unhealthy"
-        health_status["checks"]["cache"] = f"error: {str(e)}"
+        health_status["checks"]["cache"] = f"error: {str(e)}"  # type: ignore[index]
 
     # Return appropriate HTTP status code
     status_code = 200 if health_status["status"] == "healthy" else 503
