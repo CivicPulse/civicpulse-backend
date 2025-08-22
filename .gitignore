@@ -1,9 +1,19 @@
+# Git worktree directories
 .worktree
 
-
+# SQLite databases
 *sqlite*
+
+# Status and temporary files
 status_line.json
+
+# Auto-generated docs
+docs/_build/
+docs/api/generated/
 docs/*
+
+# But keep our development documentation
+!docs/development/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -212,3 +222,4 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+logs/
