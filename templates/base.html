@@ -130,6 +130,27 @@
                             <i class="bi bi-speedometer2 me-1"></i>Dashboard
                         </a>
                     </li>
+                    <!-- Data Management Dropdown -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="dataDropdown" role="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-database me-1"></i>Data Management
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{% url 'civicpulse:person_import' %}">
+                                <i class="bi bi-upload me-2"></i>Import Persons
+                            </a></li>
+                            <li><a class="dropdown-item" href="{% url 'civicpulse:person_export' %}">
+                                <i class="bi bi-download me-2"></i>Export Persons
+                            </a></li>
+                        </ul>
+                    </li>
+                    {% if user.is_staff %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="/admin/">
+                            <i class="bi bi-gear me-1"></i>Admin
+                        </a>
+                    </li>
+                    {% endif %}
                 </ul>
                 
                 <ul class="navbar-nav">
