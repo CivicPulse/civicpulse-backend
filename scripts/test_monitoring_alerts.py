@@ -14,6 +14,8 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 # Configure logging
 logging.basicConfig(
@@ -29,8 +31,32 @@ class AlertTester:
         self.base_url = base_url.rstrip("/")
         self.prometheus_url = prometheus_url.rstrip("/")
         self.alertmanager_url = alertmanager_url.rstrip("/")
+
+        # Configure session with proper connection pooling and retry strategy
         self.session = requests.Session()
-        self.session.timeout = 30
+
+        # Set up retry strategy
+        retry_strategy = Retry(
+            total=3,
+            status_forcelist=[429, 500, 502, 503, 504],
+            backoff_factor=1,
+            respect_retry_after_header=True,
+        )
+
+        # Set up HTTP adapter with connection pooling
+        adapter = HTTPAdapter(
+            pool_connections=10,  # Number of connection pools
+            pool_maxsize=20,  # Maximum connections per pool
+            max_retries=retry_strategy,
+            pool_block=False,  # Don't block when pool is full
+        )
+
+        # Mount adapter for both HTTP and HTTPS
+        self.session.mount("http://", adapter)
+        self.session.mount("https://", adapter)
+
+        # Set reasonable timeouts
+        self.session.timeout = (5, 30)  # (connect_timeout, read_timeout)
 
     def test_health_endpoints(self) -> dict[str, bool]:
         """Test all health check endpoints."""
@@ -205,19 +231,22 @@ class AlertTester:
                 results["errors"].append(str(e))
                 return False
 
-        with ThreadPoolExecutor(max_workers=concurrent_users) as executor:
+        with ThreadPoolExecutor(max_workers=min(concurrent_users, 20)) as executor:
             while time.time() - start_time < duration:
-                # Submit requests
+                # Submit requests with rate limiting
                 futures = [
                     executor.submit(make_request) for _ in range(concurrent_users)
                 ]
 
-                # Wait for completion
+                # Wait for completion with timeout
                 for future in as_completed(futures, timeout=30):
                     try:
                         future.result()
                     except Exception as e:
                         logger.error(f"Request failed: {e}")
+
+                # Rate limiting - small delay between batches
+                time.sleep(0.1)
 
                 # Brief pause to avoid overwhelming
                 time.sleep(0.1)

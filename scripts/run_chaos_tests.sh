@@ -10,7 +10,7 @@ CYAN='\033[0;36m'
 BOLD='\033[1m'
 NC='\033[0m'
 
-PROJECT_ROOT="/home/kwhatcher/projects/civicpulse/civicpulse-backend/.worktree/copilot/fix-16"
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RESULTS_DIR="$PROJECT_ROOT/chaos_test_results"
 FINAL_REPORT="$RESULTS_DIR/final_chaos_engineering_report.json"
 

@@ -15,10 +15,9 @@ from django.db import transaction
 from django.utils import timezone
 from faker import Faker
 
-# Setup Django
-sys.path.append(
-    "/home/kwhatcher/projects/civicpulse/civicpulse-backend/.worktree/copilot/fix-16"
-)
+# Setup Django - dynamically detect project root
+project_root = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(project_root)
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "cpback.settings.development")
 django.setup()
 

@@ -404,6 +404,7 @@ class SystemIntegrationChaosTests(ChaosIntegrationTestCase):
 # Run specific chaos integration tests
 def run_chaos_integration_tests():
     """Run chaos integration tests and return results"""
+    import subprocess
     import sys
 
     # Configure logging
@@ -415,19 +416,31 @@ def run_chaos_integration_tests():
         ],
     )
 
-    # Run tests with detailed output
-    test_results = pytest.main(
-        [
-            __file__,
-            "-v",
-            "--tb=short",
-            "--capture=no",
-            "--log-cli-level=INFO",
-            "-x",  # Stop on first failure for debugging
-        ]
-    )
-
-    return test_results
+    # Run tests using subprocess to avoid pytest.main() anti-pattern
+    try:
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "pytest",
+                __file__,
+                "-v",
+                "--tb=short",
+                "--capture=no",
+                "--log-cli-level=INFO",
+                "-x",  # Stop on first failure for debugging
+            ],
+            capture_output=False,
+            text=True,
+            timeout=300,  # 5 minute timeout
+        )
+        return result.returncode
+    except subprocess.TimeoutExpired:
+        logging.error("Test execution timed out after 5 minutes")
+        return 1
+    except Exception as e:
+        logging.error(f"Error running tests: {e}")
+        return 1
 
 
 if __name__ == "__main__":

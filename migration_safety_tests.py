@@ -13,13 +13,12 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-# Setup Django
-sys.path.append(
-    "/home/kwhatcher/projects/civicpulse/civicpulse-backend/.worktree/copilot/fix-16"
-)
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "cpback.settings.development")
-
 import django
+
+# Setup Django - dynamically detect project root
+project_root = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(project_root)
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "cpback.settings.development")
 
 django.setup()
 
