@@ -1,0 +1,227 @@
+groups:
+- name: civicpulse.application
+  interval: 30s
+  rules:
+  - alert: ApplicationDown
+    expr: up{job="django-app"} == 0
+    for: 1m
+    labels:
+      severity: critical
+      service: civicpulse-backend
+    annotations:
+      summary: "CivicPulse application is down"
+      description: "CivicPulse Django application has been down for more than 1 minute."
+      runbook_url: "https://github.com/CivicPulse/civicpulse-backend/wiki/Runbooks#application-down"
+
+  - alert: HighErrorRate
+    expr: rate(civicpulse_requests_total{status=~"5.."}[5m]) / rate(civicpulse_requests_total[5m]) * 100 > 5
+    for: 2m
+    labels:
+      severity: warning
+      service: civicpulse-backend
+    annotations:
+      summary: "High error rate detected"
+      description: "Error rate is {{ $value }}% which is above the 5% threshold."
+      runbook_url: "https://github.com/CivicPulse/civicpulse-backend/wiki/Runbooks#high-error-rate"
+
+  - alert: CriticalErrorRate
+    expr: rate(civicpulse_requests_total{status=~"5.."}[5m]) / rate(civicpulse_requests_total[5m]) * 100 > 15
+    for: 1m
+    labels:
+      severity: critical
+      service: civicpulse-backend
+    annotations:
+      summary: "Critical error rate detected"
+      description: "Error rate is {{ $value }}% which is above the critical 15% threshold."
+      runbook_url: "https://github.com/CivicPulse/civicpulse-backend/wiki/Runbooks#critical-error-rate"
+
+  - alert: SlowResponseTime
+    expr: histogram_quantile(0.95, rate(civicpulse_request_duration_seconds_bucket[5m])) > 2
+    for: 5m
+    labels:
+      severity: warning
+      service: civicpulse-backend
+    annotations:
+      summary: "Slow response time detected"
+      description: "95th percentile response time is {{ $value }}s which is above the 2s threshold."
+      runbook_url: "https://github.com/CivicPulse/civicpulse-backend/wiki/Runbooks#slow-response"
+
+  - alert: HealthCheckFailing
+    expr: probe_success{job="blackbox"} == 0
+    for: 2m
+    labels:
+      severity: critical
+      service: civicpulse-backend
+    annotations:
+      summary: "Health check endpoint failing"
+      description: "Health check endpoint {{ $labels.instance }} has been failing for more than 2 minutes."
+      runbook_url: "https://github.com/CivicPulse/civicpulse-backend/wiki/Runbooks#health-check-failing"
+
+- name: civicpulse.database
+  interval: 30s
+  rules:
+  - alert: DatabaseDown
+    expr: up{job="postgres-exporter"} == 0
+    for: 1m
+    labels:
+      severity: critical
+      service: postgresql
+    annotations:
+      summary: "PostgreSQL database is down"
+      description: "PostgreSQL database has been unreachable for more than 1 minute."
+      runbook_url: "https://github.com/CivicPulse/civicpulse-backend/wiki/Runbooks#database-down"
+
+  - alert: DatabaseHighConnections
+    expr: pg_stat_database_numbackends / pg_settings_max_connections * 100 > 80
+    for: 5m
+    labels:
+      severity: warning
+      service: postgresql
+    annotations:
+      summary: "High database connection usage"
+      description: "Database connection usage is {{ $value }}% which is above 80%."
+      runbook_url: "https://github.com/CivicPulse/civicpulse-backend/wiki/Runbooks#high-db-connections"
+
+  - alert: DatabaseSlowQueries
+    expr: rate(civicpulse_database_query_duration_seconds_sum[5m]) / rate(civicpulse_database_query_duration_seconds_count[5m]) > 1
+    for: 5m
+    labels:
+      severity: warning
+      service: civicpulse-backend
+    annotations:
+      summary: "Slow database queries detected"
+      description: "Average database query time is {{ $value }}s which is above 1s threshold."
+      runbook_url: "https://github.com/CivicPulse/civicpulse-backend/wiki/Runbooks#slow-queries"
+
+- name: civicpulse.redis
+  interval: 30s
+  rules:
+  - alert: RedisDown
+    expr: up{job="redis-exporter"} == 0
+    for: 1m
+    labels:
+      severity: critical
+      service: redis
+    annotations:
+      summary: "Redis cache is down"
+      description: "Redis cache has been unreachable for more than 1 minute."
+      runbook_url: "https://github.com/CivicPulse/civicpulse-backend/wiki/Runbooks#redis-down"
+
+  - alert: RedisHighMemoryUsage
+    expr: redis_memory_used_bytes / redis_memory_max_bytes * 100 > 90
+    for: 5m
+    labels:
+      severity: warning
+      service: redis
+    annotations:
+      summary: "High Redis memory usage"
+      description: "Redis memory usage is {{ $value }}% which is above 90%."
+      runbook_url: "https://github.com/CivicPulse/civicpulse-backend/wiki/Runbooks#high-redis-memory"
+
+- name: civicpulse.infrastructure
+  interval: 30s
+  rules:
+  - alert: HighCpuUsage
+    expr: 100 - (avg(irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 90
+    for: 5m
+    labels:
+      severity: warning
+      service: infrastructure
+    annotations:
+      summary: "High CPU usage detected"
+      description: "CPU usage is {{ $value }}% which is above 90%."
+      runbook_url: "https://github.com/CivicPulse/civicpulse-backend/wiki/Runbooks#high-cpu"
+
+  - alert: HighMemoryUsage
+    expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 95
+    for: 5m
+    labels:
+      severity: critical
+      service: infrastructure
+    annotations:
+      summary: "High memory usage detected"
+      description: "Memory usage is {{ $value }}% which is above 95%."
+      runbook_url: "https://github.com/CivicPulse/civicpulse-backend/wiki/Runbooks#high-memory"
+
+  - alert: DiskSpaceLow
+    expr: (1 - (node_filesystem_avail_bytes{fstype!="tmpfs"} / node_filesystem_size_bytes{fstype!="tmpfs"})) * 100 > 85
+    for: 10m
+    labels:
+      severity: warning
+      service: infrastructure
+    annotations:
+      summary: "Low disk space detected"
+      description: "Disk usage on {{ $labels.mountpoint }} is {{ $value }}% which is above 85%."
+      runbook_url: "https://github.com/CivicPulse/civicpulse-backend/wiki/Runbooks#low-disk-space"
+
+  - alert: DiskSpaceCritical
+    expr: (1 - (node_filesystem_avail_bytes{fstype!="tmpfs"} / node_filesystem_size_bytes{fstype!="tmpfs"})) * 100 > 95
+    for: 5m
+    labels:
+      severity: critical
+      service: infrastructure
+    annotations:
+      summary: "Critical disk space detected"
+      description: "Disk usage on {{ $labels.mountpoint }} is {{ $value }}% which is critical."
+      runbook_url: "https://github.com/CivicPulse/civicpulse-backend/wiki/Runbooks#critical-disk-space"
+
+- name: civicpulse.security
+  interval: 60s
+  rules:
+  - alert: HighFailedLogins
+    expr: rate(civicpulse_authentication_events_total{event_type="failed_login"}[10m]) > 5
+    for: 2m
+    labels:
+      severity: warning
+      service: civicpulse-backend
+    annotations:
+      summary: "High failed login rate detected"
+      description: "Failed login rate is {{ $value }} attempts/second which is above threshold."
+      runbook_url: "https://github.com/CivicPulse/civicpulse-backend/wiki/Runbooks#high-failed-logins"
+
+  - alert: SecurityAlert
+    expr: rate(civicpulse_audit_events_total{event_type="security_violation"}[5m]) > 0
+    for: 0m
+    labels:
+      severity: critical
+      service: civicpulse-backend
+    annotations:
+      summary: "Security violation detected"
+      description: "Security violation events have been detected in the audit log."
+      runbook_url: "https://github.com/CivicPulse/civicpulse-backend/wiki/Runbooks#security-alert"
+
+- name: civicpulse.cicd
+  interval: 300s
+  rules:
+  - alert: CIPipelineFailures
+    expr: increase(github_actions_workflow_run_failures_total{repository="civicpulse/civicpulse-backend"}[1h]) > 3
+    for: 0m
+    labels:
+      severity: warning
+      service: ci-cd
+    annotations:
+      summary: "High CI pipeline failure rate"
+      description: "{{ $value }} CI pipeline failures detected in the last hour."
+      runbook_url: "https://github.com/CivicPulse/civicpulse-backend/wiki/Runbooks#ci-failures"
+
+  - alert: DeploymentFailure
+    expr: increase(github_actions_workflow_run_failures_total{repository="civicpulse/civicpulse-backend", workflow="deploy"}[30m]) > 0
+    for: 0m
+    labels:
+      severity: critical
+      service: ci-cd
+    annotations:
+      summary: "Deployment failure detected"
+      description: "Deployment pipeline has failed."
+      runbook_url: "https://github.com/CivicPulse/civicpulse-backend/wiki/Runbooks#deployment-failure"
+
+  - alert: LongBuildTime
+    expr: avg_over_time(github_actions_workflow_run_duration_seconds{repository="civicpulse/civicpulse-backend"}[6h]) > 1200
+    for: 0m
+    labels:
+      severity: warning
+      service: ci-cd
+    annotations:
+      summary: "Build times are increasing"
+      description: "Average build time is {{ $value }}s which is above 20 minutes."
+      runbook_url: "https://github.com/CivicPulse/civicpulse-backend/wiki/Runbooks#long-build-times"

@@ -1,0 +1,470 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "CivicPulse CI/CD Pipeline Monitoring",
+    "tags": ["civicpulse", "cicd", "github-actions"],
+    "style": "dark",
+    "timezone": "browser",
+    "editable": true,
+    "hideControls": false,
+    "sharedCrosshair": false,
+    "panels": [
+      {
+        "id": 1,
+        "title": "Pipeline Success Rate (Last 7 Days)",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "100 - (sum(github_actions_workflow_run_failures_total{repository=\"civicpulse/civicpulse-backend\"}) / sum(github_actions_workflow_run_total{repository=\"civicpulse/civicpulse-backend\"}) * 100)",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {
+          "h": 4,
+          "w": 6,
+          "x": 0,
+          "y": 0
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {
+                  "color": "red",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 85
+                },
+                {
+                  "color": "green",
+                  "value": 95
+                }
+              ]
+            },
+            "unit": "percent",
+            "min": 0,
+            "max": 100
+          }
+        },
+        "options": {
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"],
+            "fields": ""
+          },
+          "orientation": "auto",
+          "textMode": "auto",
+          "colorMode": "background"
+        }
+      },
+      {
+        "id": 2,
+        "title": "Average Build Time",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "avg(github_actions_workflow_run_duration_seconds{repository=\"civicpulse/civicpulse-backend\"}) / 60",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {
+          "h": 4,
+          "w": 6,
+          "x": 6,
+          "y": 0
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 10
+                },
+                {
+                  "color": "red",
+                  "value": 20
+                }
+              ]
+            },
+            "unit": "min"
+          }
+        },
+        "options": {
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"],
+            "fields": ""
+          },
+          "orientation": "auto",
+          "textMode": "auto",
+          "colorMode": "value"
+        }
+      },
+      {
+        "id": 3,
+        "title": "Failed Builds (24h)",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "increase(github_actions_workflow_run_failures_total{repository=\"civicpulse/civicpulse-backend\"}[24h])",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {
+          "h": 4,
+          "w": 6,
+          "x": 12,
+          "y": 0
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 1
+                },
+                {
+                  "color": "red",
+                  "value": 3
+                }
+              ]
+            },
+            "unit": "short"
+          }
+        },
+        "options": {
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"],
+            "fields": ""
+          },
+          "orientation": "auto",
+          "textMode": "auto",
+          "colorMode": "background"
+        }
+      },
+      {
+        "id": 4,
+        "title": "Deployment Frequency",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "increase(github_actions_workflow_run_total{repository=\"civicpulse/civicpulse-backend\", workflow=\"deploy\"}[7d]) / 7",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {
+          "h": 4,
+          "w": 6,
+          "x": 18,
+          "y": 0
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "unit": "deploys/day"
+          }
+        },
+        "options": {
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"],
+            "fields": ""
+          },
+          "orientation": "auto",
+          "textMode": "auto",
+          "colorMode": "value"
+        }
+      },
+      {
+        "id": 5,
+        "title": "Workflow Run Trends",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "rate(github_actions_workflow_run_total{repository=\"civicpulse/civicpulse-backend\"}[1h])",
+            "legendFormat": "{{workflow}} - Total",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(github_actions_workflow_run_failures_total{repository=\"civicpulse/civicpulse-backend\"}[1h])",
+            "legendFormat": "{{workflow}} - Failures",
+            "refId": "B"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 4
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "unit": "runs/hour"
+          }
+        },
+        "options": {
+          "legend": {
+            "displayMode": "visible",
+            "placement": "bottom"
+          }
+        }
+      },
+      {
+        "id": 6,
+        "title": "Build Duration by Workflow",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "github_actions_workflow_run_duration_seconds{repository=\"civicpulse/civicpulse-backend\"} / 60",
+            "legendFormat": "{{workflow}}",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 4
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "unit": "min"
+          }
+        },
+        "options": {
+          "legend": {
+            "displayMode": "visible",
+            "placement": "bottom"
+          }
+        }
+      },
+      {
+        "id": 7,
+        "title": "Test Coverage Trends",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "github_actions_test_coverage_percent{repository=\"civicpulse/civicpulse-backend\"}",
+            "legendFormat": "Test Coverage %",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 12
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {
+                  "color": "red",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 70
+                },
+                {
+                  "color": "green",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "percent",
+            "min": 0,
+            "max": 100
+          }
+        }
+      },
+      {
+        "id": 8,
+        "title": "Security Scan Results",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "github_actions_security_vulnerabilities_total{repository=\"civicpulse/civicpulse-backend\"}",
+            "legendFormat": "{{severity}} vulnerabilities",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 12
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "unit": "short"
+          }
+        },
+        "options": {
+          "legend": {
+            "displayMode": "visible",
+            "placement": "bottom"
+          }
+        }
+      },
+      {
+        "id": 9,
+        "title": "Deployment Success Rate by Environment",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "rate(github_actions_deployment_success_total{repository=\"civicpulse/civicpulse-backend\"}[1h]) / rate(github_actions_deployment_total{repository=\"civicpulse/civicpulse-backend\"}[1h]) * 100",
+            "legendFormat": "{{environment}}",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 20
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "unit": "percent",
+            "min": 0,
+            "max": 100
+          }
+        }
+      },
+      {
+        "id": 10,
+        "title": "Mean Time to Recovery (MTTR)",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "avg(github_actions_pipeline_recovery_time_seconds{repository=\"civicpulse/civicpulse-backend\"}) / 3600",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 20
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 4
+                },
+                {
+                  "color": "red",
+                  "value": 24
+                }
+              ]
+            },
+            "unit": "h"
+          }
+        },
+        "options": {
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"],
+            "fields": ""
+          },
+          "orientation": "auto",
+          "textMode": "auto",
+          "colorMode": "value"
+        }
+      },
+      {
+        "id": 11,
+        "title": "Workflow Queue Time",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "github_actions_workflow_queue_duration_seconds{repository=\"civicpulse/civicpulse-backend\"} / 60",
+            "legendFormat": "{{workflow}} Queue Time",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 24,
+          "x": 0,
+          "y": 28
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "unit": "min"
+          }
+        },
+        "options": {
+          "legend": {
+            "displayMode": "visible",
+            "placement": "bottom"
+          }
+        }
+      }
+    ],
+    "time": {
+      "from": "now-7d",
+      "to": "now"
+    },
+    "timepicker": {
+      "refresh_intervals": ["1m", "5m", "15m", "30m", "1h", "2h", "1d"],
+      "time_options": ["1h", "6h", "12h", "24h", "2d", "7d", "14d", "30d"]
+    },
+    "refresh": "1m",
+    "version": 1
+  }
+}
