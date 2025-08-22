@@ -16,6 +16,7 @@ dependencies = [
     "redis>=6.4.0",
     "django-redis>=6.0.0",
     "dj-database-url>=2.3.0",
+    "faker>=37.5.3",
 ]
 
 

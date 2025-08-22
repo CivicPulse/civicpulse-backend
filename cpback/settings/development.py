@@ -2,6 +2,7 @@
 Development settings for cpback project.
 """
 
+import os
 import sys
 
 import environ
@@ -17,7 +18,14 @@ DEBUG = True
 ALLOWED_HOSTS.extend(["localhost", "127.0.0.1", "0.0.0.0"])
 
 # Add Django Debug Toolbar in development (not in testing)
-if "test" not in sys.argv:
+# Check for testing conditions to prevent debug toolbar issues
+IS_TESTING = (
+    "test" in sys.argv
+    or "pytest" in sys.modules
+    or os.environ.get("DJANGO_SETTINGS_MODULE", "").endswith("testing")
+)
+
+if not IS_TESTING:
     THIRD_PARTY_APPS.extend(
         [
             "debug_toolbar",
@@ -37,18 +45,16 @@ EMAIL_BACKEND = env(
 )
 
 # Django Debug Toolbar configuration (not in testing)
-if "test" not in sys.argv:
+if not IS_TESTING:
     MIDDLEWARE.insert(0, "debug_toolbar.middleware.DebugToolbarMiddleware")
     INTERNAL_IPS: list[str] = ["127.0.0.1", "localhost"]
 
-# Debug Toolbar configuration
-IS_RUNNING_TESTS = "test" in sys.argv
-
-DEBUG_TOOLBAR_CONFIG: dict = {
-    "SHOW_TOOLBAR_CALLBACK": lambda request: DEBUG,
-    "SHOW_TEMPLATE_CONTEXT": True,
-    "IS_RUNNING_TESTS": False,  # Bypass the test check
-}
+    # Debug Toolbar configuration
+    DEBUG_TOOLBAR_CONFIG: dict = {
+        "SHOW_TOOLBAR_CALLBACK": lambda request: DEBUG and not IS_TESTING,
+        "SHOW_TEMPLATE_CONTEXT": True,
+        "IS_RUNNING_TESTS": IS_TESTING,
+    }
 
 # Development-specific logging
 LOGGING["handlers"]["console"]["level"] = "DEBUG"
