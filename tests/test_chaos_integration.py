@@ -47,7 +47,7 @@ class ChaosIntegrationTestCase(TransactionTestCase):
             )
         except Exception as e:
             return False, {"error": str(e)}
-    
+
     def make_health_check_allow_degraded(self):
         """Make a health check that allows degraded service (503) as acceptable"""
         try:
