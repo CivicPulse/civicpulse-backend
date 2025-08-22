@@ -22,10 +22,16 @@ sys.path.append(
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "cpback.settings.development")
 django.setup()
 
-from django.contrib.contenttypes.models import ContentType
+from django.contrib.contenttypes.models import ContentType  # noqa: E402
 
-from civicpulse.audit import AuditLog
-from civicpulse.models import ContactAttempt, PasswordHistory, Person, User, VoterRecord
+from civicpulse.audit import AuditLog  # noqa: E402
+from civicpulse.models import (  # noqa: E402
+    ContactAttempt,
+    PasswordHistory,
+    Person,
+    User,
+    VoterRecord,
+)
 
 fake = Faker()
 
@@ -293,7 +299,8 @@ class MigrationTestDataGenerator:
                 )
             except Exception as e:
                 print(
-                    f"Warning: Some voter records already exist, creating individually: {e}"
+                    f"Warning: Some voter records already exist, creating "
+                    f"individually: {e}"
                 )
                 # Try creating individually to handle duplicates
                 for voter_record in voter_records_to_create:
