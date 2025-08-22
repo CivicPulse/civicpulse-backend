@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - CivicPulse{% endblock %}
+{% block page_title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="help-text">
+    <h3>CSV Import Instructions</h3>
+    <ul>
+        <li><strong>Required Fields:</strong> {{ help_text.required_fields }}</li>
+        <li><strong>Date Formats:</strong> {{ help_text.date_formats }}</li>
+        <li><strong>Gender Values:</strong> {{ help_text.gender_values }}</li>
+        <li><strong>State Codes:</strong> {{ help_text.state_codes }}</li>
+        <li><strong>Party Codes:</strong> {{ help_text.party_codes }}</li>
+        <li><strong>Voter Score:</strong> {{ help_text.voter_score }}</li>
+        <li><strong>File Limits:</strong> {{ help_text.file_limits }}</li>
+    </ul>
+    
+    <h4>Expected CSV Headers:</h4>
+    <p>
+        {% for header in expected_headers %}
+            <code>{{ header }}</code>{% if not forloop.last %}, {% endif %}
+        {% endfor %}
+    </p>
+</div>
+
+<form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <div class="form-group">
+        <label for="csv_file">Select CSV File:</label>
+        <input type="file" id="csv_file" name="csv_file" accept=".csv" required>
+    </div>
+    <button type="submit" class="btn">Import Persons</button>
+    <a href="{% url 'civicpulse:person_export' %}" class="btn btn-secondary">Download Sample CSV</a>
+</form>
+
+{% if results %}
+<div class="results">
+    <h3>Import Results</h3>
+    <ul>
+        <li><strong>File:</strong> {{ results.filename }}</li>
+        <li><strong>Successfully Imported:</strong> {{ results.imported_count }} records</li>
+        <li><strong>Duplicates Skipped:</strong> {{ results.duplicate_count }} records</li>
+        <li><strong>Errors:</strong> {{ results.errors|length }} records</li>
+    </ul>
+    
+    {% if results.errors %}
+    <div class="error-list">
+        <h4>Import Errors:</h4>
+        <ul>
+            {% for error in results.errors %}
+                <li>{{ error }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+<div class="help-text" style="margin-top: 30px;">
+    <h3>Sample CSV Format</h3>
+    <p>Here's an example of how your CSV file should be formatted:</p>
+    <pre style="background-color: #f8f9fa; padding: 10px; border-radius: 4px; overflow-x: auto;">
+First Name,Last Name,Email,Phone Primary,City,State,ZIP Code,Voter ID
+John,Doe,john.doe@example.com,(555) 123-4567,Springfield,IL,62701,IL123456789
+Jane,Smith,jane.smith@example.com,(555) 987-6543,Chicago,IL,60601,IL987654321</pre>
+</div>
+{% endblock %}

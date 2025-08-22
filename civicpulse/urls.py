@@ -1,13 +1,15 @@
 """
-URL configuration for the CivicPulse authentication system.
+URL configuration for CivicPulse application.
 
-Provides URL patterns for all authentication-related views including
-login, logout, registration, password reset, and dashboard access.
+This module defines URL patterns for the CivicPulse application,
+including authentication, import/export, and dashboard functionality.
 """
 
 from django.urls import path
 
-from . import views
+from civicpulse.views import PersonExportView, PersonImportView
+
+from . import views_old as views
 
 app_name = "civicpulse"
 
@@ -62,6 +64,10 @@ urlpatterns = [
     path("profile/", views.ProfileView.as_view(), name="profile"),
     # Health check endpoint
     path("health/", views.health_check, name="health_check"),
+    # Export URLs
+    path("export/persons/", PersonExportView.as_view(), name="person_export"),
+    # Import URLs
+    path("import/persons/", PersonImportView.as_view(), name="person_import"),
     # Root redirect to dashboard for authenticated users, login for anonymous
     path("", views.DashboardView.as_view(), name="home"),
 ]
