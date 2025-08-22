@@ -70,9 +70,13 @@ class MigrationTestDataGenerator:
 
         for i in range(count):
             person_data = {
-                "first_name": f"{self.fake.first_name()}{i}" if i < 100 else self.fake.first_name(),
+                "first_name": f"{self.fake.first_name()}{i}"
+                if i < 100
+                else self.fake.first_name(),
                 "middle_name": self.fake.first_name() if random.random() > 0.7 else "",
-                "last_name": f"{self.fake.last_name()}{i}" if i < 100 else self.fake.last_name(),
+                "last_name": f"{self.fake.last_name()}{i}"
+                if i < 100
+                else self.fake.last_name(),
                 "suffix": random.choice(["Jr.", "Sr.", "III", ""])
                 if random.random() > 0.9
                 else "",
@@ -114,7 +118,9 @@ class MigrationTestDataGenerator:
             try:
                 Person.objects.bulk_create(persons_to_create, batch_size=1000)
             except Exception as e:
-                print(f"Warning: Some persons already exist, creating individually: {e}")
+                print(
+                    f"Warning: Some persons already exist, creating individually: {e}"
+                )
                 # Try creating individually to handle duplicates
                 for person in persons_to_create:
                     try:
@@ -282,9 +288,13 @@ class MigrationTestDataGenerator:
 
         with transaction.atomic():
             try:
-                VoterRecord.objects.bulk_create(voter_records_to_create, batch_size=1000)
+                VoterRecord.objects.bulk_create(
+                    voter_records_to_create, batch_size=1000
+                )
             except Exception as e:
-                print(f"Warning: Some voter records already exist, creating individually: {e}")
+                print(
+                    f"Warning: Some voter records already exist, creating individually: {e}"
+                )
                 # Try creating individually to handle duplicates
                 for voter_record in voter_records_to_create:
                     try:

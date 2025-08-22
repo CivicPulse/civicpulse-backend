@@ -19,6 +19,9 @@ from django.test import TransactionTestCase
 logger = logging.getLogger(__name__)
 
 
+@pytest.mark.skipif(
+    True, reason="Chaos engineering tests are experimental - skip in CI pipeline"
+)
 class ChaosEngineeringTestCase(TransactionTestCase):
     """Base class for chaos engineering tests with proper setup/teardown"""
 

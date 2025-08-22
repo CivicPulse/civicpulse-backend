@@ -5,14 +5,17 @@ Migration Safety Checklist for CivicPulse
 Comprehensive checklist to ensure database migration safety and production readiness.
 This checklist should be completed before any production database migration.
 """
+
 import json
 import os
 import sys
 from datetime import datetime, timedelta
 
 # Setup Django
-sys.path.append('/home/kwhatcher/projects/civicpulse/civicpulse-backend/.worktree/copilot/fix-16')
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'cpback.settings.development')
+sys.path.append(
+    "/home/kwhatcher/projects/civicpulse/civicpulse-backend/.worktree/copilot/fix-16"
+)
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "cpback.settings.development")
 
 import django
 
@@ -51,8 +54,8 @@ class MigrationSafetyChecklist:
                             "Backup file exists and is not corrupt",
                             "Backup contains all expected tables and data",
                             "Test restore completes successfully",
-                            "Backup is stored in secure, accessible location"
-                        ]
+                            "Backup is stored in secure, accessible location",
+                        ],
                     },
                     {
                         "id": "migration_dependencies",
@@ -64,8 +67,8 @@ class MigrationSafetyChecklist:
                             "Django migration plan executes without errors",
                             "No missing migration dependencies",
                             "No circular dependency issues",
-                            "All required migrations are available"
-                        ]
+                            "All required migrations are available",
+                        ],
                     },
                     {
                         "id": "schema_state_check",
@@ -76,8 +79,8 @@ class MigrationSafetyChecklist:
                         "acceptance_criteria": [
                             "makemigrations --check passes",
                             "No unapplied migrations exist",
-                            "Database introspection matches model definitions"
-                        ]
+                            "Database introspection matches model definitions",
+                        ],
                     },
                     {
                         "id": "disk_space_check",
@@ -88,8 +91,8 @@ class MigrationSafetyChecklist:
                         "acceptance_criteria": [
                             "At least 50% free disk space available",
                             "Minimum 10GB free space for large table operations",
-                            "Temporary space available for index creation"
-                        ]
+                            "Temporary space available for index creation",
+                        ],
                     },
                     {
                         "id": "maintenance_window",
@@ -101,10 +104,10 @@ class MigrationSafetyChecklist:
                             "Stakeholders notified at least 48 hours in advance",
                             "Maintenance window scheduled during low-usage period",
                             "Expected downtime communicated clearly",
-                            "Rollback plan time limits communicated"
-                        ]
-                    }
-                ]
+                            "Rollback plan time limits communicated",
+                        ],
+                    },
+                ],
             },
             "migration_analysis": {
                 "title": "Migration Analysis and Risk Assessment",
@@ -119,8 +122,8 @@ class MigrationSafetyChecklist:
                             "Backward compatible vs incompatible migrations identified",
                             "Data migration scope and duration estimated",
                             "Index creation/modification impact assessed",
-                            "Foreign key constraint changes evaluated"
-                        ]
+                            "Foreign key constraint changes evaluated",
+                        ],
                     },
                     {
                         "id": "data_volume_assessment",
@@ -132,8 +135,8 @@ class MigrationSafetyChecklist:
                             "Migration tested with >= 70% of production data volume",
                             "Migration completion time < 15 minutes",
                             "Memory usage remains within acceptable limits",
-                            "No table locks longer than 30 seconds"
-                        ]
+                            "No table locks longer than 30 seconds",
+                        ],
                     },
                     {
                         "id": "backward_compatibility",
@@ -145,8 +148,8 @@ class MigrationSafetyChecklist:
                             "Current application code works with new schema",
                             "No breaking changes to existing API endpoints",
                             "Database queries remain functional",
-                            "Rollback path preserves data integrity"
-                        ]
+                            "Rollback path preserves data integrity",
+                        ],
                     },
                     {
                         "id": "index_strategy",
@@ -158,10 +161,10 @@ class MigrationSafetyChecklist:
                             "Large indexes created concurrently where possible",
                             "Index creation time estimated and acceptable",
                             "Table lock duration minimized",
-                            "Query performance impact assessed"
-                        ]
-                    }
-                ]
+                            "Query performance impact assessed",
+                        ],
+                    },
+                ],
             },
             "testing_validation": {
                 "title": "Testing and Validation",
@@ -176,8 +179,8 @@ class MigrationSafetyChecklist:
                             "Forward migration tests pass",
                             "Rollback migration tests pass",
                             "Data integrity tests pass",
-                            "Performance benchmarks met"
-                        ]
+                            "Performance benchmarks met",
+                        ],
                     },
                     {
                         "id": "rollback_procedure_test",
@@ -189,8 +192,8 @@ class MigrationSafetyChecklist:
                             "Rollback migrations execute successfully",
                             "Data integrity maintained after rollback",
                             "Application functionality restored",
-                            "Rollback completion time < 10 minutes"
-                        ]
+                            "Rollback completion time < 10 minutes",
+                        ],
                     },
                     {
                         "id": "application_functionality",
@@ -203,8 +206,8 @@ class MigrationSafetyChecklist:
                             "Core CRUD operations functional",
                             "Data export/import processes work",
                             "Audit logging continues to function",
-                            "Performance within acceptable ranges"
-                        ]
+                            "Performance within acceptable ranges",
+                        ],
                     },
                     {
                         "id": "data_integrity_validation",
@@ -216,10 +219,10 @@ class MigrationSafetyChecklist:
                             "Foreign key relationships intact",
                             "Data counts match expectations",
                             "No orphaned records created",
-                            "Audit trail continuity maintained"
-                        ]
-                    }
-                ]
+                            "Audit trail continuity maintained",
+                        ],
+                    },
+                ],
             },
             "production_readiness": {
                 "title": "Production Readiness",
@@ -234,8 +237,8 @@ class MigrationSafetyChecklist:
                             "Database performance metrics monitored",
                             "Application error rate tracking active",
                             "Migration progress monitoring configured",
-                            "Alert thresholds set for critical metrics"
-                        ]
+                            "Alert thresholds set for critical metrics",
+                        ],
                     },
                     {
                         "id": "team_readiness",
@@ -247,8 +250,8 @@ class MigrationSafetyChecklist:
                             "Migration lead identified and available",
                             "Database administrator on standby",
                             "Application support team available",
-                            "Communication channels established"
-                        ]
+                            "Communication channels established",
+                        ],
                     },
                     {
                         "id": "documentation_complete",
@@ -260,8 +263,8 @@ class MigrationSafetyChecklist:
                             "Step-by-step migration procedures documented",
                             "Rollback procedures clearly defined",
                             "Emergency contact information available",
-                            "Post-migration validation checklist ready"
-                        ]
+                            "Post-migration validation checklist ready",
+                        ],
                     },
                     {
                         "id": "communication_plan",
@@ -273,10 +276,10 @@ class MigrationSafetyChecklist:
                             "User notification system prepared",
                             "Status page updates planned",
                             "Internal team communication channels ready",
-                            "Post-migration success/failure communications drafted"
-                        ]
-                    }
-                ]
+                            "Post-migration success/failure communications drafted",
+                        ],
+                    },
+                ],
             },
             "security_compliance": {
                 "title": "Security and Compliance",
@@ -291,8 +294,8 @@ class MigrationSafetyChecklist:
                             "Audit log table structure preserved",
                             "Audit trail continuity maintained",
                             "Compliance reporting functions intact",
-                            "Data retention policies respected"
-                        ]
+                            "Data retention policies respected",
+                        ],
                     },
                     {
                         "id": "security_review",
@@ -304,8 +307,8 @@ class MigrationSafetyChecklist:
                             "New database objects follow security standards",
                             "Access permissions properly configured",
                             "No sensitive data exposed",
-                            "Encryption requirements maintained"
-                        ]
+                            "Encryption requirements maintained",
+                        ],
                     },
                     {
                         "id": "data_privacy",
@@ -317,10 +320,10 @@ class MigrationSafetyChecklist:
                             "PII handling procedures followed",
                             "Data minimization principles respected",
                             "Consent management system intact",
-                            "Data subject rights preserved"
-                        ]
-                    }
-                ]
+                            "Data subject rights preserved",
+                        ],
+                    },
+                ],
             },
             "post_migration": {
                 "title": "Post-Migration Validation",
@@ -335,8 +338,8 @@ class MigrationSafetyChecklist:
                             "Response times within 10% of baseline",
                             "Database query performance acceptable",
                             "No resource utilization spikes",
-                            "User experience unchanged"
-                        ]
+                            "User experience unchanged",
+                        ],
                     },
                     {
                         "id": "user_acceptance",
@@ -348,8 +351,8 @@ class MigrationSafetyChecklist:
                             "Core user workflows functional",
                             "No user-reported data issues",
                             "System responsiveness acceptable",
-                            "All features accessible"
-                        ]
+                            "All features accessible",
+                        ],
                     },
                     {
                         "id": "cleanup_completion",
@@ -361,11 +364,11 @@ class MigrationSafetyChecklist:
                             "Temporary tables/columns removed",
                             "Old backup files archived",
                             "Migration-specific code removed",
-                            "Documentation updated"
-                        ]
-                    }
-                ]
-            }
+                            "Documentation updated",
+                        ],
+                    },
+                ],
+            },
         }
 
     def run_automated_checks(self):
@@ -417,21 +420,25 @@ class MigrationSafetyChecklist:
                     for dep_app, dep_migration in node.dependencies:
                         dep_node = loader.graph.nodes.get((dep_app, dep_migration))
                         if not dep_node:
-                            dependency_errors.append(f"Missing: {dep_app}.{dep_migration}")
+                            dependency_errors.append(
+                                f"Missing: {dep_app}.{dep_migration}"
+                            )
 
-            self.results['migration_dependencies'] = {
-                'status': 'PASS' if not dependency_errors else 'FAIL',
-                'errors': dependency_errors,
-                'migration_count': len(plan)
+            self.results["migration_dependencies"] = {
+                "status": "PASS" if not dependency_errors else "FAIL",
+                "errors": dependency_errors,
+                "migration_count": len(plan),
             }
 
             status = "✓ PASS" if not dependency_errors else "✗ FAIL"
-            print(f"{status} Migration Dependencies: {len(plan)} migrations, {len(dependency_errors)} errors")
+            print(
+                f"{status} Migration Dependencies: {len(plan)} migrations, {len(dependency_errors)} errors"
+            )
 
         except Exception as e:
-            self.results['migration_dependencies'] = {
-                'status': 'ERROR',
-                'error': str(e)
+            self.results["migration_dependencies"] = {
+                "status": "ERROR",
+                "error": str(e),
             }
             print(f"✗ ERROR Migration Dependencies: {e}")
 
@@ -443,27 +450,26 @@ class MigrationSafetyChecklist:
             from django.core.management.base import CommandError
 
             try:
-                call_command('makemigrations', '--check', '--dry-run', verbosity=0)
+                call_command("makemigrations", "--check", "--dry-run", verbosity=0)
                 schema_current = True
                 unmade_changes = None
             except CommandError as e:
                 schema_current = False
                 unmade_changes = str(e)
 
-            self.results['schema_state'] = {
-                'status': 'PASS' if schema_current else 'WARNING',
-                'schema_current': schema_current,
-                'unmade_changes': unmade_changes
+            self.results["schema_state"] = {
+                "status": "PASS" if schema_current else "WARNING",
+                "schema_current": schema_current,
+                "unmade_changes": unmade_changes,
             }
 
             status = "✓ PASS" if schema_current else "! WARNING"
-            print(f"{status} Schema State: {'Current' if schema_current else 'Has unmade changes'}")
+            print(
+                f"{status} Schema State: {'Current' if schema_current else 'Has unmade changes'}"
+            )
 
         except Exception as e:
-            self.results['schema_state'] = {
-                'status': 'ERROR',
-                'error': str(e)
-            }
+            self.results["schema_state"] = {"status": "ERROR", "error": str(e)}
             print(f"✗ ERROR Schema State: {e}")
 
     def check_disk_space(self):
@@ -472,28 +478,25 @@ class MigrationSafetyChecklist:
             import shutil
 
             # Get disk usage for current directory (database location)
-            total, used, free = shutil.disk_usage('.')
+            total, used, free = shutil.disk_usage(".")
             free_gb = free / (1024**3)
             free_percent = (free / total) * 100
 
             # Check if adequate space available
             adequate_space = free_gb > 10 and free_percent > 20
 
-            self.results['disk_space'] = {
-                'status': 'PASS' if adequate_space else 'FAIL',
-                'free_gb': round(free_gb, 2),
-                'free_percent': round(free_percent, 2),
-                'adequate': adequate_space
+            self.results["disk_space"] = {
+                "status": "PASS" if adequate_space else "FAIL",
+                "free_gb": round(free_gb, 2),
+                "free_percent": round(free_percent, 2),
+                "adequate": adequate_space,
             }
 
             status = "✓ PASS" if adequate_space else "✗ FAIL"
             print(f"{status} Disk Space: {free_gb:.2f}GB free ({free_percent:.1f}%)")
 
         except Exception as e:
-            self.results['disk_space'] = {
-                'status': 'ERROR',
-                'error': str(e)
-            }
+            self.results["disk_space"] = {"status": "ERROR", "error": str(e)}
             print(f"✗ ERROR Disk Space: {e}")
 
     def check_data_volumes(self):
@@ -501,22 +504,22 @@ class MigrationSafetyChecklist:
         try:
             # Get record counts
             counts = {
-                'users': User.objects.count(),
-                'persons': Person.objects.count(),
-                'contact_attempts': ContactAttempt.objects.count(),
-                'voter_records': VoterRecord.objects.count(),
-                'audit_logs': AuditLog.objects.count()
+                "users": User.objects.count(),
+                "persons": Person.objects.count(),
+                "contact_attempts": ContactAttempt.objects.count(),
+                "voter_records": VoterRecord.objects.count(),
+                "audit_logs": AuditLog.objects.count(),
             }
 
             # Assess if volumes are adequate for testing
             total_records = sum(counts.values())
             adequate_volume = total_records > 1000  # Minimum threshold
 
-            self.results['data_volumes'] = {
-                'status': 'PASS' if adequate_volume else 'WARNING',
-                'counts': counts,
-                'total_records': total_records,
-                'adequate_for_testing': adequate_volume
+            self.results["data_volumes"] = {
+                "status": "PASS" if adequate_volume else "WARNING",
+                "counts": counts,
+                "total_records": total_records,
+                "adequate_for_testing": adequate_volume,
             }
 
             status = "✓ PASS" if adequate_volume else "! WARNING"
@@ -525,10 +528,7 @@ class MigrationSafetyChecklist:
                 print(f"  {table}: {count:,}")
 
         except Exception as e:
-            self.results['data_volumes'] = {
-                'status': 'ERROR',
-                'error': str(e)
-            }
+            self.results["data_volumes"] = {"status": "ERROR", "error": str(e)}
             print(f"✗ ERROR Data Volumes: {e}")
 
     def check_data_integrity(self):
@@ -537,24 +537,36 @@ class MigrationSafetyChecklist:
             integrity_issues = []
 
             # Check foreign key relationships
-            orphaned_persons = Person.objects.filter(created_by__isnull=True).exclude(created_by=None).count()
+            orphaned_persons = (
+                Person.objects.filter(created_by__isnull=True)
+                .exclude(created_by=None)
+                .count()
+            )
             if orphaned_persons > 0:
-                integrity_issues.append(f"{orphaned_persons} persons with invalid created_by references")
+                integrity_issues.append(
+                    f"{orphaned_persons} persons with invalid created_by references"
+                )
 
             # Check voter record relationships
             orphaned_voters = VoterRecord.objects.filter(person__isnull=True).count()
             if orphaned_voters > 0:
-                integrity_issues.append(f"{orphaned_voters} voter records with invalid person references")
+                integrity_issues.append(
+                    f"{orphaned_voters} voter records with invalid person references"
+                )
 
             # Check contact attempt relationships
-            orphaned_contacts = ContactAttempt.objects.filter(person__isnull=True).count()
+            orphaned_contacts = ContactAttempt.objects.filter(
+                person__isnull=True
+            ).count()
             if orphaned_contacts > 0:
-                integrity_issues.append(f"{orphaned_contacts} contact attempts with invalid person references")
+                integrity_issues.append(
+                    f"{orphaned_contacts} contact attempts with invalid person references"
+                )
 
-            self.results['data_integrity'] = {
-                'status': 'PASS' if not integrity_issues else 'FAIL',
-                'issues': integrity_issues,
-                'checks_performed': ['foreign_key_integrity', 'orphaned_records']
+            self.results["data_integrity"] = {
+                "status": "PASS" if not integrity_issues else "FAIL",
+                "issues": integrity_issues,
+                "checks_performed": ["foreign_key_integrity", "orphaned_records"],
             }
 
             status = "✓ PASS" if not integrity_issues else "✗ FAIL"
@@ -563,10 +575,7 @@ class MigrationSafetyChecklist:
                 print(f"  - {issue}")
 
         except Exception as e:
-            self.results['data_integrity'] = {
-                'status': 'ERROR',
-                'error': str(e)
-            }
+            self.results["data_integrity"] = {"status": "ERROR", "error": str(e)}
             print(f"✗ ERROR Data Integrity: {e}")
 
     def check_audit_compliance(self):
@@ -579,27 +588,24 @@ class MigrationSafetyChecklist:
 
             # Check audit log structure
             audit_fields_present = all(
-                hasattr(AuditLog, field) for field in
-                ['user', 'action', 'object_repr', 'changes', 'timestamp']
+                hasattr(AuditLog, field)
+                for field in ["user", "action", "object_repr", "changes", "timestamp"]
             )
 
             compliance_ok = recent_logs > 0 and audit_fields_present
 
-            self.results['audit_compliance'] = {
-                'status': 'PASS' if compliance_ok else 'WARNING',
-                'recent_audit_logs': recent_logs,
-                'audit_fields_present': audit_fields_present,
-                'compliance_status': compliance_ok
+            self.results["audit_compliance"] = {
+                "status": "PASS" if compliance_ok else "WARNING",
+                "recent_audit_logs": recent_logs,
+                "audit_fields_present": audit_fields_present,
+                "compliance_status": compliance_ok,
             }
 
             status = "✓ PASS" if compliance_ok else "! WARNING"
             print(f"{status} Audit Compliance: {recent_logs} recent audit logs")
 
         except Exception as e:
-            self.results['audit_compliance'] = {
-                'status': 'ERROR',
-                'error': str(e)
-            }
+            self.results["audit_compliance"] = {"status": "ERROR", "error": str(e)}
             print(f"✗ ERROR Audit Compliance: {e}")
 
     def check_performance_baseline(self):
@@ -613,11 +619,11 @@ class MigrationSafetyChecklist:
             person_query_time = time.time() - start_time
 
             start_time = time.time()
-            ContactAttempt.objects.select_related('person').count()
+            ContactAttempt.objects.select_related("person").count()
             contact_query_time = time.time() - start_time
 
             start_time = time.time()
-            AuditLog.objects.order_by('-timestamp')[:100].count()
+            AuditLog.objects.order_by("-timestamp")[:100].count()
             audit_query_time = time.time() - start_time
 
             # Check if performance is acceptable
@@ -627,24 +633,21 @@ class MigrationSafetyChecklist:
                 for t in [person_query_time, contact_query_time, audit_query_time]
             )
 
-            self.results['performance_baseline'] = {
-                'status': 'PASS' if performance_ok else 'WARNING',
-                'query_times': {
-                    'person_count': round(person_query_time, 3),
-                    'contact_with_person': round(contact_query_time, 3),
-                    'audit_recent': round(audit_query_time, 3)
+            self.results["performance_baseline"] = {
+                "status": "PASS" if performance_ok else "WARNING",
+                "query_times": {
+                    "person_count": round(person_query_time, 3),
+                    "contact_with_person": round(contact_query_time, 3),
+                    "audit_recent": round(audit_query_time, 3),
                 },
-                'performance_acceptable': performance_ok
+                "performance_acceptable": performance_ok,
             }
 
             status = "✓ PASS" if performance_ok else "! WARNING"
             print(f"{status} Performance Baseline: Queries within acceptable range")
 
         except Exception as e:
-            self.results['performance_baseline'] = {
-                'status': 'ERROR',
-                'error': str(e)
-            }
+            self.results["performance_baseline"] = {"status": "ERROR", "error": str(e)}
             print(f"✗ ERROR Performance Baseline: {e}")
 
     def generate_checklist_report(self):
@@ -653,40 +656,44 @@ class MigrationSafetyChecklist:
 
         # Calculate overall status
         automated_results = [r for r in self.results.values() if isinstance(r, dict)]
-        passed = sum(1 for r in automated_results if r.get('status') == 'PASS')
-        failed = sum(1 for r in automated_results if r.get('status') == 'FAIL')
-        warnings = sum(1 for r in automated_results if r.get('status') == 'WARNING')
-        errors = sum(1 for r in automated_results if r.get('status') == 'ERROR')
+        passed = sum(1 for r in automated_results if r.get("status") == "PASS")
+        failed = sum(1 for r in automated_results if r.get("status") == "FAIL")
+        warnings = sum(1 for r in automated_results if r.get("status") == "WARNING")
+        errors = sum(1 for r in automated_results if r.get("status") == "ERROR")
 
         report = {
-            'migration_safety_checklist': {
-                'generated_at': timestamp.isoformat(),
-                'checklist_version': '1.0',
-                'automated_checks': {
-                    'total': len(automated_results),
-                    'passed': passed,
-                    'failed': failed,
-                    'warnings': warnings,
-                    'errors': errors,
-                    'results': self.results
+            "migration_safety_checklist": {
+                "generated_at": timestamp.isoformat(),
+                "checklist_version": "1.0",
+                "automated_checks": {
+                    "total": len(automated_results),
+                    "passed": passed,
+                    "failed": failed,
+                    "warnings": warnings,
+                    "errors": errors,
+                    "results": self.results,
                 },
-                'checklist_items': self.checklist_items,
-                'overall_readiness': {
-                    'automated_checks_ready': failed == 0 and errors == 0,
-                    'critical_items_complete': 'Manual verification required',
-                    'recommendation': 'Complete manual checklist items before proceeding'
-                }
+                "checklist_items": self.checklist_items,
+                "overall_readiness": {
+                    "automated_checks_ready": failed == 0 and errors == 0,
+                    "critical_items_complete": "Manual verification required",
+                    "recommendation": "Complete manual checklist items before proceeding",
+                },
             }
         }
 
         # Save report
-        report_file = f'migration_safety_checklist_{timestamp.strftime("%Y%m%d_%H%M%S")}.json'
-        with open(report_file, 'w') as f:
+        report_file = (
+            f"migration_safety_checklist_{timestamp.strftime('%Y%m%d_%H%M%S')}.json"
+        )
+        with open(report_file, "w") as f:
             json.dump(report, f, indent=2, default=str)
 
         print("\n=== Migration Safety Checklist Summary ===")
         print(f"Report saved to: {report_file}")
-        print(f"Automated checks: {passed} passed, {failed} failed, {warnings} warnings, {errors} errors")
+        print(
+            f"Automated checks: {passed} passed, {failed} failed, {warnings} warnings, {errors} errors"
+        )
 
         if failed > 0 or errors > 0:
             print("⚠️  MIGRATION NOT READY - Fix failed checks before proceeding")
@@ -704,16 +711,17 @@ class MigrationSafetyChecklist:
 
         for _section_key, section in self.checklist_items.items():
             print(f"\n{section['title']}:")
-            print("-" * len(section['title']))
+            print("-" * len(section["title"]))
 
-            for item in section['items']:
-                if item['validation'] == 'manual':
-                    critical = " [CRITICAL]" if item['critical'] else ""
+            for item in section["items"]:
+                if item["validation"] == "manual":
+                    critical = " [CRITICAL]" if item["critical"] else ""
                     print(f"\n☐ {item['requirement']}{critical}")
                     print(f"   {item['description']}")
                     print("   Acceptance Criteria:")
-                    for criteria in item['acceptance_criteria']:
+                    for criteria in item["acceptance_criteria"]:
                         print(f"   • {criteria}")
+
 
 def main():
     """Main function to run migration safety checklist."""
@@ -732,5 +740,6 @@ def main():
 
     return checklist
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()
