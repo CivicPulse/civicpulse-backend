@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "bash(git:*)",
+      "Bash(cp:*)",
+      "Bash(*pytest*)",
+      "Bash(gh:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

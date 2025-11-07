@@ -176,7 +176,8 @@ class AuditLog(models.Model):
     content_type = models.ForeignKey(
         ContentType, on_delete=models.SET_NULL, null=True, blank=True
     )
-    object_id = models.CharField(max_length=255, blank=True, db_index=True)
+    # object_id must be nullable to match migration and allow system-level logs
+    object_id = models.CharField(max_length=255, blank=True, null=True, db_index=True)  # noqa: DJ001
     content_object = GenericForeignKey("content_type", "object_id")
     object_repr = models.CharField(
         max_length=500, help_text="String representation of the affected object"
@@ -197,8 +198,9 @@ class AuditLog(models.Model):
 
     # Request information
     ip_address = models.GenericIPAddressField(null=True, blank=True)
-    user_agent = models.CharField(max_length=500, blank=True)
-    session_key = models.CharField(max_length=40, blank=True)
+    # user_agent and session_key must be nullable to match migrations
+    user_agent = models.CharField(max_length=500, blank=True, null=True)  # noqa: DJ001
+    session_key = models.CharField(max_length=40, blank=True, null=True)  # noqa: DJ001
 
     # Additional context
     message = models.TextField(

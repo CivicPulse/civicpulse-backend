@@ -204,9 +204,9 @@ SESSION_SAVE_EVERY_REQUEST = True  # Update session on every request
 
 # CSRF Configuration
 CSRF_COOKIE_SECURE = not DEBUG  # Use secure CSRF cookies in production
-CSRF_COOKIE_HTTPONLY = True  # Prevent JavaScript access to CSRF tokens
+CSRF_COOKIE_HTTPONLY = False  # Required for cookie-based CSRF
 CSRF_COOKIE_SAMESITE = "Lax"
-CSRF_USE_SESSIONS = True  # Store CSRF tokens in sessions instead of cookies
+CSRF_USE_SESSIONS = False  # Use cookie-based (not session-based) CSRF
 
 # Security Headers
 SECURE_BROWSER_XSS_FILTER = True  # Enable XSS filtering
