@@ -1,0 +1,50 @@
+name: PR Validation
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  # Use the main CI workflow for PR validation
+  ci:
+    uses: ./.github/workflows/ci.yml
+    secrets: inherit
+  
+  # Additional PR-specific checks
+  pr-checks:
+    name: PR Quality Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Check PR title follows conventional commits
+        run: |
+          PR_TITLE="${{ github.event.pull_request.title }}"
+          if [[ "$PR_TITLE" =~ ^(feat|fix|docs|style|refactor|test|chore|build|ci|perf|revert)(\(.+\))?: .+ ]]; then
+            echo "✅ PR title follows conventional commits format"
+          else
+            echo "❌ PR title should follow conventional commits format: type(scope): description"
+            echo "Examples: feat: add user authentication, fix(api): resolve validation error"
+            exit 1
+          fi
+      
+      - name: Check for large file changes
+        run: |
+          CHANGED_FILES=$(git diff --name-only origin/main...HEAD)
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+          
+          # Check for large files (>1MB)
+          for file in $CHANGED_FILES; do
+            if [[ -f "$file" ]]; then
+              SIZE=$(stat -c%s "$file" 2>/dev/null || echo 0)
+              if [[ $SIZE -gt 1048576 ]]; then
+                echo "❌ Large file detected: $file ($(($SIZE / 1024))KB)"
+                echo "Consider using Git LFS for large files"
+                exit 1
+              fi
+            fi
+          done
+          echo "✅ No large files detected"

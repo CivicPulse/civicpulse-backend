@@ -1,0 +1,76 @@
+groups:
+- name: civicpulse.recording.application
+  interval: 30s
+  rules:
+  - record: civicpulse:request_rate
+    expr: rate(civicpulse_requests_total[5m])
+
+  - record: civicpulse:request_error_rate
+    expr: rate(civicpulse_requests_total{status=~"5.."}[5m]) / rate(civicpulse_requests_total[5m])
+
+  - record: civicpulse:request_duration_p95
+    expr: histogram_quantile(0.95, rate(civicpulse_request_duration_seconds_bucket[5m]))
+
+  - record: civicpulse:request_duration_p99
+    expr: histogram_quantile(0.99, rate(civicpulse_request_duration_seconds_bucket[5m]))
+
+  - record: civicpulse:database_query_duration_avg
+    expr: rate(civicpulse_database_query_duration_seconds_sum[5m]) / rate(civicpulse_database_query_duration_seconds_count[5m])
+
+- name: civicpulse.recording.infrastructure
+  interval: 60s
+  rules:
+  - record: civicpulse:cpu_usage_percent
+    expr: 100 - (avg(irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)
+
+  - record: civicpulse:memory_usage_percent
+    expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100
+
+  - record: civicpulse:disk_usage_percent
+    expr: (1 - (node_filesystem_avail_bytes{fstype!="tmpfs"} / node_filesystem_size_bytes{fstype!="tmpfs"})) * 100
+
+- name: civicpulse.recording.business
+  interval: 300s
+  rules:
+  - record: civicpulse:user_registrations_rate
+    expr: rate(civicpulse_authentication_events_total{event_type="user_registered"}[1h])
+
+  - record: civicpulse:login_success_rate
+    expr: rate(civicpulse_authentication_events_total{event_type="successful_login"}[1h]) / rate(civicpulse_authentication_events_total{event_type=~".*login"}[1h])
+
+  - record: civicpulse:data_export_rate
+    expr: rate(civicpulse_audit_events_total{action="export"}[1h])
+
+- name: civicpulse.recording.sli
+  interval: 60s
+  rules:
+  # Availability SLI - percentage of successful health checks
+  - record: civicpulse:availability_sli
+    expr: avg_over_time(probe_success{job="blackbox"}[5m])
+
+  # Latency SLI - percentage of requests served under 2s
+  - record: civicpulse:latency_sli
+    expr: histogram_quantile(0.95, rate(civicpulse_request_duration_seconds_bucket{le="2"}[5m])) / histogram_quantile(0.95, rate(civicpulse_request_duration_seconds_bucket[5m]))
+
+  # Error rate SLI - percentage of successful requests
+  - record: civicpulse:error_rate_sli
+    expr: 1 - (rate(civicpulse_requests_total{status=~"5.."}[5m]) / rate(civicpulse_requests_total[5m]))
+
+  # Throughput SLI - requests per second capacity
+  - record: civicpulse:throughput_sli
+    expr: rate(civicpulse_requests_total[5m])
+
+- name: civicpulse.recording.cicd
+  interval: 300s
+  rules:
+  - record: civicpulse:pipeline_success_rate
+    expr: 1 - (rate(github_actions_workflow_run_failures_total{repository="civicpulse/civicpulse-backend"}[1h]) / rate(github_actions_workflow_run_total{repository="civicpulse/civicpulse-backend"}[1h]))
+
+  - record: civicpulse:deployment_frequency
+    expr: rate(github_actions_workflow_run_total{repository="civicpulse/civicpulse-backend", workflow="deploy"}[24h])
+
+  - record: civicpulse:lead_time_minutes
+    expr: avg_over_time(github_actions_workflow_run_duration_seconds{repository="civicpulse/civicpulse-backend"}[6h]) / 60
+
+  - record: civicpulse:test_coverage_percent
+    expr: avg_over_time(github_actions_test_coverage_percent{repository="civicpulse/civicpulse-backend"}[24h])

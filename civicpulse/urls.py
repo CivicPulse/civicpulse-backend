@@ -62,6 +62,8 @@ urlpatterns = [
     # Dashboard and profile URLs
     path("dashboard/", views.DashboardView.as_view(), name="dashboard"),
     path("profile/", views.ProfileView.as_view(), name="profile"),
+    # Health check endpoint
+    path("health/", views.health_check, name="health_check"),
     # Export URLs
     path("export/persons/", PersonExportView.as_view(), name="person_export"),
     # Import URLs

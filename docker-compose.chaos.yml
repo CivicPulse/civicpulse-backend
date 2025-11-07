@@ -1,0 +1,184 @@
+version: '3.8'
+
+services:
+  # Main application services (inheriting from prod compose)
+  web:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    volumes:
+      - staticfiles:/app/staticfiles
+      - media:/app/media
+      - logs:/app/logs
+    ports:
+      - "8000:8000"
+    environment:
+      - DJANGO_SETTINGS_MODULE=cpback.settings.testing
+      - DATABASE_URL=postgresql://civicpulse:civicpulse@db:5432/civicpulse
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=chaos-testing-key-not-for-production
+      - DEBUG=False
+      - ALLOWED_HOSTS=localhost,127.0.0.1,web
+      - GUNICORN_WORKERS=2
+      - GUNICORN_THREADS=2
+      - DOCKER_TESTING=1
+    depends_on:
+      - db
+      - redis
+      - toxiproxy
+    networks:
+      - chaos-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/civicpulse/health/', timeout=10)"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    volumes:
+      - postgres_chaos_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=civicpulse
+      - POSTGRES_USER=civicpulse
+      - POSTGRES_PASSWORD=chaostesting
+    networks:
+      - chaos-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U civicpulse -d civicpulse"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_chaos_data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - chaos-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+
+  # Chaos engineering tools
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:2.5.0
+    ports:
+      - "8474:8474"
+    networks:
+      - chaos-net
+    command: -host=0.0.0.0
+
+  # Network chaos tool
+  pumba:
+    image: gaiaadm/pumba:0.9.0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: --log-level=info --interval=30s netem --duration=10s delay --time=1000ms re2:^chaos.*web.*
+    networks:
+      - chaos-net
+    depends_on:
+      - web
+
+  # Stress testing tool
+  stress-test:
+    image: alpine:latest
+    volumes:
+      - ./scripts:/scripts
+    command: sh -c "apk add --no-cache curl && /scripts/chaos_stress_test.sh"
+    depends_on:
+      - web
+    networks:
+      - chaos-net
+
+  # System monitoring during chaos tests
+  monitor:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=1h'
+      - '--web.enable-lifecycle'
+    networks:
+      - chaos-net
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=chaos123
+    volumes:
+      - grafana_chaos_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+    networks:
+      - chaos-net
+    depends_on:
+      - monitor
+
+  # Load testing
+  artillery:
+    image: artilleryio/artillery:latest
+    volumes:
+      - ./load-tests:/tests
+    command: run /tests/chaos-load-test.yml
+    depends_on:
+      - web
+    networks:
+      - chaos-net
+
+  # Database load generator
+  pgbench:
+    image: postgres:16-alpine
+    depends_on:
+      - db
+    networks:
+      - chaos-net
+    command: >
+      sh -c "
+        until pg_isready -h db -p 5432 -U civicpulse; do
+          echo 'Waiting for postgres...'
+          sleep 2
+        done
+        echo 'Running pgbench initialization...'
+        pgbench -i -h db -p 5432 -U civicpulse -d civicpulse
+        echo 'Running pgbench load test...'
+        pgbench -c 10 -j 2 -t 100 -h db -p 5432 -U civicpulse -d civicpulse
+      "
+    environment:
+      - PGPASSWORD=chaostesting
+
+volumes:
+  postgres_chaos_data:
+    driver: local
+  redis_chaos_data:
+    driver: local
+  grafana_chaos_data:
+    driver: local
+  staticfiles:
+    driver: local
+  media:
+    driver: local
+  logs:
+    driver: local
+
+networks:
+  chaos-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
