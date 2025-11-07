@@ -55,12 +55,12 @@ class AuditMiddleware(MiddlewareMixin):
             request: The HTTP request object
         """
         # Store audit context in request for later use
+        # Note: We don't access session_key here to avoid interfering with
+        # CSRF validation
         request.audit_context = {  # type: ignore[attr-defined]
             "ip_address": self.get_client_ip(request),
             "user_agent": request.META.get("HTTP_USER_AGENT", "")[:500],
-            "session_key": (
-                request.session.session_key if hasattr(request, "session") else None
-            ),
+            "session_key": None,  # Will be populated in process_response
         }
 
     def process_response(
@@ -79,6 +79,14 @@ class AuditMiddleware(MiddlewareMixin):
         # Skip if no user or audit context
         if not hasattr(request, "user") or not hasattr(request, "audit_context"):
             return response
+
+        # Safely populate session_key now that CSRF validation has completed
+        if hasattr(request, "session") and hasattr(request, "audit_context"):
+            try:
+                request.audit_context["session_key"] = request.session.session_key  # type: ignore[attr-defined]
+            except Exception:
+                # Session might not be available in all cases
+                pass
 
         # Skip anonymous users for most logging
         if not request.user.is_authenticated:
@@ -358,10 +366,17 @@ def get_request_audit_context(request: HttpRequest) -> dict:
         return getattr(request, "audit_context", {})
 
     # Fallback if middleware hasn't run
+    # Safely access session_key
+    session_key = None
+    try:
+        if hasattr(request, "session"):
+            session_key = request.session.session_key
+    except Exception:
+        # Session might not be available
+        pass
+
     return {
         "ip_address": AuditMiddleware.get_client_ip(request),
         "user_agent": request.META.get("HTTP_USER_AGENT", "")[:500],
-        "session_key": (
-            request.session.session_key if hasattr(request, "session") else None
-        ),
+        "session_key": session_key,
     }
