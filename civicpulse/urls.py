@@ -7,7 +7,15 @@ including authentication, import/export, and dashboard functionality.
 
 from django.urls import path
 
-from civicpulse.views import PersonExportView, PersonImportView
+from civicpulse.views import (
+    PersonExportView,
+    PersonImportView,
+    PersonSearchAPIView,
+    PersonSearchView,
+    QuickSearchAPIView,
+    SearchStatsAPIView,
+    export_search_results,
+)
 
 from . import views_old as views
 
@@ -64,6 +72,12 @@ urlpatterns = [
     path("profile/", views.ProfileView.as_view(), name="profile"),
     # Health check endpoint
     path("health/", views.health_check, name="health_check"),
+    # Search URLs
+    path("search/", PersonSearchView.as_view(), name="person_search"),
+    path("api/search/", PersonSearchAPIView.as_view(), name="person_search_api"),
+    path("api/search/quick/", QuickSearchAPIView.as_view(), name="quick_search_api"),
+    path("api/search/stats/", SearchStatsAPIView.as_view(), name="search_stats_api"),
+    path("search/export/", export_search_results, name="search_export"),
     # Export URLs
     path("export/persons/", PersonExportView.as_view(), name="person_export"),
     # Import URLs

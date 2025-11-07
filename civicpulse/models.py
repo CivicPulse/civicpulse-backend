@@ -295,6 +295,243 @@ class PersonManager(models.Manager):
         cutoff_date = timezone.now() - timedelta(days=days)
         return self.filter(contact_attempts__contact_date__gte=cutoff_date).distinct()
 
+    def advanced_search(
+        self,
+        search_query: str | None = None,
+        state: str | None = None,
+        zip_code: str | None = None,
+        city: str | None = None,
+        voter_status: str | None = None,
+        party_affiliation: str | None = None,
+        min_voter_score: int | None = None,
+        max_voter_score: int | None = None,
+        precinct: str | None = None,
+        ward: str | None = None,
+        congressional_district: str | None = None,
+        state_house_district: str | None = None,
+        state_senate_district: str | None = None,
+        has_voter_record: bool | None = None,
+        min_age: int | None = None,
+        max_age: int | None = None,
+        tags: list[str] | None = None,
+    ) -> QuerySet:
+        """
+        Advanced search for persons with multiple filter criteria.
+
+        Args:
+            search_query: Text search across name, email, phone, and address fields
+            state: Filter by state code
+            zip_code: Filter by ZIP code
+            city: Filter by city
+            voter_status: Filter by voter registration status
+            party_affiliation: Filter by party affiliation
+            min_voter_score: Minimum voter score (0-100)
+            max_voter_score: Maximum voter score (0-100)
+            precinct: Filter by precinct
+            ward: Filter by ward
+            congressional_district: Filter by congressional district
+            state_house_district: Filter by state house district
+            state_senate_district: Filter by state senate district
+            has_voter_record: Filter by presence of voter record
+            min_age: Minimum age
+            max_age: Maximum age
+            tags: List of tags to filter by
+
+        Returns:
+            QuerySet of matching Person objects
+        """
+        queryset = self.select_related("voter_record")
+
+        # Text search across multiple fields
+        if search_query:
+            search_query = search_query.strip()
+            queryset = queryset.filter(
+                Q(first_name__icontains=search_query)
+                | Q(middle_name__icontains=search_query)
+                | Q(last_name__icontains=search_query)
+                | Q(email__icontains=search_query)
+                | Q(phone_primary__icontains=search_query)
+                | Q(phone_secondary__icontains=search_query)
+                | Q(street_address__icontains=search_query)
+                | Q(city__icontains=search_query)
+                | Q(voter_record__voter_id__icontains=search_query)
+            )
+
+        # Location filters
+        if state:
+            queryset = queryset.filter(state__iexact=state)
+        if zip_code:
+            queryset = queryset.filter(zip_code=zip_code)
+        if city:
+            queryset = queryset.filter(city__icontains=city)
+
+        # Voter record filters
+        if voter_status:
+            queryset = queryset.filter(
+                voter_record__registration_status=voter_status
+            )
+        if party_affiliation:
+            queryset = queryset.filter(
+                voter_record__party_affiliation=party_affiliation
+            )
+        if min_voter_score is not None:
+            queryset = queryset.filter(voter_record__voter_score__gte=min_voter_score)
+        if max_voter_score is not None:
+            queryset = queryset.filter(voter_record__voter_score__lte=max_voter_score)
+
+        # Geographic/district filters
+        if precinct:
+            queryset = queryset.filter(voter_record__precinct=precinct)
+        if ward:
+            queryset = queryset.filter(voter_record__ward=ward)
+        if congressional_district:
+            queryset = queryset.filter(
+                voter_record__congressional_district=congressional_district
+            )
+        if state_house_district:
+            queryset = queryset.filter(
+                voter_record__state_house_district=state_house_district
+            )
+        if state_senate_district:
+            queryset = queryset.filter(
+                voter_record__state_senate_district=state_senate_district
+            )
+
+        # Has voter record filter
+        if has_voter_record is not None:
+            if has_voter_record:
+                queryset = queryset.filter(voter_record__isnull=False)
+            else:
+                queryset = queryset.filter(voter_record__isnull=True)
+
+        # Age range filter
+        if min_age is not None or max_age is not None:
+            queryset = self.by_age_range(min_age, max_age)
+
+        # Tags filter (JSON field - contains any of the specified tags)
+        if tags:
+            tag_filters = Q()
+            for tag in tags:
+                tag_filters |= Q(tags__contains=[tag])
+            queryset = queryset.filter(tag_filters)
+
+        return queryset.distinct()
+
+    def search_full_text(self, search_query: str) -> QuerySet:
+        """
+        Full-text search across name and address fields.
+
+        This is optimized for PostgreSQL full-text search capabilities,
+        but falls back to case-insensitive contains for other databases.
+
+        Args:
+            search_query: The search query string
+
+        Returns:
+            QuerySet of matching Person objects
+        """
+        if not search_query:
+            return self.none()
+
+        search_query = search_query.strip()
+
+        # For PostgreSQL, we can use full-text search vectors
+        # For now, we'll use icontains which works across all databases
+        # TODO: Implement PostgreSQL-specific full-text search when migrating
+        # to Postgres
+        return self.filter(
+            Q(first_name__icontains=search_query)
+            | Q(middle_name__icontains=search_query)
+            | Q(last_name__icontains=search_query)
+            | Q(street_address__icontains=search_query)
+            | Q(city__icontains=search_query)
+            | Q(email__icontains=search_query)
+        ).distinct()
+
+    def by_voter_status(self, status: str) -> QuerySet:
+        """Filter by voter registration status."""
+        return self.filter(voter_record__registration_status=status).select_related(
+            "voter_record"
+        )
+
+    def by_party(self, party: str) -> QuerySet:
+        """Filter by party affiliation."""
+        return self.filter(voter_record__party_affiliation=party).select_related(
+            "voter_record"
+        )
+
+    def by_voter_score_range(
+        self, min_score: int | None = None, max_score: int | None = None
+    ) -> QuerySet:
+        """Filter by voter score range."""
+        queryset = self.filter(voter_record__isnull=False).select_related(
+            "voter_record"
+        )
+        if min_score is not None:
+            queryset = queryset.filter(voter_record__voter_score__gte=min_score)
+        if max_score is not None:
+            queryset = queryset.filter(voter_record__voter_score__lte=max_score)
+        return queryset
+
+    def by_district(
+        self,
+        congressional: str | None = None,
+        state_house: str | None = None,
+        state_senate: str | None = None,
+        precinct: str | None = None,
+        ward: str | None = None,
+    ) -> QuerySet:
+        """Filter by geographic/voting districts."""
+        queryset = self.filter(voter_record__isnull=False).select_related(
+            "voter_record"
+        )
+        if congressional:
+            queryset = queryset.filter(
+                voter_record__congressional_district=congressional
+            )
+        if state_house:
+            queryset = queryset.filter(voter_record__state_house_district=state_house)
+        if state_senate:
+            queryset = queryset.filter(voter_record__state_senate_district=state_senate)
+        if precinct:
+            queryset = queryset.filter(voter_record__precinct=precinct)
+        if ward:
+            queryset = queryset.filter(voter_record__ward=ward)
+        return queryset
+
+    def high_priority_voters(self, min_score: int = 70) -> QuerySet:
+        """Return high-priority voters based on voter score."""
+        return self.filter(
+            voter_record__isnull=False, voter_record__voter_score__gte=min_score
+        ).select_related("voter_record")
+
+    def by_tags(self, tags: list[str], match_all: bool = False) -> QuerySet:
+        """
+        Filter by tags.
+
+        Args:
+            tags: List of tags to filter by
+            match_all: If True, person must have all tags. If False, any tag matches.
+
+        Returns:
+            QuerySet of matching Person objects
+        """
+        if not tags:
+            return self.all()
+
+        if match_all:
+            # Person must have all specified tags
+            queryset = self.all()
+            for tag in tags:
+                queryset = queryset.filter(tags__contains=[tag])
+            return queryset
+        else:
+            # Person must have at least one of the specified tags
+            tag_filters = Q()
+            for tag in tags:
+                tag_filters |= Q(tags__contains=[tag])
+            return self.filter(tag_filters).distinct()
+
 
 class VoterRecordManager(models.Manager):
     """Custom manager for VoterRecord model with optimized queries."""

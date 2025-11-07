@@ -1,0 +1,136 @@
+<!-- Search Results Header -->
+<div class="results-header">
+    <div class="results-count">
+        <strong>{{ total_results }}</strong> {% if total_results == 1 %}result{% else %}results{% endif %} found
+    </div>
+
+    <div class="sort-controls">
+        <label for="sort">Sort by:</label>
+        <select name="sort" id="sort"
+                hx-get="{% url 'civicpulse:person_search' %}"
+                hx-target="#search-results"
+                hx-include="[name='q'], [name='state'], [name='city'], [name='zip_code'], [name='voter_status'], [name='party'], [name='min_score'], [name='max_score'], [name='precinct'], [name='ward']">
+            <option value="last_name" {% if sort_by == "last_name" %}selected{% endif %}>Last Name</option>
+            <option value="voter_score" {% if sort_by == "voter_score" %}selected{% endif %}>Voter Score</option>
+            <option value="city" {% if sort_by == "city" %}selected{% endif %}>City</option>
+            <option value="created_at" {% if sort_by == "created_at" %}selected{% endif %}>Recently Added</option>
+        </select>
+    </div>
+</div>
+
+<!-- Results List -->
+{% if persons %}
+    {% for person in persons %}
+    <div class="person-card">
+        <div class="person-header">
+            <h3 class="person-name">{{ person.full_name }}</h3>
+            {% if person.voter_record %}
+            <span class="voter-score">Score: {{ person.voter_record.voter_score }}</span>
+            {% endif %}
+        </div>
+
+        <div class="person-details">
+            {% if person.email %}
+            <div class="detail-item">
+                <span class="detail-label">Email</span>
+                <span>{{ person.email }}</span>
+            </div>
+            {% endif %}
+
+            {% if person.phone_primary %}
+            <div class="detail-item">
+                <span class="detail-label">Phone</span>
+                <span>{{ person.phone_primary }}</span>
+            </div>
+            {% endif %}
+
+            <div class="detail-item">
+                <span class="detail-label">Address</span>
+                <span>
+                    {% if person.street_address %}{{ person.street_address }}<br>{% endif %}
+                    {% if person.city or person.state or person.zip_code %}
+                        {{ person.city }}{% if person.city and person.state %}, {% endif %}{{ person.state }} {{ person.zip_code }}
+                    {% endif %}
+                </span>
+            </div>
+
+            {% if person.voter_record %}
+            <div class="detail-item">
+                <span class="detail-label">Voter ID</span>
+                <span>{{ person.voter_record.voter_id }}</span>
+            </div>
+
+            <div class="detail-item">
+                <span class="detail-label">Status</span>
+                <span>{{ person.voter_record.get_registration_status_display }}</span>
+            </div>
+
+            <div class="detail-item">
+                <span class="detail-label">Party</span>
+                <span>{{ person.voter_record.get_party_affiliation_display }}</span>
+            </div>
+
+            {% if person.voter_record.precinct %}
+            <div class="detail-item">
+                <span class="detail-label">Precinct</span>
+                <span>{{ person.voter_record.precinct }}</span>
+            </div>
+            {% endif %}
+
+            {% if person.voter_record.ward %}
+            <div class="detail-item">
+                <span class="detail-label">Ward</span>
+                <span>{{ person.voter_record.ward }}</span>
+            </div>
+            {% endif %}
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+
+    <!-- Pagination -->
+    {% if persons.has_other_pages %}
+    <div class="pagination">
+        {% if persons.has_previous %}
+            <a href="?page=1&{{ request.GET.urlencode }}"
+               hx-get="?page=1&{{ request.GET.urlencode }}"
+               hx-target="#search-results"
+               hx-push-url="true">&laquo; First</a>
+            <a href="?page={{ persons.previous_page_number }}&{{ request.GET.urlencode }}"
+               hx-get="?page={{ persons.previous_page_number }}&{{ request.GET.urlencode }}"
+               hx-target="#search-results"
+               hx-push-url="true">&lsaquo; Previous</a>
+        {% else %}
+            <span>&laquo; First</span>
+            <span>&lsaquo; Previous</span>
+        {% endif %}
+
+        <span class="current">
+            Page {{ persons.number }} of {{ persons.paginator.num_pages }}
+        </span>
+
+        {% if persons.has_next %}
+            <a href="?page={{ persons.next_page_number }}&{{ request.GET.urlencode }}"
+               hx-get="?page={{ persons.next_page_number }}&{{ request.GET.urlencode }}"
+               hx-target="#search-results"
+               hx-push-url="true">Next &rsaquo;</a>
+            <a href="?page={{ persons.paginator.num_pages }}&{{ request.GET.urlencode }}"
+               hx-get="?page={{ persons.paginator.num_pages }}&{{ request.GET.urlencode }}"
+               hx-target="#search-results"
+               hx-push-url="true">Last &raquo;</a>
+        {% else %}
+            <span>Next &rsaquo;</span>
+            <span>Last &raquo;</span>
+        {% endif %}
+    </div>
+    {% endif %}
+{% else %}
+    <div class="no-results">
+        {% if search_query or filters.state or filters.city or filters.zip_code or filters.voter_status or filters.party %}
+            <p>No results found matching your search criteria.</p>
+            <p>Try adjusting your filters or search terms.</p>
+        {% else %}
+            <p>Enter a search term or apply filters to find voters.</p>
+        {% endif %}
+    </div>
+{% endif %}

@@ -1,0 +1,360 @@
+{% extends "base.html" %}
+
+{% block title %}Voter Search - CivicPulse{% endblock %}
+{% block page_title %}Voter Search{% endblock %}
+
+{% block extra_head %}
+<script src="https://unpkg.com/htmx.org@1.9.10"></script>
+<style>
+    .search-container {
+        display: grid;
+        grid-template-columns: 300px 1fr;
+        gap: 2rem;
+        margin-top: 2rem;
+    }
+
+    .search-sidebar {
+        background: #f8f9fa;
+        padding: 1.5rem;
+        border-radius: 8px;
+        height: fit-content;
+        position: sticky;
+        top: 20px;
+    }
+
+    .search-main {
+        min-width: 0;
+    }
+
+    .search-box {
+        position: relative;
+        margin-bottom: 2rem;
+    }
+
+    .search-input {
+        width: 100%;
+        padding: 0.75rem 1rem;
+        font-size: 1rem;
+        border: 2px solid #ddd;
+        border-radius: 8px;
+        transition: border-color 0.2s;
+    }
+
+    .search-input:focus {
+        outline: none;
+        border-color: #007bff;
+    }
+
+    .filter-group {
+        margin-bottom: 1.5rem;
+    }
+
+    .filter-group label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 600;
+        color: #333;
+    }
+
+    .filter-group select,
+    .filter-group input {
+        width: 100%;
+        padding: 0.5rem;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 0.9rem;
+    }
+
+    .filter-group-inline {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.5rem;
+    }
+
+    .filter-actions {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 1rem;
+    }
+
+    .btn {
+        padding: 0.5rem 1rem;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.9rem;
+        transition: background-color 0.2s;
+    }
+
+    .btn-primary {
+        background-color: #007bff;
+        color: white;
+    }
+
+    .btn-primary:hover {
+        background-color: #0056b3;
+    }
+
+    .btn-secondary {
+        background-color: #6c757d;
+        color: white;
+    }
+
+    .btn-secondary:hover {
+        background-color: #545b62;
+    }
+
+    .results-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+        padding-bottom: 1rem;
+        border-bottom: 2px solid #eee;
+    }
+
+    .results-count {
+        font-size: 1.1rem;
+        color: #666;
+    }
+
+    .sort-controls select {
+        padding: 0.5rem;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+    }
+
+    .person-card {
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        transition: box-shadow 0.2s;
+    }
+
+    .person-card:hover {
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    .person-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: start;
+        margin-bottom: 1rem;
+    }
+
+    .person-name {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #333;
+        margin: 0;
+    }
+
+    .voter-score {
+        background: #007bff;
+        color: white;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.9rem;
+        font-weight: 600;
+    }
+
+    .person-details {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        color: #666;
+        font-size: 0.9rem;
+    }
+
+    .detail-item {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .detail-label {
+        font-weight: 600;
+        color: #888;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        margin-bottom: 0.25rem;
+    }
+
+    .pagination {
+        display: flex;
+        justify-content: center;
+        gap: 0.5rem;
+        margin-top: 2rem;
+        padding: 1rem 0;
+    }
+
+    .pagination a,
+    .pagination span {
+        padding: 0.5rem 1rem;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        text-decoration: none;
+        color: #333;
+    }
+
+    .pagination .current {
+        background-color: #007bff;
+        color: white;
+        border-color: #007bff;
+    }
+
+    .pagination a:hover {
+        background-color: #f8f9fa;
+    }
+
+    .loading {
+        text-align: center;
+        padding: 2rem;
+        color: #666;
+    }
+
+    .no-results {
+        text-align: center;
+        padding: 3rem;
+        color: #999;
+        font-size: 1.1rem;
+    }
+
+    @media (max-width: 768px) {
+        .search-container {
+            grid-template-columns: 1fr;
+        }
+
+        .search-sidebar {
+            position: static;
+        }
+
+        .person-details {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="search-container">
+    <!-- Search Sidebar -->
+    <div class="search-sidebar">
+        <h3 style="margin-top: 0;">Filters</h3>
+        <form hx-get="{% url 'civicpulse:person_search' %}"
+              hx-target="#search-results"
+              hx-trigger="change, submit"
+              hx-indicator="#loading">
+
+            <div class="filter-group">
+                <label for="state">State</label>
+                <select name="state" id="state">
+                    <option value="">All States</option>
+                    {% for state_code in "AL,AK,AZ,AR,CA,CO,CT,DE,FL,GA,HI,ID,IL,IN,IA,KS,KY,LA,ME,MD,MA,MI,MN,MS,MO,MT,NE,NV,NH,NJ,NM,NY,NC,ND,OH,OK,OR,PA,RI,SC,SD,TN,TX,UT,VT,VA,WA,WV,WI,WY,DC"|split:"," %}
+                        <option value="{{ state_code }}" {% if filters.state == state_code %}selected{% endif %}>
+                            {{ state_code }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label for="city">City</label>
+                <input type="text" name="city" id="city" value="{{ filters.city }}" placeholder="Enter city name">
+            </div>
+
+            <div class="filter-group">
+                <label for="zip_code">ZIP Code</label>
+                <input type="text" name="zip_code" id="zip_code" value="{{ filters.zip_code }}" placeholder="Enter ZIP">
+            </div>
+
+            <div class="filter-group">
+                <label for="voter_status">Voter Status</label>
+                <select name="voter_status" id="voter_status">
+                    <option value="">All Statuses</option>
+                    {% for value, label in voter_statuses %}
+                        <option value="{{ value }}" {% if filters.voter_status == value %}selected{% endif %}>
+                            {{ label }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label for="party">Party</label>
+                <select name="party" id="party">
+                    <option value="">All Parties</option>
+                    {% for value, label in parties %}
+                        <option value="{{ value }}" {% if filters.party == value %}selected{% endif %}>
+                            {{ label }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label>Voter Score Range</label>
+                <div class="filter-group-inline">
+                    <input type="number" name="min_score" placeholder="Min"
+                           min="0" max="100" value="{{ filters.min_score }}">
+                    <input type="number" name="max_score" placeholder="Max"
+                           min="0" max="100" value="{{ filters.max_score }}">
+                </div>
+            </div>
+
+            <div class="filter-group">
+                <label for="precinct">Precinct</label>
+                <input type="text" name="precinct" id="precinct" value="{{ filters.precinct }}" placeholder="Enter precinct">
+            </div>
+
+            <div class="filter-group">
+                <label for="ward">Ward</label>
+                <input type="text" name="ward" id="ward" value="{{ filters.ward }}" placeholder="Enter ward">
+            </div>
+
+            <input type="hidden" name="q" value="{{ search_query }}">
+
+            <div class="filter-actions">
+                <button type="submit" class="btn btn-primary">Apply Filters</button>
+                <button type="button" class="btn btn-secondary" onclick="window.location.href='{% url 'civicpulse:person_search' %}'">
+                    Clear
+                </button>
+            </div>
+        </form>
+
+        <div style="margin-top: 2rem; padding-top: 2rem; border-top: 1px solid #ddd;">
+            <a href="{% url 'civicpulse:search_export' %}?{{ request.GET.urlencode }}" class="btn btn-secondary" style="width: 100%; display: block; text-align: center;">
+                Export Results (CSV)
+            </a>
+        </div>
+    </div>
+
+    <!-- Main Search Area -->
+    <div class="search-main">
+        <!-- Search Box -->
+        <div class="search-box">
+            <input type="text"
+                   class="search-input"
+                   name="q"
+                   placeholder="Search by name, email, phone, address, or voter ID..."
+                   value="{{ search_query }}"
+                   hx-get="{% url 'civicpulse:person_search' %}"
+                   hx-target="#search-results"
+                   hx-trigger="keyup changed delay:500ms"
+                   hx-include="[name='state'], [name='city'], [name='zip_code'], [name='voter_status'], [name='party'], [name='min_score'], [name='max_score'], [name='precinct'], [name='ward']"
+                   hx-indicator="#loading">
+        </div>
+
+        <!-- Results Area -->
+        <div id="search-results">
+            {% include "civicpulse/search/partials/results.html" %}
+        </div>
+
+        <!-- Loading Indicator -->
+        <div id="loading" class="loading htmx-indicator">
+            <p>Searching...</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
