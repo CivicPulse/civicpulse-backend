@@ -17,6 +17,7 @@ dependencies = [
     "django-redis>=6.0.0",
     "dj-database-url>=2.3.0",
     "faker>=37.5.3",
+    "django-ratelimit>=4.1.0",
 ]
 
 
@@ -75,11 +76,14 @@ dev = [
     "bandit[toml]>=1.8.6",
     "django-debug-toolbar>=6.0.0",
     "django-extensions>=4.1",
+    "factory-boy>=3.3.3",
+    "hypothesis>=6.147.0",
     "mypy>=1.17.1",
     "pip-audit>=2.9.0",
     "pre-commit>=4.3.0",
     "psutil>=7.0.0",
     "pytest>=8.4.1",
+    "pytest-benchmark>=5.2.3",
     "pytest-cov>=6.2.1",
     "pytest-django>=4.11.1",
     "ruff>=0.12.9",

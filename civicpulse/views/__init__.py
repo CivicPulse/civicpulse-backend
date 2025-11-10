@@ -7,6 +7,7 @@ organized by functionality.
 
 from .export import PersonExportView
 from .imports import PersonImportView
+from .person import PersonCreateView, PersonDetailView
 from .search import (
     PersonSearchAPIView,
     PersonSearchView,
@@ -18,6 +19,8 @@ from .search import (
 __all__ = [
     "PersonExportView",
     "PersonImportView",
+    "PersonCreateView",
+    "PersonDetailView",
     "PersonSearchView",
     "PersonSearchAPIView",
     "QuickSearchAPIView",

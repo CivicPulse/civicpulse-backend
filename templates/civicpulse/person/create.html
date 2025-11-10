@@ -1,0 +1,731 @@
+{% extends 'base.html' %}
+
+{% block title %}Add New Contact - CivicPulse{% endblock %}
+
+{% block extra_css %}
+<style>
+    .field-group {
+        background-color: #f8fafc;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        border: 1px solid #e2e8f0;
+    }
+
+    .field-group h5 {
+        color: var(--cp-primary);
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid var(--cp-primary);
+    }
+
+    .required-indicator {
+        color: var(--cp-danger);
+        font-weight: bold;
+    }
+
+    .form-label {
+        font-weight: 500;
+        color: #334155;
+        margin-bottom: 0.5rem;
+    }
+
+    .form-text {
+        font-size: 0.875rem;
+        color: #64748b;
+    }
+
+    .invalid-feedback {
+        display: block;
+        font-size: 0.875rem;
+        color: var(--cp-danger);
+        margin-top: 0.25rem;
+    }
+
+    .duplicate-warning {
+        border-left: 4px solid var(--cp-warning);
+        animation: slideIn 0.3s ease-out;
+    }
+
+    @keyframes slideIn {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .duplicate-table {
+        font-size: 0.9rem;
+    }
+
+    .duplicate-table td {
+        vertical-align: middle;
+    }
+
+    .btn-submit {
+        min-width: 150px;
+    }
+
+    .loading-spinner {
+        display: none;
+        width: 1rem;
+        height: 1rem;
+        border: 2px solid #ffffff;
+        border-top-color: transparent;
+        border-radius: 50%;
+        animation: spin 0.6s linear infinite;
+    }
+
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    .btn-submit.loading .loading-spinner {
+        display: inline-block;
+    }
+
+    .btn-submit.loading .btn-text {
+        display: none;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4 mb-5">
+    <!-- Breadcrumb Navigation -->
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item">
+                <a href="{% url 'civicpulse:dashboard' %}">
+                    <i class="bi bi-house-door"></i> Dashboard
+                </a>
+            </li>
+            <li class="breadcrumb-item active" aria-current="page">Add New Contact</li>
+        </ol>
+    </nav>
+
+    <!-- Page Header -->
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="h3 mb-0">
+                <i class="bi bi-person-plus-fill me-2"></i>
+                Add New Contact
+            </h1>
+            <p class="text-muted mt-2">
+                Enter the contact's information below. Required fields are marked with
+                <span class="required-indicator">*</span>
+            </p>
+        </div>
+    </div>
+
+    <!-- Duplicate Warning Alert -->
+    {% if duplicates %}
+    <div class="alert alert-warning alert-dismissible fade show duplicate-warning" role="alert">
+        <h5 class="alert-heading">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            Potential Duplicates Found
+        </h5>
+        <p class="mb-3">
+            We found {{ duplicates|length }} existing contact{{ duplicates|length|pluralize }}
+            that may be similar to the one you're trying to create. Please review
+            {{ duplicates|length|pluralize:"this record,these records" }} before continuing.
+        </p>
+
+        <div class="table-responsive">
+            <table class="table table-sm table-bordered duplicate-table bg-white">
+                <thead class="table-light">
+                    <tr>
+                        <th scope="col">Name</th>
+                        <th scope="col">Email</th>
+                        <th scope="col">Phone</th>
+                        <th scope="col">Address</th>
+                        <th scope="col">Date of Birth</th>
+                        <th scope="col">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for duplicate in duplicates %}
+                    <tr>
+                        <td>
+                            <strong>{{ duplicate.first_name }} {{ duplicate.last_name }}</strong>
+                            {% if duplicate.suffix %} {{ duplicate.suffix }}{% endif %}
+                        </td>
+                        <td>{{ duplicate.email|default:"<em class='text-muted'>Not provided</em>" }}</td>
+                        <td>{{ duplicate.phone_primary|default:"<em class='text-muted'>Not provided</em>" }}</td>
+                        <td>
+                            {% if duplicate.street_address %}
+                                {{ duplicate.street_address }}{% if duplicate.city %}, {{ duplicate.city }}{% endif %}{% if duplicate.state %}, {{ duplicate.state }}{% endif %}
+                            {% else %}
+                                <em class="text-muted">Not provided</em>
+                            {% endif %}
+                        </td>
+                        <td>{{ duplicate.date_of_birth|date:"M d, Y"|default:"<em class='text-muted'>Not provided</em>" }}</td>
+                        <td>
+                            <a href="{% url 'admin:civicpulse_person_change' duplicate.id %}"
+                               class="btn btn-sm btn-outline-primary"
+                               target="_blank"
+                               aria-label="View details for {{ duplicate.first_name }} {{ duplicate.last_name }}">
+                                <i class="bi bi-eye"></i> View
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="form-check mt-3">
+            <input class="form-check-input" type="checkbox" id="confirmDuplicate" name="confirm_duplicate">
+            <label class="form-check-label fw-bold" for="confirmDuplicate">
+                I understand there may be duplicates, create this contact anyway
+            </label>
+        </div>
+
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <!-- Form -->
+    <form method="post" class="needs-validation" novalidate id="personCreateForm">
+        {% csrf_token %}
+
+        <!-- Hidden field to track duplicate confirmation -->
+        <input type="hidden" name="duplicate_confirmed" id="duplicateConfirmed" value="false">
+
+        <!-- Personal Information Section -->
+        <div class="field-group">
+            <h5>
+                <i class="bi bi-person me-2"></i>
+                Personal Information
+            </h5>
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label for="{{ form.first_name.id_for_label }}" class="form-label">
+                        First Name <span class="required-indicator">*</span>
+                    </label>
+                    {{ form.first_name }}
+                    {% if form.first_name.errors %}
+                        <div class="invalid-feedback">
+                            {{ form.first_name.errors.0 }}
+                        </div>
+                    {% endif %}
+                    {% if form.first_name.help_text %}
+                        <div class="form-text">{{ form.first_name.help_text }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="col-md-3 mb-3">
+                    <label for="{{ form.middle_name.id_for_label }}" class="form-label">
+                        Middle Name
+                    </label>
+                    {{ form.middle_name }}
+                    {% if form.middle_name.errors %}
+                        <div class="invalid-feedback">
+                            {{ form.middle_name.errors.0 }}
+                        </div>
+                    {% endif %}
+                    {% if form.middle_name.help_text %}
+                        <div class="form-text">{{ form.middle_name.help_text }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="col-md-4 mb-3">
+                    <label for="{{ form.last_name.id_for_label }}" class="form-label">
+                        Last Name <span class="required-indicator">*</span>
+                    </label>
+                    {{ form.last_name }}
+                    {% if form.last_name.errors %}
+                        <div class="invalid-feedback">
+                            {{ form.last_name.errors.0 }}
+                        </div>
+                    {% endif %}
+                    {% if form.last_name.help_text %}
+                        <div class="form-text">{{ form.last_name.help_text }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="col-md-1 mb-3">
+                    <label for="{{ form.suffix.id_for_label }}" class="form-label">
+                        Suffix
+                    </label>
+                    {{ form.suffix }}
+                    {% if form.suffix.errors %}
+                        <div class="invalid-feedback">
+                            {{ form.suffix.errors.0 }}
+                        </div>
+                    {% endif %}
+                    {% if form.suffix.help_text %}
+                        <div class="form-text">{{ form.suffix.help_text }}</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="{{ form.date_of_birth.id_for_label }}" class="form-label">
+                        Date of Birth
+                    </label>
+                    {{ form.date_of_birth }}
+                    {% if form.date_of_birth.errors %}
+                        <div class="invalid-feedback">
+                            {{ form.date_of_birth.errors.0 }}
+                        </div>
+                    {% endif %}
+                    {% if form.date_of_birth.help_text %}
+                        <div class="form-text">{{ form.date_of_birth.help_text }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="col-md-6 mb-3">
+                    <label for="{{ form.gender.id_for_label }}" class="form-label">
+                        Gender
+                    </label>
+                    {{ form.gender }}
+                    {% if form.gender.errors %}
+                        <div class="invalid-feedback">
+                            {{ form.gender.errors.0 }}
+                        </div>
+                    {% endif %}
+                    {% if form.gender.help_text %}
+                        <div class="form-text">{{ form.gender.help_text }}</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Contact Information Section -->
+        <div class="field-group">
+            <h5>
+                <i class="bi bi-envelope me-2"></i>
+                Contact Information
+            </h5>
+            <div class="row">
+                <div class="col-md-12 mb-3">
+                    <label for="{{ form.email.id_for_label }}" class="form-label">
+                        Email Address
+                    </label>
+                    {{ form.email }}
+                    {% if form.email.errors %}
+                        <div class="invalid-feedback">
+                            {{ form.email.errors.0 }}
+                        </div>
+                    {% endif %}
+                    {% if form.email.help_text %}
+                        <div class="form-text">{{ form.email.help_text }}</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="{{ form.phone_primary.id_for_label }}" class="form-label">
+                        Primary Phone
+                    </label>
+                    {{ form.phone_primary }}
+                    {% if form.phone_primary.errors %}
+                        <div class="invalid-feedback">
+                            {{ form.phone_primary.errors.0 }}
+                        </div>
+                    {% endif %}
+                    {% if form.phone_primary.help_text %}
+                        <div class="form-text">{{ form.phone_primary.help_text }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="col-md-6 mb-3">
+                    <label for="{{ form.phone_secondary.id_for_label }}" class="form-label">
+                        Secondary Phone
+                    </label>
+                    {{ form.phone_secondary }}
+                    {% if form.phone_secondary.errors %}
+                        <div class="invalid-feedback">
+                            {{ form.phone_secondary.errors.0 }}
+                        </div>
+                    {% endif %}
+                    {% if form.phone_secondary.help_text %}
+                        <div class="form-text">{{ form.phone_secondary.help_text }}</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Address Information Section -->
+        <div class="field-group">
+            <h5>
+                <i class="bi bi-geo-alt me-2"></i>
+                Address Information
+            </h5>
+            <div class="row">
+                <div class="col-md-9 mb-3">
+                    <label for="{{ form.street_address.id_for_label }}" class="form-label">
+                        Street Address
+                    </label>
+                    {{ form.street_address }}
+                    {% if form.street_address.errors %}
+                        <div class="invalid-feedback">
+                            {{ form.street_address.errors.0 }}
+                        </div>
+                    {% endif %}
+                    {% if form.street_address.help_text %}
+                        <div class="form-text">{{ form.street_address.help_text }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="col-md-3 mb-3">
+                    <label for="{{ form.apartment_number.id_for_label }}" class="form-label">
+                        Apt/Unit
+                    </label>
+                    {{ form.apartment_number }}
+                    {% if form.apartment_number.errors %}
+                        <div class="invalid-feedback">
+                            {{ form.apartment_number.errors.0 }}
+                        </div>
+                    {% endif %}
+                    {% if form.apartment_number.help_text %}
+                        <div class="form-text">{{ form.apartment_number.help_text }}</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-5 mb-3">
+                    <label for="{{ form.city.id_for_label }}" class="form-label">
+                        City
+                    </label>
+                    {{ form.city }}
+                    {% if form.city.errors %}
+                        <div class="invalid-feedback">
+                            {{ form.city.errors.0 }}
+                        </div>
+                    {% endif %}
+                    {% if form.city.help_text %}
+                        <div class="form-text">{{ form.city.help_text }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="col-md-2 mb-3">
+                    <label for="{{ form.state.id_for_label }}" class="form-label">
+                        State
+                    </label>
+                    {{ form.state }}
+                    {% if form.state.errors %}
+                        <div class="invalid-feedback">
+                            {{ form.state.errors.0 }}
+                        </div>
+                    {% endif %}
+                    {% if form.state.help_text %}
+                        <div class="form-text">{{ form.state.help_text }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="col-md-2 mb-3">
+                    <label for="{{ form.zip_code.id_for_label }}" class="form-label">
+                        ZIP Code
+                    </label>
+                    {{ form.zip_code }}
+                    {% if form.zip_code.errors %}
+                        <div class="invalid-feedback">
+                            {{ form.zip_code.errors.0 }}
+                        </div>
+                    {% endif %}
+                    {% if form.zip_code.help_text %}
+                        <div class="form-text">{{ form.zip_code.help_text }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="col-md-3 mb-3">
+                    <label for="{{ form.county.id_for_label }}" class="form-label">
+                        County
+                    </label>
+                    {{ form.county }}
+                    {% if form.county.errors %}
+                        <div class="invalid-feedback">
+                            {{ form.county.errors.0 }}
+                        </div>
+                    {% endif %}
+                    {% if form.county.help_text %}
+                        <div class="form-text">{{ form.county.help_text }}</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Additional Information Section -->
+        <div class="field-group">
+            <h5>
+                <i class="bi bi-briefcase me-2"></i>
+                Additional Information
+            </h5>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="{{ form.occupation.id_for_label }}" class="form-label">
+                        Occupation
+                    </label>
+                    {{ form.occupation }}
+                    {% if form.occupation.errors %}
+                        <div class="invalid-feedback">
+                            {{ form.occupation.errors.0 }}
+                        </div>
+                    {% endif %}
+                    {% if form.occupation.help_text %}
+                        <div class="form-text">{{ form.occupation.help_text }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="col-md-6 mb-3">
+                    <label for="{{ form.employer.id_for_label }}" class="form-label">
+                        Employer
+                    </label>
+                    {{ form.employer }}
+                    {% if form.employer.errors %}
+                        <div class="invalid-feedback">
+                            {{ form.employer.errors.0 }}
+                        </div>
+                    {% endif %}
+                    {% if form.employer.help_text %}
+                        <div class="form-text">{{ form.employer.help_text }}</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-12 mb-3">
+                    <label for="{{ form.tags.id_for_label }}" class="form-label">
+                        Tags
+                    </label>
+                    {{ form.tags }}
+                    {% if form.tags.errors %}
+                        <div class="invalid-feedback">
+                            {{ form.tags.errors.0 }}
+                        </div>
+                    {% endif %}
+                    {% if form.tags.help_text %}
+                        <div class="form-text">{{ form.tags.help_text }}</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-12 mb-3">
+                    <label for="{{ form.notes.id_for_label }}" class="form-label">
+                        Notes
+                    </label>
+                    {{ form.notes }}
+                    {% if form.notes.errors %}
+                        <div class="invalid-feedback">
+                            {{ form.notes.errors.0 }}
+                        </div>
+                    {% endif %}
+                    {% if form.notes.help_text %}
+                        <div class="form-text">{{ form.notes.help_text }}</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Form Actions -->
+        <div class="d-flex justify-content-between align-items-center mt-4">
+            <a href="{% url 'civicpulse:dashboard' %}" class="btn btn-secondary">
+                <i class="bi bi-x-circle me-2"></i>Cancel
+            </a>
+
+            <button type="submit" class="btn btn-primary btn-submit" id="submitBtn">
+                <span class="loading-spinner me-2"></span>
+                <span class="btn-text">
+                    <i class="bi bi-check-circle me-2"></i>Create Contact
+                </span>
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('personCreateForm');
+    const submitBtn = document.getElementById('submitBtn');
+    const duplicateConfirmedInput = document.getElementById('duplicateConfirmed');
+    const confirmDuplicateCheckbox = document.getElementById('confirmDuplicate');
+
+    // Handle duplicate confirmation
+    if (confirmDuplicateCheckbox) {
+        confirmDuplicateCheckbox.addEventListener('change', function() {
+            duplicateConfirmedInput.value = this.checked ? 'true' : 'false';
+        });
+    }
+
+    // Form submission handling
+    form.addEventListener('submit', function(event) {
+        // Check if duplicates exist and not confirmed
+        if (confirmDuplicateCheckbox && !confirmDuplicateCheckbox.checked) {
+            event.preventDefault();
+            event.stopPropagation();
+
+            // Scroll to duplicate warning
+            const duplicateWarning = document.querySelector('.duplicate-warning');
+            if (duplicateWarning) {
+                duplicateWarning.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+                // Highlight the checkbox
+                confirmDuplicateCheckbox.focus();
+                const checkboxParent = confirmDuplicateCheckbox.parentElement;
+                checkboxParent.classList.add('text-danger');
+                setTimeout(function() {
+                    checkboxParent.classList.remove('text-danger');
+                }, 2000);
+            }
+
+            return false;
+        }
+
+        // HTML5 validation
+        if (!form.checkValidity()) {
+            event.preventDefault();
+            event.stopPropagation();
+            form.classList.add('was-validated');
+
+            // Find first invalid field and focus it
+            const firstInvalid = form.querySelector(':invalid');
+            if (firstInvalid) {
+                firstInvalid.focus();
+                firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+
+            return false;
+        }
+
+        // Show loading state
+        submitBtn.classList.add('loading');
+        submitBtn.disabled = true;
+    });
+
+    // Real-time validation feedback
+    const inputs = form.querySelectorAll('input, select, textarea');
+    inputs.forEach(function(input) {
+        input.addEventListener('blur', function() {
+            if (form.classList.contains('was-validated')) {
+                this.checkValidity();
+            }
+        });
+
+        input.addEventListener('input', function() {
+            if (this.classList.contains('is-invalid')) {
+                this.classList.remove('is-invalid');
+            }
+        });
+    });
+
+    // Phone number formatting (US format)
+    const phoneInputs = document.querySelectorAll('input[type="text"][id*="phone"]');
+    phoneInputs.forEach(function(input) {
+        input.addEventListener('input', function(e) {
+            let value = e.target.value.replace(/\D/g, '');
+            if (value.length > 0) {
+                if (value.length <= 3) {
+                    value = '(' + value;
+                } else if (value.length <= 6) {
+                    value = '(' + value.slice(0, 3) + ') ' + value.slice(3);
+                } else {
+                    value = '(' + value.slice(0, 3) + ') ' + value.slice(3, 6) + '-' + value.slice(6, 10);
+                }
+            }
+            e.target.value = value;
+        });
+    });
+
+    // ZIP code formatting
+    const zipInput = document.querySelector('input[id*="zip_code"]');
+    if (zipInput) {
+        zipInput.addEventListener('input', function(e) {
+            let value = e.target.value.replace(/\D/g, '');
+            if (value.length > 5) {
+                value = value.slice(0, 5) + '-' + value.slice(5, 9);
+            }
+            e.target.value = value;
+        });
+    }
+
+    // State code uppercase
+    const stateInput = document.querySelector('input[id*="state"]');
+    if (stateInput) {
+        stateInput.addEventListener('input', function(e) {
+            e.target.value = e.target.value.toUpperCase();
+        });
+    }
+
+    // Character counter for notes field
+    const notesField = document.querySelector('textarea[id*="notes"]');
+    if (notesField) {
+        const maxLength = 10000;
+        const counter = document.createElement('div');
+        counter.className = 'form-text text-end';
+        counter.textContent = '0 / ' + maxLength.toLocaleString() + ' characters';
+        notesField.parentElement.appendChild(counter);
+
+        notesField.addEventListener('input', function() {
+            const length = this.value.length;
+            counter.textContent = length.toLocaleString() + ' / ' + maxLength.toLocaleString() + ' characters';
+
+            if (length > maxLength * 0.9) {
+                counter.classList.add('text-warning');
+            } else {
+                counter.classList.remove('text-warning');
+            }
+
+            if (length >= maxLength) {
+                counter.classList.add('text-danger');
+            } else {
+                counter.classList.remove('text-danger');
+            }
+        });
+    }
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', function(e) {
+        // Ctrl/Cmd + S to save
+        if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+            e.preventDefault();
+            form.requestSubmit();
+        }
+
+        // Escape to cancel
+        if (e.key === 'Escape') {
+            const cancelBtn = document.querySelector('a.btn-secondary');
+            if (cancelBtn && confirm('Are you sure you want to cancel? Any unsaved changes will be lost.')) {
+                window.location.href = cancelBtn.href;
+            }
+        }
+    });
+
+    // Warn before leaving with unsaved changes
+    let formChanged = false;
+    inputs.forEach(function(input) {
+        input.addEventListener('change', function() {
+            formChanged = true;
+        });
+    });
+
+    window.addEventListener('beforeunload', function(e) {
+        if (formChanged && !submitBtn.classList.contains('loading')) {
+            e.preventDefault();
+            e.returnValue = '';
+            return '';
+        }
+    });
+
+    // Clear warning after successful submit
+    form.addEventListener('submit', function() {
+        formChanged = false;
+    });
+
+    console.log('Person create form initialized with enhanced validation and accessibility features');
+});
+</script>
+{% endblock %}

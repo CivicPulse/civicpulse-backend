@@ -6,7 +6,6 @@ for the CivicPulse voter search feature.
 """
 
 import json
-from typing import Any
 
 import pytest
 from django.contrib.auth import get_user_model

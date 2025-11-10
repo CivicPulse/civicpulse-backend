@@ -1,10 +1,13 @@
 """
-Authentication forms for the CivicPulse application.
+Forms for the CivicPulse application.
 
-Provides secure forms for user authentication including login, registration,
-and password reset functionality with comprehensive validation.
+Provides secure forms for user authentication and Person management, including:
+- Login, registration, and password reset functionality
+- Person creation and editing with layered validation
+- Comprehensive validation with XSS protection
 """
 
+from datetime import date
 from typing import Any
 
 from django import forms
@@ -16,6 +19,14 @@ from django.contrib.auth.forms import (
     UserCreationForm,
 )
 from django.core.exceptions import ValidationError
+
+from civicpulse.models import (
+    VALID_US_STATE_CODES,
+    Person,
+    sanitize_text_field,
+    validate_phone_number,
+    validate_zip_code,
+)
 
 User = get_user_model()
 
@@ -488,3 +499,470 @@ class PasswordChangeForm(forms.Form):
             self.user.save()
 
         return self.user
+
+
+class PersonForm(forms.ModelForm):
+    """
+    Form for creating and editing Person objects.
+
+    Implements layered validation following the documented pattern:
+    1. Field-level: Sanitization + basic validation (clean_<field>())
+    2. Form-level: Cross-field validation + duplicate detection (clean())
+    3. Model-level: Business rules (automatic on save via Person.clean())
+
+    Features:
+    - XSS protection through sanitization of all text fields
+    - Comprehensive validation for email, phone, state codes, and ZIP codes
+    - Duplicate detection using PersonDuplicateDetector service
+    - User-friendly Bootstrap styling and help text
+    - Age and date validation for date of birth
+    - Tag parsing from comma-separated strings
+
+    Example:
+        >>> form = PersonForm(data={
+        ...     'first_name': 'John',
+        ...     'last_name': 'Doe',
+        ...     'email': 'john@example.com'
+        ... })
+        >>> if form.is_valid():
+        ...     person = form.save()
+        ...     duplicates = form.duplicates  # Check for potential duplicates
+    """
+
+    # Override tags field to use TextInput instead of JSONField widget
+    tags = forms.CharField(
+        required=False,
+        widget=forms.Textarea(
+            attrs={
+                "rows": 2,
+                "placeholder": "Enter tags separated by commas",
+                "class": "form-control",
+            }
+        ),
+        help_text="Comma-separated tags for categorization",
+    )
+
+    class Meta:
+        model = Person
+        fields = [
+            "first_name",
+            "middle_name",
+            "last_name",
+            "suffix",
+            "date_of_birth",
+            "gender",
+            "email",
+            "phone_primary",
+            "phone_secondary",
+            "street_address",
+            "apartment_number",
+            "city",
+            "state",
+            "zip_code",
+            "county",
+            "occupation",
+            "employer",
+            "notes",
+            "tags",
+        ]
+        widgets = {
+            "date_of_birth": forms.DateInput(
+                attrs={"type": "date", "class": "form-control"}
+            ),
+            "notes": forms.Textarea(attrs={"rows": 4, "class": "form-control"}),
+            "gender": forms.Select(attrs={"class": "form-select"}),
+        }
+        help_texts = {
+            "phone_primary": "Format: (555) 555-5555 or 555-555-5555",
+            "phone_secondary": "Optional secondary phone number",
+            "zip_code": "Format: 12345 or 12345-6789",
+            "state": "Two-letter state code (e.g., CA, NY, TX)",
+            "date_of_birth": "Must be a valid date not in the future",
+        }
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        """
+        Initialize form with enhanced styling and duplicate tracking.
+
+        Sets up:
+        - Bootstrap styling for all fields
+        - Required field markers
+        - Duplicate detection storage
+        """
+        super().__init__(*args, **kwargs)
+        self.duplicates: list[Person] = []  # Store potential duplicates
+
+        # Add Bootstrap classes to all fields
+        for _field_name, field in self.fields.items():
+            if "class" not in field.widget.attrs:
+                field.widget.attrs["class"] = "form-control"
+
+        # Mark required fields explicitly
+        self.fields["first_name"].required = True
+        self.fields["last_name"].required = True
+
+    # Field-level validation methods for text fields
+    def clean_first_name(self) -> str:
+        """
+        Sanitize and validate first name.
+
+        Returns:
+            Sanitized first name
+
+        Raises:
+            ValidationError: If first name is empty or too long
+        """
+        value = self.cleaned_data.get("first_name", "")
+        # 1. Sanitize FIRST
+        sanitized = sanitize_text_field(value)
+        # 2. Validate
+        if not sanitized or not sanitized.strip():
+            raise ValidationError("First name cannot be empty")
+        if len(sanitized) > 100:
+            raise ValidationError("First name cannot exceed 100 characters")
+        return sanitized
+
+    def clean_middle_name(self) -> str:
+        """
+        Sanitize and validate middle name.
+
+        Returns:
+            Sanitized middle name
+        """
+        value = self.cleaned_data.get("middle_name", "")
+        if value:
+            sanitized = sanitize_text_field(value)
+            if len(sanitized) > 100:
+                raise ValidationError("Middle name cannot exceed 100 characters")
+            return sanitized
+        return ""
+
+    def clean_last_name(self) -> str:
+        """
+        Sanitize and validate last name.
+
+        Returns:
+            Sanitized last name
+
+        Raises:
+            ValidationError: If last name is empty or too long
+        """
+        value = self.cleaned_data.get("last_name", "")
+        # 1. Sanitize FIRST
+        sanitized = sanitize_text_field(value)
+        # 2. Validate
+        if not sanitized or not sanitized.strip():
+            raise ValidationError("Last name cannot be empty")
+        if len(sanitized) > 100:
+            raise ValidationError("Last name cannot exceed 100 characters")
+        return sanitized
+
+    def clean_suffix(self) -> str:
+        """
+        Sanitize and validate name suffix.
+
+        Returns:
+            Sanitized suffix
+        """
+        value = self.cleaned_data.get("suffix", "")
+        if value:
+            sanitized = sanitize_text_field(value)
+            if len(sanitized) > 10:
+                raise ValidationError("Suffix cannot exceed 10 characters")
+            return sanitized
+        return ""
+
+    def clean_street_address(self) -> str:
+        """
+        Sanitize and validate street address.
+
+        Returns:
+            Sanitized street address
+        """
+        value = self.cleaned_data.get("street_address", "")
+        if value:
+            sanitized = sanitize_text_field(value)
+            if len(sanitized) > 255:
+                raise ValidationError("Street address cannot exceed 255 characters")
+            return sanitized
+        return ""
+
+    def clean_apartment_number(self) -> str:
+        """
+        Sanitize and validate apartment number.
+
+        Returns:
+            Sanitized apartment number
+        """
+        value = self.cleaned_data.get("apartment_number", "")
+        if value:
+            sanitized = sanitize_text_field(value)
+            if len(sanitized) > 50:
+                raise ValidationError("Apartment number cannot exceed 50 characters")
+            return sanitized
+        return ""
+
+    def clean_city(self) -> str:
+        """
+        Sanitize and validate city.
+
+        Returns:
+            Sanitized city
+        """
+        value = self.cleaned_data.get("city", "")
+        if value:
+            sanitized = sanitize_text_field(value)
+            if len(sanitized) > 100:
+                raise ValidationError("City cannot exceed 100 characters")
+            return sanitized
+        return ""
+
+    def clean_county(self) -> str:
+        """
+        Sanitize and validate county.
+
+        Returns:
+            Sanitized county
+        """
+        value = self.cleaned_data.get("county", "")
+        if value:
+            sanitized = sanitize_text_field(value)
+            if len(sanitized) > 100:
+                raise ValidationError("County cannot exceed 100 characters")
+            return sanitized
+        return ""
+
+    def clean_occupation(self) -> str:
+        """
+        Sanitize and validate occupation.
+
+        Returns:
+            Sanitized occupation
+        """
+        value = self.cleaned_data.get("occupation", "")
+        if value:
+            sanitized = sanitize_text_field(value)
+            if len(sanitized) > 100:
+                raise ValidationError("Occupation cannot exceed 100 characters")
+            return sanitized
+        return ""
+
+    def clean_employer(self) -> str:
+        """
+        Sanitize and validate employer.
+
+        Returns:
+            Sanitized employer
+        """
+        value = self.cleaned_data.get("employer", "")
+        if value:
+            sanitized = sanitize_text_field(value)
+            if len(sanitized) > 100:
+                raise ValidationError("Employer cannot exceed 100 characters")
+            return sanitized
+        return ""
+
+    def clean_notes(self) -> str:
+        """
+        Sanitize and validate notes.
+
+        Returns:
+            Sanitized notes
+        """
+        value = self.cleaned_data.get("notes", "")
+        if value:
+            sanitized = sanitize_text_field(value)
+            # Notes can be longer but still have a reasonable limit
+            if len(sanitized) > 10000:
+                raise ValidationError("Notes cannot exceed 10,000 characters")
+            return sanitized
+        return ""
+
+    def clean_email(self) -> str:
+        """
+        Validate and normalize email address.
+
+        Returns:
+            Normalized email address (lowercase, trimmed)
+
+        Raises:
+            ValidationError: If email format is invalid
+        """
+        value = self.cleaned_data.get("email", "")
+        if value:
+            value = value.lower().strip()
+            # Use Django's built-in email validation
+            from django.core.validators import validate_email as django_validate_email
+
+            try:
+                django_validate_email(value)
+            except ValidationError as e:
+                raise ValidationError("Enter a valid email address") from e
+        return value
+
+    def clean_phone_primary(self) -> str:
+        """
+        Validate primary phone number format.
+
+        Returns:
+            Validated phone number
+
+        Raises:
+            ValidationError: If phone number format is invalid
+        """
+        value = self.cleaned_data.get("phone_primary", "")
+        if value:
+            # Use existing validator from models.py
+            validate_phone_number(value)
+        return value
+
+    def clean_phone_secondary(self) -> str:
+        """
+        Validate secondary phone number format.
+
+        Returns:
+            Validated phone number
+
+        Raises:
+            ValidationError: If phone number format is invalid
+        """
+        value = self.cleaned_data.get("phone_secondary", "")
+        if value:
+            validate_phone_number(value)
+        return value
+
+    def clean_state(self) -> str:
+        """
+        Validate and normalize state code.
+
+        Returns:
+            Normalized state code (uppercase)
+
+        Raises:
+            ValidationError: If state code is not valid
+        """
+        value = self.cleaned_data.get("state", "")
+        if value:
+            value = value.upper().strip()
+            if value not in VALID_US_STATE_CODES:
+                raise ValidationError(f"'{value}' is not a valid US state code")
+        return value
+
+    def clean_zip_code(self) -> str:
+        """
+        Validate ZIP code format.
+
+        Returns:
+            Validated ZIP code
+
+        Raises:
+            ValidationError: If ZIP code format is invalid
+        """
+        value = self.cleaned_data.get("zip_code", "")
+        if value:
+            validate_zip_code(value)
+        return value
+
+    def clean_date_of_birth(self) -> date | None:
+        """
+        Validate date of birth.
+
+        Returns:
+            Validated date of birth
+
+        Raises:
+            ValidationError: If date is in the future or indicates unrealistic age
+        """
+        value = self.cleaned_data.get("date_of_birth")
+        if value:
+            from datetime import date as date_class
+
+            today = date_class.today()
+
+            if value > today:
+                raise ValidationError("Date of birth cannot be in the future")
+
+            # Validate age is reasonable (not older than 150 years)
+            age = (today - value).days // 365
+            if age > 150:
+                raise ValidationError("Date of birth indicates an age over 150 years")
+
+        return value
+
+    def clean_tags(self) -> list[str]:
+        """
+        Parse and validate tags from comma-separated string or list.
+
+        Returns:
+            List of sanitized tag strings
+
+        Raises:
+            ValidationError: If tags format is invalid
+        """
+        value = self.cleaned_data.get("tags", "")
+
+        if isinstance(value, str) and value:
+            # Convert comma-separated string to list
+            tags = [tag.strip() for tag in value.split(",") if tag.strip()]
+            # Sanitize each tag
+            sanitized_tags = [sanitize_text_field(tag) for tag in tags]
+            # Remove empty tags after sanitization
+            return [tag for tag in sanitized_tags if tag]
+        elif isinstance(value, list):
+            # Already a list, sanitize each item
+            sanitized_tags = [sanitize_text_field(str(tag)) for tag in value]
+            return [tag for tag in sanitized_tags if tag]
+
+        return []
+
+    def clean(self) -> dict[str, Any]:
+        """
+        Cross-field validation and duplicate detection.
+
+        Performs:
+        1. Validates relationships between fields
+        2. Detects potential duplicates using PersonDuplicateDetector
+        3. Stores duplicates in self.duplicates for view access
+
+        Returns:
+            Cleaned data dictionary
+
+        Note:
+            Duplicate detection does not prevent form submission,
+            but provides information for the view to warn the user.
+        """
+        cleaned_data = super().clean()
+
+        # Check for duplicates if we have minimum required data
+        if not cleaned_data:
+            return {}
+
+        has_first_name = cleaned_data.get("first_name")
+        has_last_name = cleaned_data.get("last_name")
+        if has_first_name and has_last_name:
+
+            from civicpulse.services.person_service import (
+                PersonDataDict,
+                PersonDuplicateDetector,
+            )
+
+            detector = PersonDuplicateDetector()
+            person_data: PersonDataDict = {
+                "first_name": cleaned_data.get("first_name", ""),
+                "last_name": cleaned_data.get("last_name", ""),
+                "email": cleaned_data.get("email", ""),
+                "phone_primary": cleaned_data.get("phone_primary", ""),
+            }
+
+            # Add optional date_of_birth if present
+            if cleaned_data.get("date_of_birth"):
+                person_data["date_of_birth"] = cleaned_data.get("date_of_birth")  # type: ignore[typeddict-item]
+
+            # Find duplicates (exclude current instance if editing)
+            exclude_id = str(self.instance.id) if self.instance.pk else None
+            duplicates = detector.find_duplicates(person_data, exclude_id=exclude_id)
+
+            # Store duplicates for view to access (limit to 10 for performance)
+            self.duplicates = list(duplicates[:10])
+
+        return cleaned_data if cleaned_data else {}

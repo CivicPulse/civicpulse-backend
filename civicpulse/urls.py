@@ -8,6 +8,8 @@ including authentication, import/export, and dashboard functionality.
 from django.urls import path
 
 from civicpulse.views import (
+    PersonCreateView,
+    PersonDetailView,
     PersonExportView,
     PersonImportView,
     PersonSearchAPIView,
@@ -78,6 +80,9 @@ urlpatterns = [
     path("api/search/quick/", QuickSearchAPIView.as_view(), name="quick_search_api"),
     path("api/search/stats/", SearchStatsAPIView.as_view(), name="search_stats_api"),
     path("search/export/", export_search_results, name="search_export"),
+    # Person URLs
+    path("person/create/", PersonCreateView.as_view(), name="person_create"),
+    path("person/<uuid:pk>/", PersonDetailView.as_view(), name="person_detail"),
     # Export URLs
     path("export/persons/", PersonExportView.as_view(), name="person_export"),
     # Import URLs
