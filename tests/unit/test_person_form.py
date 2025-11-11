@@ -769,9 +769,9 @@ class TestFormLevelValidation:
         form = PersonForm(data=minimal_person_data, instance=existing_person)
         assert form.is_valid()
 
-        # Verify exclude_id was passed
+        # Verify exclude_id was passed (compare as string since UUID might be serialized)
         call_kwargs = mock_detector.find_duplicates.call_args[1]
-        assert call_kwargs["exclude_id"] == existing_person.id
+        assert str(call_kwargs["exclude_id"]) == str(existing_person.id)
 
     @patch("civicpulse.services.person_service.PersonDuplicateDetector")
     def test_duplicate_detection_limits_results(

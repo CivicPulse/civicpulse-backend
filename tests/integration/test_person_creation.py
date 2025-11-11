@@ -716,6 +716,7 @@ class TestEdgeCases:
         data = {
             "first_name": "Min",
             "last_name": "Imal",
+            "gender": "U",
         }
         response = authenticated_client.post(url, data, follow=True)
 
@@ -730,6 +731,7 @@ class TestEdgeCases:
         data = {
             "first_name": "José",
             "last_name": "O'Brien-Smith",
+            "gender": "U",
         }
         response = authenticated_client.post(url, data, follow=True)
 
@@ -744,6 +746,7 @@ class TestEdgeCases:
         data = {
             "first_name": "Long",
             "last_name": "Notes",
+            "gender": "U",
             "notes": "A" * 5000,  # Long but within limit
         }
         response = authenticated_client.post(url, data, follow=True)
@@ -758,6 +761,7 @@ class TestEdgeCases:
         data = {
             "first_name": '<script>alert("xss")</script>John',
             "last_name": "Doe",
+            "gender": "U",
             "notes": '<img src=x onerror="alert(1)">',
         }
         response = authenticated_client.post(url, data, follow=True)
