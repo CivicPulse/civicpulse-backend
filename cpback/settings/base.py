@@ -67,6 +67,7 @@ DJANGO_APPS: list[str] = [
 ]
 
 THIRD_PARTY_APPS: list[str] = [
+    "rest_framework",  # Django REST Framework for API development
     "axes",  # Account lockout protection
 ]
 
@@ -193,6 +194,52 @@ AUTH_USER_MODEL = "civicpulse.User"
 LOGIN_URL = "/login/"
 LOGIN_REDIRECT_URL = "/dashboard/"
 LOGOUT_REDIRECT_URL = "/login/"
+
+# Django REST Framework Configuration
+# https://www.django-rest-framework.org/api-guide/settings/
+REST_FRAMEWORK = {
+    # Authentication
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework.authentication.SessionAuthentication",
+        "rest_framework.authentication.BasicAuthentication",
+    ],
+    # Permissions
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+    ],
+    # Pagination
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": 20,
+    # Filtering
+    "DEFAULT_FILTER_BACKENDS": [
+        "rest_framework.filters.SearchFilter",
+        "rest_framework.filters.OrderingFilter",
+    ],
+    # DateTime format (ISO 8601)
+    "DATETIME_FORMAT": "%Y-%m-%dT%H:%M:%S.%fZ",
+    "DATETIME_INPUT_FORMATS": [
+        "%Y-%m-%dT%H:%M:%S.%fZ",  # ISO 8601 with microseconds
+        "%Y-%m-%dT%H:%M:%SZ",  # ISO 8601 without microseconds
+        "%Y-%m-%dT%H:%M:%S.%f%z",  # ISO 8601 with timezone
+        "%Y-%m-%dT%H:%M:%S%z",  # ISO 8601 with timezone, no microseconds
+    ],
+    # Rendering
+    "DEFAULT_RENDERER_CLASSES": [
+        "rest_framework.renderers.JSONRenderer",
+        "rest_framework.renderers.BrowsableAPIRenderer",
+    ],
+    # Throttling for API rate limiting
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.AnonRateThrottle",
+        "rest_framework.throttling.UserRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": "100/hour",  # Anonymous users: 100 requests per hour
+        "user": "1000/hour",  # Authenticated users: 1000 requests per hour
+    },
+    # Schema generation
+    "DEFAULT_SCHEMA_CLASS": "rest_framework.schemas.openapi.AutoSchema",
+}
 
 # Session Configuration
 SESSION_COOKIE_AGE = 1800  # 30 minutes default session timeout

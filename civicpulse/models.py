@@ -1189,7 +1189,13 @@ class ContactAttempt(models.Model):
     duration_minutes = models.IntegerField(null=True, blank=True)
 
     # Campaign/Event Association
-    campaign = models.CharField(max_length=100, blank=True)
+    campaign = models.ForeignKey(
+        "Campaign",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="contact_attempts",
+    )
     event = models.CharField(max_length=100, blank=True)
 
     # Metadata
@@ -1221,7 +1227,7 @@ class ContactAttempt(models.Model):
         super().clean()
 
         # Sanitize text fields first, then validate
-        text_fields = ["notes", "campaign", "event"]
+        text_fields = ["notes", "event"]
         for field_name in text_fields:
             value = getattr(self, field_name, "")
             if value:
@@ -1293,3 +1299,206 @@ class ContactAttempt(models.Model):
     def is_positive_sentiment(self) -> bool:
         """Return True if the sentiment is positive."""
         return self.sentiment in ["strong_support", "support"]
+
+
+class CampaignManager(models.Manager):
+    """Custom manager for Campaign model with soft delete support."""
+
+    def get_queryset(self) -> QuerySet:
+        """Return only active (non-soft-deleted) campaigns by default."""
+        return super().get_queryset().filter(is_active=True)
+
+    def all_with_deleted(self) -> QuerySet:
+        """Return all campaigns including soft-deleted ones."""
+        return super().get_queryset()
+
+    def active(self) -> QuerySet:
+        """Return only active campaigns."""
+        return self.filter(status="active")
+
+    def by_status(self, status: str) -> QuerySet:
+        """Filter campaigns by status."""
+        return self.filter(status=status)
+
+    def upcoming_elections(self) -> QuerySet:
+        """Return campaigns with upcoming elections."""
+        return self.filter(election_date__gte=timezone.now().date()).order_by(
+            "election_date"
+        )
+
+    def past_elections(self) -> QuerySet:
+        """Return campaigns with past elections."""
+        return self.filter(election_date__lt=timezone.now().date()).order_by(
+            "-election_date"
+        )
+
+    def search_by_name(self, search_term: str) -> QuerySet:
+        """Search campaigns by name or candidate name."""
+        if not search_term:
+            return self.none()
+
+        search_term = search_term.strip()
+        return self.filter(
+            Q(name__icontains=search_term) | Q(candidate_name__icontains=search_term)
+        ).distinct()
+
+    def by_organization(self, organization: str) -> QuerySet:
+        """Filter campaigns by organization."""
+        return self.filter(organization=organization)
+
+
+class Campaign(models.Model):
+    """Model representing a political campaign."""
+
+    STATUS_CHOICES = [
+        ("active", "Active"),
+        ("paused", "Paused"),
+        ("completed", "Completed"),
+        ("archived", "Archived"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    # Campaign Information
+    name = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    candidate_name = models.CharField(max_length=200)
+    election_date = models.DateField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="active")
+    organization = models.CharField(max_length=255, blank=True)
+
+    # Audit fields
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, related_name="campaigns_created"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    # Soft delete functionality
+    is_active = models.BooleanField(default=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    deleted_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="campaigns_deleted",
+        blank=True,
+    )
+
+    # Custom manager
+    objects = CampaignManager()
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Campaign"
+        verbose_name_plural = "Campaigns"
+        indexes = [
+            models.Index(fields=["name"]),
+            models.Index(fields=["election_date"]),
+            models.Index(fields=["status"]),
+            models.Index(fields=["created_at"]),
+            models.Index(fields=["organization"]),
+            models.Index(fields=["candidate_name"]),
+            # Composite index for common queries
+            models.Index(fields=["status", "election_date"]),
+        ]
+
+    def __str__(self) -> str:
+        return self.name
+
+    def clean(self) -> None:
+        """Validate the Campaign instance."""
+        super().clean()
+
+        # Sanitize text fields first, then validate
+        text_fields = ["name", "description", "candidate_name"]
+        for field_name in text_fields:
+            value = getattr(self, field_name, "")
+            if value:
+                # Sanitize the content first
+                sanitized_value = sanitize_text_field(value)
+                setattr(self, field_name, sanitized_value)
+                # Then validate for any remaining security issues
+                validate_text_content(sanitized_value, field_name)
+
+        # Validate election date is not in the past (for new campaigns)
+        if self.election_date and not self.pk:  # Only for new campaigns
+            if self.election_date < timezone.now().date():
+                raise ValidationError(
+                    {"election_date": "Election date cannot be in the past."}
+                )
+
+        # Validate election date is not too far in the future (e.g., 10 years)
+        if self.election_date:
+            ten_years_from_now = timezone.now().date() + timedelta(days=3650)
+            if self.election_date > ten_years_from_now:
+                raise ValidationError(
+                    {
+                        "election_date": (
+                            "Election date seems unreasonably far in the future "
+                            "(over 10 years)."
+                        )
+                    }
+                )
+
+        # Validate campaign name is unique (case-insensitive check)
+        if self.name:
+            existing_campaigns = Campaign.objects.filter(name__iexact=self.name.strip())
+            # Exclude self if this is an existing campaign
+            if self.pk:
+                existing_campaigns = existing_campaigns.exclude(pk=self.pk)
+
+            if existing_campaigns.exists():
+                raise ValidationError(
+                    {
+                        "name": (
+                            f"A campaign with the name '{self.name}' already exists."
+                        )
+                    }
+                )
+
+        # Validate status is a valid choice
+        valid_statuses = [choice[0] for choice in self.STATUS_CHOICES]
+        if self.status and self.status not in valid_statuses:
+            raise ValidationError(
+                {
+                    "status": (
+                        f"'{self.status}' is not a valid status. "
+                        f"Choose from: {', '.join(valid_statuses)}."
+                    )
+                }
+            )
+
+    def soft_delete(self, user: Optional["User"] = None) -> None:
+        """
+        Soft delete this campaign.
+
+        Args:
+            user: The user performing the deletion
+        """
+        self.is_active = False
+        self.deleted_at = timezone.now()
+        self.deleted_by = user
+        self.save(update_fields=["is_active", "deleted_at", "deleted_by"])
+
+    def restore(self) -> None:
+        """Restore a soft-deleted campaign."""
+        self.is_active = True
+        self.deleted_at = None
+        self.deleted_by = None
+        self.save(update_fields=["is_active", "deleted_at", "deleted_by"])
+
+    @property
+    def is_upcoming(self) -> bool:
+        """Return True if the election date is in the future."""
+        return self.election_date >= timezone.now().date()
+
+    @property
+    def days_until_election(self) -> int | None:
+        """Calculate days until election."""
+        if not self.election_date:
+            return None
+        today = timezone.now().date()
+        if self.election_date < today:
+            return None  # Election has passed
+        return (self.election_date - today).days

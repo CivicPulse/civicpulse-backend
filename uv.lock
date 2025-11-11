@@ -115,6 +115,7 @@ dependencies = [
     { name = "django-ratelimit" },
     { name = "django-redis" },
     { name = "django-stubs" },
+    { name = "djangorestframework" },
     { name = "faker" },
     { name = "loguru" },
     { name = "phonenumbers" },
@@ -151,6 +152,7 @@ requires-dist = [
     { name = "django-ratelimit", specifier = ">=4.1.0" },
     { name = "django-redis", specifier = ">=6.0.0" },
     { name = "django-stubs", specifier = ">=5.2.2" },
+    { name = "djangorestframework", specifier = ">=3.16.1" },
     { name = "faker", specifier = ">=37.5.3" },
     { name = "loguru", specifier = ">=0.7.2" },
     { name = "phonenumbers", specifier = ">=9.0.12" },
@@ -393,6 +395,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/fc/06/5e94715d103e6cc72380cb0d0b6682a7d5ad2c366cee478c94d77aad777d/django_stubs_ext-5.2.2.tar.gz", hash = "sha256:d9d151b919fe2438760f5bd938f03e1cb08c84d0651f9e5917f1313907e42683", size = 6244, upload-time = "2025-07-17T08:34:35.054Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/4e/38/2903676f97f7902ee31984a06756b0e8836e897f4b617e1a03be4a43eb4f/django_stubs_ext-5.2.2-py3-none-any.whl", hash = "sha256:8833bbe32405a2a0ce168d3f75a87168f61bd16939caf0e8bf173bccbd8a44c5", size = 8816, upload-time = "2025-07-17T08:34:33.715Z" },
+]
+
+[[package]]
+name = "djangorestframework"
+version = "3.16.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "django" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/8a/95/5376fe618646fde6899b3cdc85fd959716bb67542e273a76a80d9f326f27/djangorestframework-3.16.1.tar.gz", hash = "sha256:166809528b1aced0a17dc66c24492af18049f2c9420dbd0be29422029cfc3ff7", size = 1089735, upload-time = "2025-08-06T17:50:53.251Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b0/ce/bf8b9d3f415be4ac5588545b5fcdbbb841977db1c1d923f7568eeabe1689/djangorestframework-3.16.1-py3-none-any.whl", hash = "sha256:33a59f47fb9c85ede792cbf88bde71893bcda0667bc573f784649521f1102cec", size = 1080442, upload-time = "2025-08-06T17:50:50.667Z" },
 ]
 
 [[package]]
