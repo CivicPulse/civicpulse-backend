@@ -296,7 +296,13 @@ class TestCampaignListView:
     ):
         """Test that select_related is used for created_by."""
         # Should use select_related for created_by to avoid N+1 queries
-        with django_assert_num_queries(3):  # Count query, main query, pagination
+        # 7 queries total:
+        # 1. Session lookup (auth)
+        # 2. User lookup (auth)
+        # 3. COUNT for pagination
+        # 4. Main campaign query with select_related('created_by')
+        # 5-7. Transaction management (SAVEPOINT, session update, RELEASE)
+        with django_assert_num_queries(7):
             response = client_logged_in.get(self.url)
             campaigns = list(response.context["campaigns"])
             # Access created_by without additional queries
@@ -578,11 +584,22 @@ class TestCampaignDetailView:
     def test_query_optimization_prefetch_contact_attempts(
         self, client_logged_in, campaign, contact_attempt, django_assert_num_queries
     ):
-        """Test that contact_attempts are prefetched."""
+        """Test that contact_attempts are prefetched with their related persons.
+
+        Expected queries (8 total):
+        1. Session lookup (authentication)
+        2. User lookup (authentication)
+        3. Campaign query (main object retrieval)
+        4. Contact attempts + persons query (optimized with Prefetch + select_related)
+        5. User lookup (duplicate - accessing created_by in template)
+        6. SAVEPOINT (transaction management)
+        7. UPDATE session (transaction management)
+        8. RELEASE SAVEPOINT (transaction management)
+        """
         url = reverse("civicpulse:campaign-detail", kwargs={"pk": campaign.pk})
 
-        # Should use prefetch_related for contact_attempts
-        with django_assert_num_queries(2):  # Main query + prefetch
+        # Should use Prefetch with select_related for contact_attempts and persons
+        with django_assert_num_queries(8):  # Auth (2) + main (1) + prefetch (1) + duplicate user (1) + transaction (3)
             response = client_logged_in.get(url)
             campaign_obj = response.context["campaign"]
             # Access contact_attempts without additional queries

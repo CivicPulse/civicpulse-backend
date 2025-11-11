@@ -67,15 +67,16 @@ from civicpulse.viewsets import CampaignViewSet
 router = DefaultRouter()
 
 # Register CampaignViewSet to handle all Campaign API endpoints
+# Using basename='campaign-api' to avoid URL name collision with Django views
 # This creates the following URL patterns:
-#   - ^campaigns/$ [name='campaign-list']
-#   - ^campaigns\.(?P<format>[a-z0-9]+)/?$ [name='campaign-list']
-#   - ^campaigns/(?P<pk>[^/.]+)/$ [name='campaign-detail']
-#   - ^campaigns/(?P<pk>[^/.]+)\.(?P<format>[a-z0-9]+)/?$ [name='campaign-detail']
-#   - ^campaigns/(?P<pk>[^/.]+)/archive/$ [name='campaign-archive']
-#   - ^campaigns/(?P<pk>[^/.]+)/activate/$ [name='campaign-activate']
-#   - ^campaigns/duplicate_check/$ [name='campaign-duplicate-check']
-router.register(r"campaigns", CampaignViewSet, basename="campaign")
+#   - ^campaigns/$ [name='campaign-api-list']
+#   - ^campaigns\.(?P<format>[a-z0-9]+)/?$ [name='campaign-api-list']
+#   - ^campaigns/(?P<pk>[^/.]+)/$ [name='campaign-api-detail']
+#   - ^campaigns/(?P<pk>[^/.]+)\.(?P<format>[a-z0-9]+)/?$ [name='campaign-api-detail']
+#   - ^campaigns/(?P<pk>[^/.]+)/archive/$ [name='campaign-api-archive']
+#   - ^campaigns/(?P<pk>[^/.]+)/activate/$ [name='campaign-api-activate']
+#   - ^campaigns/duplicate_check/$ [name='campaign-api-duplicate-check']
+router.register(r"campaigns", CampaignViewSet, basename="campaign-api")
 
 # Export router URLs for inclusion in main urls.py
 # These will be prefixed with /api/v1/ in the main URL configuration

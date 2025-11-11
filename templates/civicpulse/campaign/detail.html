@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load campaign_filters %}
 
 {% block title %}{{ campaign.name }} - CivicPulse{% endblock %}
 
@@ -298,12 +299,15 @@
                 <i class="bi bi-telephone me-2"></i>
                 Recent Contact Attempts
             </h5>
+            {% comment %}
+            TODO: Implement campaign-contact-attempts view to show all contact attempts
             {% if contact_attempts %}
                 <a href="{% url 'civicpulse:campaign-contact-attempts' campaign.id %}"
                    class="btn btn-sm btn-outline-primary">
                     View All
                 </a>
             {% endif %}
+            {% endcomment %}
         </div>
 
         {% if contact_attempts %}
@@ -322,7 +326,7 @@
                     {% for attempt in contact_attempts %}
                     <tr>
                         <td>
-                            <a href="{% url 'civicpulse:person-detail' attempt.person.id %}">
+                            <a href="{% url 'civicpulse:person_detail' attempt.person.id %}">
                                 {{ attempt.person.full_name }}
                             </a>
                         </td>
@@ -348,11 +352,15 @@
                             {% endif %}
                         </td>
                         <td>
+                            {% comment %}
+                            TODO: Implement contact-attempt-detail view
                             <a href="{% url 'civicpulse:contact-attempt-detail' attempt.id %}"
                                class="btn btn-sm btn-outline-primary"
                                aria-label="View contact attempt details">
                                 <i class="bi bi-eye"></i>
                             </a>
+                            {% endcomment %}
+                            <span class="text-muted small">View details (coming soon)</span>
                         </td>
                     </tr>
                     {% endfor %}

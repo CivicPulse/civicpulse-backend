@@ -150,9 +150,10 @@ class CampaignListView(LoginRequiredMixin, ListView):
         # Order by creation date (newest first)
         queryset = queryset.order_by("-created_at")
 
+        # Note: Don't call queryset.count() here as it triggers an extra query.
+        # The Paginator will handle counting when needed.
         logger.info(
-            f"Campaign list query returned {queryset.count()} results "
-            f"for user {self.request.user}"
+            f"Campaign list query prepared for user {self.request.user}"
         )
 
         return queryset
@@ -528,8 +529,15 @@ class CampaignDetailView(LoginRequiredMixin, DetailView):
         Note:
             This ensures soft-deleted campaigns (is_active=False) return 404
         """
+        from django.db.models import Prefetch
+        from civicpulse.models import ContactAttempt
+
+        # Use Prefetch with select_related to optimize contact_attempts and their persons
         return Campaign.objects.filter(is_active=True).prefetch_related(
-            "contact_attempts"
+            Prefetch(
+                "contact_attempts",
+                queryset=ContactAttempt.objects.select_related("person").order_by("-contact_date")
+            )
         )
 
     def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
@@ -546,12 +554,19 @@ class CampaignDetailView(LoginRequiredMixin, DetailView):
                 - days_until_election: Number of days until election (if upcoming)
         """
         context = super().get_context_data(**kwargs)
-        campaign = self.get_object()
+        # Use self.object instead of get_object() to avoid duplicate database query
+        # The parent DetailView class has already retrieved and set self.object
+        campaign = self.object
         context["page_title"] = f"Campaign: {campaign.name}"
 
         # Add election timing information
         context["is_upcoming"] = campaign.is_upcoming
         context["days_until_election"] = campaign.days_until_election
+
+        # Add contact attempts (already prefetched in get_queryset)
+        # Limit to 5 most recent for the detail page overview
+        # Convert to list first to use the prefetched data, then slice
+        context["contact_attempts"] = list(campaign.contact_attempts.all())[:5]
 
         logger.info(
             f"User {self.request.user} viewed campaign: {campaign.pk} - {campaign.name}"
