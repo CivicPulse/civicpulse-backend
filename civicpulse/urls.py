@@ -2,10 +2,11 @@
 URL configuration for CivicPulse application.
 
 This module defines URL patterns for the CivicPulse application,
-including authentication, import/export, and dashboard functionality.
+including authentication, import/export, dashboard functionality,
+and REST API endpoints.
 """
 
-from django.urls import path
+from django.urls import include, path
 
 from civicpulse.views import (
     PersonCreateView,
@@ -87,6 +88,11 @@ urlpatterns = [
     path("export/persons/", PersonExportView.as_view(), name="person_export"),
     # Import URLs
     path("import/persons/", PersonImportView.as_view(), name="person_import"),
+    # REST API endpoints (v1)
+    # All API endpoints are prefixed with /api/v1/
+    # Documentation available at /api/v1/ when browsing with DRF
+    # Example: /api/v1/campaigns/ for Campaign API
+    path("api/v1/", include("civicpulse.api_urls")),
     # Root redirect to dashboard for authenticated users, login for anonymous
     path("", views.DashboardView.as_view(), name="home"),
 ]
