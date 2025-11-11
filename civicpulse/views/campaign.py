@@ -528,9 +528,10 @@ class CampaignDetailView(LoginRequiredMixin, DetailView):
             This ensures soft-deleted campaigns (is_active=False) return 404
         """
         from django.db.models import Prefetch
+
         from civicpulse.models import ContactAttempt
 
-        # Use Prefetch with select_related to optimize contact_attempts and their persons
+        # Use Prefetch with select_related to optimize contact_attempts and persons
         return Campaign.objects.filter(is_active=True).prefetch_related(
             Prefetch(
                 "contact_attempts",
