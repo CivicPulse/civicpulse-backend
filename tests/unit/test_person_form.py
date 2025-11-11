@@ -769,7 +769,7 @@ class TestFormLevelValidation:
         form = PersonForm(data=minimal_person_data, instance=existing_person)
         assert form.is_valid()
 
-        # Verify exclude_id was passed (compare as string since UUID might be serialized)
+        # Verify exclude_id was passed (UUIDs compared as strings)
         call_kwargs = mock_detector.find_duplicates.call_args[1]
         assert str(call_kwargs["exclude_id"]) == str(existing_person.id)
 
