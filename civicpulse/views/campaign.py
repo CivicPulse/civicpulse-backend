@@ -247,7 +247,7 @@ class CampaignCreateView(LoginRequiredMixin, FormView):
             URL string pointing to the campaign detail page
         """
         # Will be set in form_valid() after campaign is created
-        return reverse("civicpulse:campaign_detail", kwargs={"pk": self.campaign.pk})
+        return reverse("civicpulse:campaign-detail", kwargs={"pk": self.campaign.pk})
 
     def form_valid(self, form: CampaignForm) -> HttpResponse:
         """
@@ -632,7 +632,7 @@ class CampaignUpdateView(LoginRequiredMixin, UpdateView):
         Returns:
             URL string pointing to the campaign detail page
         """
-        return reverse("civicpulse:campaign_detail", kwargs={"pk": self.object.pk})
+        return reverse("civicpulse:campaign-detail", kwargs={"pk": self.object.pk})
 
     def form_valid(self, form: CampaignForm) -> HttpResponse:
         """
@@ -892,7 +892,7 @@ class CampaignDeleteView(LoginRequiredMixin, View):
             )
 
             # Redirect to campaign list
-            return redirect(reverse_lazy("civicpulse:campaign_list"))
+            return redirect(reverse_lazy("civicpulse:campaign-list"))
 
         except Exception as e:
             logger.exception(f"Error deleting campaign {campaign.pk}: {e}")
@@ -904,4 +904,4 @@ class CampaignDeleteView(LoginRequiredMixin, View):
             )
 
             # Redirect back to campaign detail page on error
-            return redirect(reverse("civicpulse:campaign_detail", kwargs={"pk": pk}))
+            return redirect(reverse("civicpulse:campaign-detail", kwargs={"pk": pk}))
