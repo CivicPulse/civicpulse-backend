@@ -1441,21 +1441,10 @@ class Campaign(models.Model):
                     }
                 )
 
-        # Validate campaign name is unique (case-insensitive check)
-        if self.name:
-            existing_campaigns = Campaign.objects.filter(name__iexact=self.name.strip())
-            # Exclude self if this is an existing campaign
-            if self.pk:
-                existing_campaigns = existing_campaigns.exclude(pk=self.pk)
-
-            if existing_campaigns.exists():
-                raise ValidationError(
-                    {
-                        "name": (
-                            f"A campaign with the name '{self.name}' already exists."
-                        )
-                    }
-                )
+        # Note: Campaign name uniqueness is handled by the form-level duplicate
+        # detection workflow (CampaignForm.clean()) to allow for user confirmation.
+        # Model-level validation would prevent the duplicate detection and confirmation
+        # workflow from functioning properly.
 
         # Validate status is a valid choice
         valid_statuses = [choice[0] for choice in self.STATUS_CHOICES]

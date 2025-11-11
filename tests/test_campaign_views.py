@@ -68,7 +68,7 @@ def admin_user(db):
 @pytest.fixture
 def client_logged_in(client, user):
     """Return a logged-in client."""
-    client.login(username="testuser", password="testpass123")
+    client.force_login(user)
     return client
 
 
@@ -610,7 +610,7 @@ class TestCampaignUpdateView:
 
     def test_login_required(self, client, campaign):
         """Test that login is required to access update view."""
-        url = reverse("civicpulse:campaign_edit", kwargs={"pk": campaign.pk})
+        url = reverse("civicpulse:campaign-edit", kwargs={"pk": campaign.pk})
         response = client.get(url)
 
         assert response.status_code == 302
@@ -618,7 +618,7 @@ class TestCampaignUpdateView:
 
     def test_get_update_form(self, client_logged_in, campaign):
         """Test GET request returns update form."""
-        url = reverse("civicpulse:campaign_edit", kwargs={"pk": campaign.pk})
+        url = reverse("civicpulse:campaign-edit", kwargs={"pk": campaign.pk})
         response = client_logged_in.get(url)
 
         assert response.status_code == 200
@@ -629,7 +629,7 @@ class TestCampaignUpdateView:
 
     def test_update_campaign_success(self, client_logged_in, campaign):
         """Test successful campaign update."""
-        url = reverse("civicpulse:campaign_edit", kwargs={"pk": campaign.pk})
+        url = reverse("civicpulse:campaign-edit", kwargs={"pk": campaign.pk})
         update_data = {
             "name": "Updated Campaign Name",
             "candidate_name": campaign.candidate_name,
@@ -657,7 +657,7 @@ class TestCampaignUpdateView:
 
     def test_update_allows_past_election_date(self, client_logged_in, past_campaign):
         """Test that existing campaigns can keep past election dates."""
-        url = reverse("civicpulse:campaign_edit", kwargs={"pk": past_campaign.pk})
+        url = reverse("civicpulse:campaign-edit", kwargs={"pk": past_campaign.pk})
         update_data = {
             "name": past_campaign.name,
             "candidate_name": past_campaign.candidate_name,
@@ -678,7 +678,7 @@ class TestCampaignUpdateView:
 
     def test_update_campaign_invalid_data(self, client_logged_in, campaign):
         """Test update with invalid data."""
-        url = reverse("civicpulse:campaign_edit", kwargs={"pk": campaign.pk})
+        url = reverse("civicpulse:campaign-edit", kwargs={"pk": campaign.pk})
         invalid_data = {
             "name": "",  # Required field
             "candidate_name": campaign.candidate_name,
@@ -701,14 +701,14 @@ class TestCampaignUpdateView:
         campaign.is_active = False
         campaign.save()
 
-        url = reverse("civicpulse:campaign_edit", kwargs={"pk": campaign.pk})
+        url = reverse("civicpulse:campaign-edit", kwargs={"pk": campaign.pk})
         response = client_logged_in.get(url)
 
         assert response.status_code == 404
 
     def test_validation_error_handling(self, client_logged_in, campaign):
         """Test handling of validation errors."""
-        url = reverse("civicpulse:campaign_edit", kwargs={"pk": campaign.pk})
+        url = reverse("civicpulse:campaign-edit", kwargs={"pk": campaign.pk})
 
         with patch(
             "civicpulse.services.campaign_service.CampaignCreationService.update_campaign",
@@ -729,7 +729,7 @@ class TestCampaignUpdateView:
     @pytest.mark.django_db
     def test_rate_limiting(self, client_logged_in, campaign):
         """Test rate limiting on POST requests."""
-        url = reverse("civicpulse:campaign_edit", kwargs={"pk": campaign.pk})
+        url = reverse("civicpulse:campaign-edit", kwargs={"pk": campaign.pk})
 
         with patch("django_ratelimit.decorators.is_ratelimited", return_value=True):
             update_data = {

@@ -1096,19 +1096,8 @@ class CampaignForm(forms.ModelForm):
         if len(sanitized) > 200:
             raise ValidationError("Campaign name cannot exceed 200 characters")
 
-        # 3. Check for case-insensitive uniqueness (form-level check)
-        # This provides immediate feedback before the model's clean() method
-        existing_campaigns = Campaign.objects.filter(name__iexact=sanitized.strip())
-
-        # Exclude self if this is an existing campaign (not a new one)
-        if not self.instance._state.adding:
-            existing_campaigns = existing_campaigns.exclude(pk=self.instance.pk)
-
-        if existing_campaigns.exists():
-            raise ValidationError(
-                f"A campaign with the name '{sanitized}' already exists."
-            )
-
+        # Note: Uniqueness check is handled by duplicate detection in clean()
+        # to allow for user confirmation workflow
         return sanitized
 
     def clean_candidate_name(self) -> str:

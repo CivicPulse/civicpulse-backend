@@ -7,7 +7,7 @@ from django.db import IntegrityError
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
-from .models import ContactAttempt, Person, VoterRecord
+from .models import Campaign, ContactAttempt, Person, VoterRecord
 
 User = get_user_model()
 
@@ -443,6 +443,15 @@ class ContactAttemptModelTest(TestCase):
             first_name="Contact", last_name="Target", email="target@example.com"
         )
 
+        # Create a campaign for testing
+        self.campaign = Campaign.objects.create(
+            name="GOTV 2024",
+            candidate_name="Test Candidate",
+            election_date=date.today() + timedelta(days=30),
+            status="active",
+            created_by=self.user,
+        )
+
         self.contact_data = {
             "person": self.person,
             "contact_type": "phone",
@@ -456,7 +465,7 @@ class ContactAttemptModelTest(TestCase):
             "follow_up_date": date.today() + timedelta(days=7),
             "notes": "Very supportive, wants to volunteer",
             "duration_minutes": 15,
-            "campaign": "GOTV 2024",
+            "campaign": self.campaign,
             "event": "Phone Bank #3",
         }
 
