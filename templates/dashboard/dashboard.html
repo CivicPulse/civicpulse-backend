@@ -155,10 +155,10 @@
                 <div class="card-body">
                     <div class="d-grid gap-2">
                         {% if user_role == 'admin' or user_role == 'organizer' %}
-                        <button type="button" class="btn btn-primary">
-                            <i class="bi bi-person-plus me-2"></i>
+                        <a href="{% url 'civicpulse:person_create' %}" class="btn btn-primary" role="button" aria-label="Add a new contact to the system">
+                            <i class="bi bi-person-plus me-2" aria-hidden="true"></i>
                             Add New Contact
-                        </button>
+                        </a>
                         
                         <button type="button" class="btn btn-outline-primary">
                             <i class="bi bi-megaphone me-2"></i>
@@ -236,7 +236,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Placeholder for dashboard interactivity
     console.log('Dashboard loaded for user role: {{ user_role }}');
     
-    // Add click handlers for quick action buttons
+    // Add click handlers for placeholder quick action buttons (not real links)
     const actionButtons = document.querySelectorAll('.btn[type="button"]');
     actionButtons.forEach(button => {
         button.addEventListener('click', function() {

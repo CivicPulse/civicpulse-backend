@@ -64,7 +64,9 @@ class TestAuditMiddlewareIntegration(TestCase):
         self.assertTrue(hasattr(request, "audit_context"))
         self.assertEqual(request.audit_context["ip_address"], "192.168.1.1")
         self.assertEqual(request.audit_context["user_agent"], "TestAgent/1.0")
-        self.assertEqual(request.audit_context["session_key"], "test_session_key")
+        # session_key is intentionally None in process_request
+        # to avoid CSRF interference. It gets populated in process_response
+        self.assertIsNone(request.audit_context["session_key"])
 
     def test_middleware_process_request_no_session(self):
         """Test middleware processing when no session is available."""

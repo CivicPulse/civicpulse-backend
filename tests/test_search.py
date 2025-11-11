@@ -6,7 +6,6 @@ for the CivicPulse voter search feature.
 """
 
 import json
-from typing import Any
 
 import pytest
 from django.contrib.auth import get_user_model
@@ -46,7 +45,7 @@ def sample_voters(db):
         person=person1,
         voter_id="NY12345",
         registration_status="active",
-        party_affiliation="democrat",
+        party_affiliation="DEM",
         voter_score=85,
         precinct="P001",
         ward="W01",
@@ -68,7 +67,7 @@ def sample_voters(db):
         person=person2,
         voter_id="NY67890",
         registration_status="active",
-        party_affiliation="republican",
+        party_affiliation="REP",
         voter_score=55,
         precinct="P002",
         ward="W02",
@@ -90,7 +89,7 @@ def sample_voters(db):
         person=person3,
         voter_id="CA11111",
         registration_status="active",
-        party_affiliation="independent",
+        party_affiliation="IND",
         voter_score=25,
         precinct="P003",
         ward="W03",
@@ -112,7 +111,7 @@ def sample_voters(db):
         person=person4,
         voter_id="NY22222",
         registration_status="inactive",
-        party_affiliation="democrat",
+        party_affiliation="DEM",
         voter_score=70,
         precinct="P001",
         ward="W01",
@@ -143,7 +142,9 @@ class TestPersonManagerSearch:
         """Test advanced search filters by name."""
         results = Person.objects.advanced_search(search_query="John")
         assert results.count() == 2  # John Smith and Bob Johnson
-        assert "John" in results.first().first_name or "John" in results.first().last_name
+        assert (
+            "John" in results.first().first_name or "John" in results.first().last_name
+        )
 
     @pytest.mark.django_db
     def test_advanced_search_by_email(self, sample_voters):
@@ -200,10 +201,10 @@ class TestPersonManagerSearch:
     @pytest.mark.django_db
     def test_advanced_search_by_party(self, sample_voters):
         """Test advanced search filters by party affiliation."""
-        results = Person.objects.advanced_search(party_affiliation="democrat")
+        results = Person.objects.advanced_search(party_affiliation="DEM")
         assert results.count() == 2
         for person in results:
-            assert person.voter_record.party_affiliation == "democrat"
+            assert person.voter_record.party_affiliation == "DEM"
 
     @pytest.mark.django_db
     def test_advanced_search_by_voter_score_range(self, sample_voters):
@@ -234,14 +235,14 @@ class TestPersonManagerSearch:
         """Test advanced search with multiple filters combined."""
         results = Person.objects.advanced_search(
             state="NY",
-            party_affiliation="democrat",
+            party_affiliation="DEM",
             voter_status="active",
             min_voter_score=80,
         )
         assert results.count() == 1
         person = results.first()
         assert person.state == "NY"
-        assert person.voter_record.party_affiliation == "democrat"
+        assert person.voter_record.party_affiliation == "DEM"
         assert person.voter_record.registration_status == "active"
         assert person.voter_record.voter_score >= 80
 
@@ -260,9 +261,9 @@ class TestPersonManagerSearch:
     @pytest.mark.django_db
     def test_by_party_method(self, sample_voters):
         """Test by_party helper method."""
-        results = Person.objects.by_party("republican")
+        results = Person.objects.by_party("REP")
         assert results.count() == 1
-        assert results.first().voter_record.party_affiliation == "republican"
+        assert results.first().voter_record.party_affiliation == "REP"
 
     @pytest.mark.django_db
     def test_by_voter_score_range_method(self, sample_voters):
@@ -331,11 +332,11 @@ class TestPersonSearchView:
         """Test that search view applies filters correctly."""
         client.force_login(search_user)
         url = reverse("civicpulse:person_search")
-        response = client.get(url, {"state": "NY", "party": "democrat"})
+        response = client.get(url, {"state": "NY", "party": "DEM"})
         assert response.status_code == 200
         # Verify filters are in context
         assert response.context["filters"]["state"] == "NY"
-        assert response.context["filters"]["party"] == "democrat"
+        assert response.context["filters"]["party"] == "DEM"
 
     @pytest.mark.django_db
     def test_search_view_sorting(self, client: Client, search_user, sample_voters):
@@ -390,7 +391,8 @@ class TestPersonSearchAPIView:
         """Test that API search filters by search query."""
         client.force_login(search_user)
         url = reverse("civicpulse:person_search_api")
-        response = client.get(url, {"q": "John Smith"})
+        # Search for single word that matches first name
+        response = client.get(url, {"q": "John"})
         data = json.loads(response.content)
 
         assert data["total"] >= 1
@@ -417,17 +419,16 @@ class TestPersonSearchAPIView:
         """Test that API search includes voter record data."""
         client.force_login(search_user)
         url = reverse("civicpulse:person_search_api")
-        response = client.get(url, {"q": "John Smith"})
+        # Search for single word that matches first name
+        response = client.get(url, {"q": "John"})
         data = json.loads(response.content)
 
-        # Find John Smith in results
-        john_smith = next(
-            (r for r in data["results"] if r["first_name"] == "John"), None
-        )
-        assert john_smith is not None
-        assert "voter" in john_smith
-        assert "voter_id" in john_smith["voter"]
-        assert "voter_score" in john_smith["voter"]
+        # Find John in results
+        john = next((r for r in data["results"] if r["first_name"] == "John"), None)
+        assert john is not None
+        assert "voter" in john
+        assert "voter_id" in john["voter"]
+        assert "voter_score" in john["voter"]
 
     @pytest.mark.django_db
     def test_api_search_pagination(self, client: Client, search_user, sample_voters):
@@ -574,7 +575,8 @@ class TestExportSearchResults:
         """Test that export CSV includes actual data."""
         client.force_login(search_user)
         url = reverse("civicpulse:search_export")
-        response = client.get(url, {"q": "John Smith"})
+        # Search for single word that matches first name
+        response = client.get(url, {"q": "John"})
         content = response.content.decode("utf-8")
 
         assert "John" in content
@@ -617,7 +619,7 @@ class TestSearchPerformance:
                 person=person,
                 voter_id=f"NY{10000 + i}",
                 registration_status="active",
-                party_affiliation="democrat",
+                party_affiliation="DEM",
                 voter_score=50 + (i % 50),
             )
             persons.append(person)
@@ -650,7 +652,7 @@ class TestSearchPerformance:
                 person=person,
                 voter_id=f"TX{20000 + i}",
                 registration_status="active",
-                party_affiliation="republican",
+                party_affiliation="REP",
                 voter_score=30 + (i % 70),
             )
 

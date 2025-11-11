@@ -114,6 +114,9 @@ AUTHENTICATION_BACKENDS = [  # noqa: F405
 # Disable AXES for testing
 AXES_ENABLED = False  # noqa: F405
 
+# Disable rate limiting for testing
+RATELIMIT_ENABLE = False  # noqa: F405
+
 # Test-specific settings
 TEST_RUNNER = "django.test.runner.DiscoverRunner"  # noqa: F405
 

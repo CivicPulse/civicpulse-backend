@@ -83,7 +83,7 @@ class AuditMiddleware(MiddlewareMixin):
         # Safely populate session_key now that CSRF validation has completed
         if hasattr(request, "session") and hasattr(request, "audit_context"):
             try:
-                request.audit_context["session_key"] = request.session.session_key  # type: ignore[attr-defined]
+                request.audit_context["session_key"] = request.session.session_key
             except Exception:
                 # Session might not be available in all cases
                 pass

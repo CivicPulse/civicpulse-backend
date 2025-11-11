@@ -1,0 +1,785 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ person.first_name }} {{ person.last_name }} - Contact Details - CivicPulse{% endblock %}
+
+{% block extra_css %}
+<style>
+    .detail-card {
+        background-color: #ffffff;
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+        margin-bottom: 1.5rem;
+        overflow: hidden;
+    }
+
+    .detail-card-header {
+        background: linear-gradient(135deg, var(--cp-primary) 0%, #1d4ed8 100%);
+        color: white;
+        padding: 1.25rem 1.5rem;
+        border-bottom: none;
+    }
+
+    .detail-card-header h5 {
+        margin: 0;
+        font-size: 1.1rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+    }
+
+    .detail-card-header i {
+        font-size: 1.3rem;
+        margin-right: 0.75rem;
+    }
+
+    .detail-card-body {
+        padding: 1.5rem;
+    }
+
+    .detail-row {
+        display: flex;
+        padding: 0.875rem 0;
+        border-bottom: 1px solid #f1f5f9;
+    }
+
+    .detail-row:last-child {
+        border-bottom: none;
+    }
+
+    .detail-label {
+        font-weight: 600;
+        color: #475569;
+        min-width: 180px;
+        flex-shrink: 0;
+    }
+
+    .detail-value {
+        color: #1e293b;
+        flex-grow: 1;
+        word-break: break-word;
+    }
+
+    .detail-value.empty {
+        color: #94a3b8;
+        font-style: italic;
+    }
+
+    .detail-value a {
+        color: var(--cp-primary);
+        text-decoration: none;
+        transition: color 0.2s ease;
+    }
+
+    .detail-value a:hover {
+        color: #1d4ed8;
+        text-decoration: underline;
+    }
+
+    .action-buttons {
+        position: sticky;
+        top: 0;
+        background: white;
+        border-bottom: 2px solid #e2e8f0;
+        padding: 1rem 0;
+        margin-bottom: 2rem;
+        z-index: 100;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    }
+
+    .page-header {
+        margin-bottom: 1.5rem;
+    }
+
+    .page-header h1 {
+        color: #1e293b;
+        font-size: 2rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+    }
+
+    .page-header .subtitle {
+        color: #64748b;
+        font-size: 1rem;
+    }
+
+    .tag-badge {
+        display: inline-block;
+        padding: 0.375rem 0.75rem;
+        margin: 0.25rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+        border-radius: 0.5rem;
+        background-color: #dbeafe;
+        color: #1e40af;
+    }
+
+    .gender-badge {
+        display: inline-block;
+        padding: 0.25rem 0.625rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+        border-radius: 0.375rem;
+        background-color: #f3f4f6;
+        color: #374151;
+    }
+
+    .action-icon-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        font-size: 0.875rem;
+    }
+
+    .breadcrumb {
+        background: transparent;
+        padding: 0;
+        margin-bottom: 1rem;
+    }
+
+    .breadcrumb-item a {
+        color: var(--cp-primary);
+        text-decoration: none;
+    }
+
+    .breadcrumb-item a:hover {
+        text-decoration: underline;
+    }
+
+    .empty-section {
+        text-align: center;
+        padding: 2rem;
+        color: #94a3b8;
+        font-style: italic;
+    }
+
+    /* Print styles */
+    @media print {
+        .action-buttons,
+        .breadcrumb,
+        nav,
+        footer {
+            display: none !important;
+        }
+
+        .detail-card {
+            box-shadow: none;
+            border: 1px solid #ccc;
+            page-break-inside: avoid;
+        }
+
+        .detail-card-header {
+            background: #2563eb !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+    }
+
+    /* Mobile responsive */
+    @media (max-width: 768px) {
+        .detail-row {
+            flex-direction: column;
+            padding: 1rem 0;
+        }
+
+        .detail-label {
+            min-width: auto;
+            margin-bottom: 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        .action-buttons .btn {
+            width: 100%;
+            margin-bottom: 0.5rem;
+        }
+
+        .action-buttons .d-flex {
+            flex-direction: column;
+        }
+
+        .page-header h1 {
+            font-size: 1.5rem;
+        }
+    }
+
+    /* Accessibility */
+    .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border-width: 0;
+    }
+
+    /* Focus styles for keyboard navigation */
+    a:focus,
+    button:focus {
+        outline: 2px solid var(--cp-primary);
+        outline-offset: 2px;
+    }
+
+    /* Loading state animation */
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+
+    .loading {
+        animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4 mb-5">
+    <!-- Breadcrumb Navigation -->
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item">
+                <a href="{% url 'civicpulse:dashboard' %}">
+                    <i class="bi bi-house-door" aria-hidden="true"></i>
+                    <span class="sr-only">Go to </span>Dashboard
+                </a>
+            </li>
+            <li class="breadcrumb-item">
+                <a href="{% url 'civicpulse:dashboard' %}">
+                    <i class="bi bi-people" aria-hidden="true"></i> Contacts
+                </a>
+            </li>
+            <li class="breadcrumb-item active" aria-current="page">
+                {{ person.first_name }} {{ person.last_name }}
+            </li>
+        </ol>
+    </nav>
+
+    <!-- Page Header -->
+    <div class="page-header">
+        <h1>
+            <i class="bi bi-person-circle" aria-hidden="true"></i>
+            {{ person.first_name }}{% if person.middle_name %} {{ person.middle_name }}{% endif %} {{ person.last_name }}{% if person.suffix %} {{ person.suffix }}{% endif %}
+        </h1>
+        <p class="subtitle">
+            Contact Information
+            {% if person.date_of_birth %}
+                <span aria-label="Age"> | {{ person.date_of_birth|timesince }} old</span>
+            {% endif %}
+        </p>
+    </div>
+
+    <!-- Sticky Action Buttons -->
+    <div class="action-buttons">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div class="d-flex gap-2 flex-wrap">
+                <a href="{% url 'civicpulse:dashboard' %}" class="btn btn-secondary action-icon-btn">
+                    <i class="bi bi-arrow-left" aria-hidden="true"></i>
+                    <span>Back to Dashboard</span>
+                </a>
+
+                <button type="button" class="btn btn-outline-primary action-icon-btn" disabled title="Edit functionality coming soon">
+                    <i class="bi bi-pencil" aria-hidden="true"></i>
+                    <span>Edit Contact</span>
+                </button>
+            </div>
+
+            <div class="d-flex gap-2 flex-wrap">
+                {% if person.email %}
+                <a href="mailto:{{ person.email }}"
+                   class="btn btn-outline-primary action-icon-btn"
+                   aria-label="Send email to {{ person.email }}">
+                    <i class="bi bi-envelope" aria-hidden="true"></i>
+                    <span>Send Email</span>
+                </a>
+                {% endif %}
+
+                {% if person.phone_primary %}
+                <a href="tel:{{ person.phone_primary }}"
+                   class="btn btn-outline-primary action-icon-btn"
+                   aria-label="Call {{ person.phone_primary }}">
+                    <i class="bi bi-telephone" aria-hidden="true"></i>
+                    <span>Call</span>
+                </a>
+                {% endif %}
+
+                <button type="button"
+                        class="btn btn-outline-secondary action-icon-btn"
+                        onclick="window.print()"
+                        aria-label="Print this page">
+                    <i class="bi bi-printer" aria-hidden="true"></i>
+                    <span>Print</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <!-- Personal Information Card -->
+            <section class="detail-card" aria-labelledby="personal-info-heading">
+                <div class="detail-card-header">
+                    <h2 id="personal-info-heading" class="h5">
+                        <i class="bi bi-person-badge" aria-hidden="true"></i>
+                        Personal Information
+                    </h2>
+                </div>
+                <div class="detail-card-body">
+                    <div class="detail-row">
+                        <div class="detail-label" id="full-name-label">Full Name</div>
+                        <div class="detail-value" aria-labelledby="full-name-label">
+                            {{ person.first_name }}{% if person.middle_name %} {{ person.middle_name }}{% endif %} {{ person.last_name }}{% if person.suffix %} {{ person.suffix }}{% endif %}
+                        </div>
+                    </div>
+
+                    <div class="detail-row">
+                        <div class="detail-label" id="dob-label">Date of Birth</div>
+                        <div class="detail-value" aria-labelledby="dob-label">
+                            {% if person.date_of_birth %}
+                                {{ person.date_of_birth|date:"F d, Y" }}
+                                <span class="text-muted">
+                                    ({{ person.date_of_birth|timesince }} old)
+                                </span>
+                            {% else %}
+                                <span class="empty">Not provided</span>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="detail-row">
+                        <div class="detail-label" id="gender-label">Gender</div>
+                        <div class="detail-value" aria-labelledby="gender-label">
+                            {% if person.gender and person.gender != 'U' %}
+                                <span class="gender-badge">{{ person.get_gender_display }}</span>
+                            {% else %}
+                                <span class="empty">Not specified</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Contact Information Card -->
+            <section class="detail-card" aria-labelledby="contact-info-heading">
+                <div class="detail-card-header">
+                    <h2 id="contact-info-heading" class="h5">
+                        <i class="bi bi-envelope-at" aria-hidden="true"></i>
+                        Contact Information
+                    </h2>
+                </div>
+                <div class="detail-card-body">
+                    <div class="detail-row">
+                        <div class="detail-label" id="email-label">Email Address</div>
+                        <div class="detail-value" aria-labelledby="email-label">
+                            {% if person.email %}
+                                <a href="mailto:{{ person.email }}" aria-label="Send email to {{ person.email }}">
+                                    <i class="bi bi-envelope" aria-hidden="true"></i> {{ person.email }}
+                                </a>
+                            {% else %}
+                                <span class="empty">Not provided</span>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="detail-row">
+                        <div class="detail-label" id="phone-primary-label">Primary Phone</div>
+                        <div class="detail-value" aria-labelledby="phone-primary-label">
+                            {% if person.phone_primary %}
+                                <a href="tel:{{ person.phone_primary }}" aria-label="Call {{ person.phone_primary }}">
+                                    <i class="bi bi-telephone" aria-hidden="true"></i> {{ person.phone_primary }}
+                                </a>
+                            {% else %}
+                                <span class="empty">Not provided</span>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="detail-row">
+                        <div class="detail-label" id="phone-secondary-label">Secondary Phone</div>
+                        <div class="detail-value" aria-labelledby="phone-secondary-label">
+                            {% if person.phone_secondary %}
+                                <a href="tel:{{ person.phone_secondary }}" aria-label="Call secondary phone {{ person.phone_secondary }}">
+                                    <i class="bi bi-telephone" aria-hidden="true"></i> {{ person.phone_secondary }}
+                                </a>
+                            {% else %}
+                                <span class="empty">Not provided</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Address Information Card -->
+            <section class="detail-card" aria-labelledby="address-info-heading">
+                <div class="detail-card-header">
+                    <h2 id="address-info-heading" class="h5">
+                        <i class="bi bi-geo-alt" aria-hidden="true"></i>
+                        Address Information
+                    </h2>
+                </div>
+                <div class="detail-card-body">
+                    {% if person.street_address or person.city or person.state or person.zip_code %}
+                        <div class="detail-row">
+                            <div class="detail-label" id="street-label">Street Address</div>
+                            <div class="detail-value" aria-labelledby="street-label">
+                                {% if person.street_address %}
+                                    {{ person.street_address }}
+                                    {% if person.apartment_number %}
+                                        <br>Unit {{ person.apartment_number }}
+                                    {% endif %}
+                                {% else %}
+                                    <span class="empty">Not provided</span>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="detail-row">
+                            <div class="detail-label" id="city-state-label">City, State ZIP</div>
+                            <div class="detail-value" aria-labelledby="city-state-label">
+                                {% if person.city or person.state or person.zip_code %}
+                                    {% if person.city %}{{ person.city }}{% endif %}{% if person.city and person.state %}, {% endif %}{% if person.state %}{{ person.state }}{% endif %} {% if person.zip_code %}{{ person.zip_code }}{% endif %}
+                                {% else %}
+                                    <span class="empty">Not provided</span>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="detail-row">
+                            <div class="detail-label" id="county-label">County</div>
+                            <div class="detail-value" aria-labelledby="county-label">
+                                {% if person.county %}
+                                    {{ person.county }}
+                                {% else %}
+                                    <span class="empty">Not provided</span>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        {% if person.street_address and person.city and person.state %}
+                        <div class="detail-row">
+                            <div class="detail-label" id="map-label">View on Map</div>
+                            <div class="detail-value" aria-labelledby="map-label">
+                                <a href="https://www.google.com/maps/search/?api=1&query={{ person.street_address|urlencode }}{% if person.apartment_number %}+Unit+{{ person.apartment_number|urlencode }}{% endif %}+{{ person.city|urlencode }}+{{ person.state|urlencode }}+{{ person.zip_code|urlencode }}"
+                                   target="_blank"
+                                   rel="noopener noreferrer"
+                                   aria-label="View address on Google Maps (opens in new tab)">
+                                    <i class="bi bi-geo" aria-hidden="true"></i> Open in Google Maps
+                                </a>
+                            </div>
+                        </div>
+                        {% endif %}
+                    {% else %}
+                        <div class="empty-section">
+                            <i class="bi bi-geo-alt" style="font-size: 2rem;" aria-hidden="true"></i>
+                            <p>No address information available</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </section>
+
+            <!-- Additional Information Card -->
+            <section class="detail-card" aria-labelledby="additional-info-heading">
+                <div class="detail-card-header">
+                    <h2 id="additional-info-heading" class="h5">
+                        <i class="bi bi-briefcase" aria-hidden="true"></i>
+                        Additional Information
+                    </h2>
+                </div>
+                <div class="detail-card-body">
+                    <div class="detail-row">
+                        <div class="detail-label" id="occupation-label">Occupation</div>
+                        <div class="detail-value" aria-labelledby="occupation-label">
+                            {% if person.occupation %}
+                                {{ person.occupation }}
+                            {% else %}
+                                <span class="empty">Not provided</span>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="detail-row">
+                        <div class="detail-label" id="employer-label">Employer</div>
+                        <div class="detail-value" aria-labelledby="employer-label">
+                            {% if person.employer %}
+                                {{ person.employer }}
+                            {% else %}
+                                <span class="empty">Not provided</span>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="detail-row">
+                        <div class="detail-label" id="tags-label">Tags</div>
+                        <div class="detail-value" aria-labelledby="tags-label">
+                            {% if person.tags %}
+                                <div role="list" aria-label="Contact tags">
+                                    {% for tag in person.tags %}
+                                        <span class="tag-badge" role="listitem">{{ tag }}</span>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <span class="empty">No tags</span>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="detail-row">
+                        <div class="detail-label" id="notes-label">Notes</div>
+                        <div class="detail-value" aria-labelledby="notes-label">
+                            {% if person.notes %}
+                                {{ person.notes|linebreaks }}
+                            {% else %}
+                                <span class="empty">No notes</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <div class="col-lg-4">
+            <!-- System Information Card -->
+            <section class="detail-card" aria-labelledby="system-info-heading">
+                <div class="detail-card-header">
+                    <h2 id="system-info-heading" class="h5">
+                        <i class="bi bi-info-circle" aria-hidden="true"></i>
+                        System Information
+                    </h2>
+                </div>
+                <div class="detail-card-body">
+                    <div class="detail-row">
+                        <div class="detail-label" id="record-id-label">Record ID</div>
+                        <div class="detail-value" aria-labelledby="record-id-label">
+                            <code style="font-size: 0.75rem; word-break: break-all;">{{ person.id }}</code>
+                        </div>
+                    </div>
+
+                    <div class="detail-row">
+                        <div class="detail-label" id="created-label">Created</div>
+                        <div class="detail-value" aria-labelledby="created-label">
+                            <div>
+                                <i class="bi bi-calendar3" aria-hidden="true"></i>
+                                {{ person.created_at|date:"M d, Y" }}
+                            </div>
+                            <div class="text-muted small">
+                                <i class="bi bi-clock" aria-hidden="true"></i>
+                                {{ person.created_at|time:"g:i A" }}
+                                ({{ person.created_at|timesince }} ago)
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="detail-row">
+                        <div class="detail-label" id="created-by-label">Created By</div>
+                        <div class="detail-value" aria-labelledby="created-by-label">
+                            {% if person.created_by %}
+                                <i class="bi bi-person" aria-hidden="true"></i>
+                                {{ person.created_by.get_full_name|default:person.created_by.username }}
+                            {% else %}
+                                <span class="empty">System</span>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="detail-row">
+                        <div class="detail-label" id="modified-label">Last Modified</div>
+                        <div class="detail-value" aria-labelledby="modified-label">
+                            <div>
+                                <i class="bi bi-calendar3" aria-hidden="true"></i>
+                                {{ person.updated_at|date:"M d, Y" }}
+                            </div>
+                            <div class="text-muted small">
+                                <i class="bi bi-clock" aria-hidden="true"></i>
+                                {{ person.updated_at|time:"g:i A" }}
+                                ({{ person.updated_at|timesince }} ago)
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if person.created_by %}
+                    <div class="detail-row">
+                        <div class="detail-label" id="modified-by-label">Modified By</div>
+                        <div class="detail-value" aria-labelledby="modified-by-label">
+                            <i class="bi bi-person" aria-hidden="true"></i>
+                            {{ person.created_by.get_full_name|default:person.created_by.username }}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </section>
+
+            <!-- Quick Actions Card -->
+            <section class="detail-card" aria-labelledby="quick-actions-heading">
+                <div class="detail-card-header">
+                    <h2 id="quick-actions-heading" class="h5">
+                        <i class="bi bi-lightning" aria-hidden="true"></i>
+                        Quick Actions
+                    </h2>
+                </div>
+                <div class="detail-card-body">
+                    <div class="d-grid gap-2">
+                        {% if person.email %}
+                        <a href="mailto:{{ person.email }}"
+                           class="btn btn-outline-primary btn-sm text-start"
+                           aria-label="Send email to {{ person.email }}">
+                            <i class="bi bi-envelope-fill" aria-hidden="true"></i>
+                            Compose Email
+                        </a>
+                        {% endif %}
+
+                        {% if person.phone_primary %}
+                        <a href="tel:{{ person.phone_primary }}"
+                           class="btn btn-outline-success btn-sm text-start"
+                           aria-label="Call {{ person.phone_primary }}">
+                            <i class="bi bi-telephone-fill" aria-hidden="true"></i>
+                            Make Phone Call
+                        </a>
+                        {% endif %}
+
+                        <button type="button"
+                                class="btn btn-outline-secondary btn-sm text-start"
+                                disabled
+                                title="Schedule meeting functionality coming soon">
+                            <i class="bi bi-calendar-event" aria-hidden="true"></i>
+                            Schedule Meeting
+                        </button>
+
+                        <button type="button"
+                                class="btn btn-outline-secondary btn-sm text-start"
+                                disabled
+                                title="Add note functionality coming soon">
+                            <i class="bi bi-journal-plus" aria-hidden="true"></i>
+                            Add Note
+                        </button>
+
+                        <hr class="my-2">
+
+                        <button type="button"
+                                class="btn btn-outline-danger btn-sm text-start"
+                                disabled
+                                title="Delete functionality coming soon"
+                                aria-label="Delete this contact">
+                            <i class="bi bi-trash" aria-hidden="true"></i>
+                            Delete Contact
+                        </button>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Person detail view initialized');
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', function(e) {
+        // 'B' key to go back
+        if (e.key === 'b' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            const activeElement = document.activeElement;
+            // Only trigger if not in an input field
+            if (activeElement.tagName !== 'INPUT' && activeElement.tagName !== 'TEXTAREA') {
+                window.location.href = "{% url 'civicpulse:dashboard' %}";
+            }
+        }
+
+        // 'E' key to edit (when enabled)
+        if (e.key === 'e' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            const activeElement = document.activeElement;
+            if (activeElement.tagName !== 'INPUT' && activeElement.tagName !== 'TEXTAREA') {
+                // Edit functionality would go here
+                console.log('Edit shortcut pressed (functionality pending)');
+            }
+        }
+
+        // Ctrl/Cmd + P for print
+        if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
+            e.preventDefault();
+            window.print();
+        }
+    });
+
+    // Copy record ID to clipboard
+    const recordIdCode = document.querySelector('code');
+    if (recordIdCode) {
+        recordIdCode.style.cursor = 'pointer';
+        recordIdCode.title = 'Click to copy Record ID';
+
+        recordIdCode.addEventListener('click', function() {
+            const recordId = this.textContent;
+
+            // Modern clipboard API
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(recordId)
+                    .then(function() {
+                        showCopyFeedback(recordIdCode, 'Copied!');
+                    })
+                    .catch(function(err) {
+                        console.error('Failed to copy:', err);
+                        showCopyFeedback(recordIdCode, 'Failed to copy');
+                    });
+            } else {
+                // Fallback for older browsers
+                const textArea = document.createElement('textarea');
+                textArea.value = recordId;
+                textArea.style.position = 'fixed';
+                textArea.style.left = '-999999px';
+                document.body.appendChild(textArea);
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    showCopyFeedback(recordIdCode, 'Copied!');
+                } catch (err) {
+                    console.error('Failed to copy:', err);
+                    showCopyFeedback(recordIdCode, 'Failed to copy');
+                }
+                document.body.removeChild(textArea);
+            }
+        });
+    }
+
+    function showCopyFeedback(element, message) {
+        const originalText = element.textContent;
+        element.textContent = message;
+        element.style.color = 'var(--cp-success)';
+
+        setTimeout(function() {
+            element.textContent = originalText;
+            element.style.color = '';
+        }, 2000);
+    }
+
+    // Enhance external links with security attributes
+    const externalLinks = document.querySelectorAll('a[target="_blank"]');
+    externalLinks.forEach(function(link) {
+        if (!link.hasAttribute('rel')) {
+            link.setAttribute('rel', 'noopener noreferrer');
+        }
+    });
+
+    // Add subtle animation to cards on page load
+    const cards = document.querySelectorAll('.detail-card');
+    cards.forEach(function(card, index) {
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(20px)';
+        card.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+
+        setTimeout(function() {
+            card.style.opacity = '1';
+            card.style.transform = 'translateY(0)';
+        }, 50 * index);
+    });
+
+    // Analytics tracking (placeholder for future implementation)
+    console.log('Person detail viewed:', {
+        personId: '{{ person.id }}',
+        timestamp: new Date().toISOString()
+    });
+});
+</script>
+{% endblock %}
