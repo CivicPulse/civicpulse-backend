@@ -247,8 +247,9 @@ class TestDuplicateDetectionFlow:
         assert response.status_code == 200
         assert "duplicates" in response.context
 
-        # Person should NOT be created yet
-        assert not Person.objects.filter(email="john.doe@example.com").exists()
+        # Only the original duplicate_person should exist, no new person created
+        assert Person.objects.filter(email="john.doe@example.com").count() == 1
+        assert Person.objects.filter(email="john.doe@example.com").first() == duplicate_person
 
     def test_creation_succeeds_with_confirmation(
         self, authenticated_client, duplicate_person, valid_person_data
@@ -266,8 +267,8 @@ class TestDuplicateDetectionFlow:
         # Should redirect to detail view
         assert response.status_code == 302
 
-        # Person should be created
-        assert Person.objects.filter(email="john.doe@example.com").exists()
+        # Two persons should exist now (original duplicate + new person)
+        assert Person.objects.filter(email="john.doe@example.com").count() == 2
 
     def test_form_retains_user_input_during_duplicate_warning(
         self, authenticated_client, duplicate_person, valid_person_data
@@ -538,7 +539,10 @@ class TestPersonDetailView:
 
     def test_non_existent_persons_return_404(self, authenticated_client):
         """Test that non-existent persons return 404."""
-        url = reverse("civicpulse:person_detail", kwargs={"pk": 99999})
+        import uuid
+        # Use a random UUID that doesn't exist in the database
+        non_existent_uuid = uuid.uuid4()
+        url = reverse("civicpulse:person_detail", kwargs={"pk": non_existent_uuid})
         response = authenticated_client.get(url)
 
         assert response.status_code == 404
@@ -680,15 +684,19 @@ class TestCompleteWorkflow:
         response = authenticated_client.post(create_url, valid_person_data)
         assert response.status_code == 200
         assert "duplicates" in response.context
-        assert not Person.objects.filter(email="john.doe@example.com").exists()
+        # Only the duplicate_person should exist at this point
+        assert Person.objects.filter(email="john.doe@example.com").count() == 1
 
         # Step 2: Confirm and create despite duplicates
         valid_person_data["confirm_duplicates"] = "on"
         response = authenticated_client.post(create_url, valid_person_data, follow=True)
 
-        # Step 3: Person should be created and we're on detail page
+        # Step 3: Two persons should be created now and we're on detail page
         assert response.status_code == 200
-        person = Person.objects.get(email="john.doe@example.com")
+        assert Person.objects.filter(email="john.doe@example.com").count() == 2
+        # Get the newly created person (not the duplicate_person)
+        persons = Person.objects.filter(email="john.doe@example.com").order_by("-created_at")
+        person = persons.first()
         assert person.first_name == "John"
         assert person.last_name == "Doe"
 
@@ -712,7 +720,7 @@ class TestEdgeCases:
         response = authenticated_client.post(url, data, follow=True)
 
         assert response.status_code == 200
-        person = Person.objects.get(first_name="Min", last_name="Mal")
+        person = Person.objects.get(first_name="Min", last_name="Imal")
         assert person is not None
         assert person.email == ""  # Optional field
 

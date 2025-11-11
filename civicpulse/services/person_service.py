@@ -241,9 +241,7 @@ class PersonDuplicateDetector:
             # Convert string to date if needed
             if isinstance(date_of_birth, str):
                 try:
-                    date_of_birth = datetime.strptime(
-                        date_of_birth, "%Y-%m-%d"
-                    ).date()
+                    date_of_birth = datetime.strptime(date_of_birth, "%Y-%m-%d").date()
                 except ValueError:
                     logger.warning(f"Invalid date format: {date_of_birth}")
                     date_of_birth = None
@@ -576,9 +574,7 @@ class PersonCreationService:
             # Convert string to date if needed
             if isinstance(date_of_birth, str):
                 try:
-                    date_of_birth = datetime.strptime(
-                        date_of_birth, "%Y-%m-%d"
-                    ).date()
+                    date_of_birth = datetime.strptime(date_of_birth, "%Y-%m-%d").date()
                 except ValueError:
                     errors.setdefault("date_of_birth", []).append(
                         "Invalid date format. Use YYYY-MM-DD"

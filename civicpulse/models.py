@@ -367,9 +367,7 @@ class PersonManager(models.Manager):
 
         # Voter record filters
         if voter_status:
-            queryset = queryset.filter(
-                voter_record__registration_status=voter_status
-            )
+            queryset = queryset.filter(voter_record__registration_status=voter_status)
         if party_affiliation:
             queryset = queryset.filter(
                 voter_record__party_affiliation=party_affiliation

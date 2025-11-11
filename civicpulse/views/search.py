@@ -82,6 +82,15 @@ class PersonSearchView(LoginRequiredMixin, TemplateView):
         except EmptyPage:
             persons = paginator.page(paginator.num_pages)
 
+        # US state codes for filter dropdown
+        us_states = [
+            "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA",
+            "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD",
+            "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ",
+            "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC",
+            "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY", "DC"
+        ]
+
         # Add context data
         context.update(
             {
@@ -101,6 +110,7 @@ class PersonSearchView(LoginRequiredMixin, TemplateView):
                 },
                 "sort_by": sort_by,
                 # Filter options
+                "us_states": us_states,
                 "voter_statuses": VoterRecord.REGISTRATION_STATUS_CHOICES,
                 "parties": VoterRecord.PARTY_AFFILIATION_CHOICES,
             }

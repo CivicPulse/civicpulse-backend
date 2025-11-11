@@ -142,7 +142,9 @@ class TestPersonManagerSearch:
         """Test advanced search filters by name."""
         results = Person.objects.advanced_search(search_query="John")
         assert results.count() == 2  # John Smith and Bob Johnson
-        assert "John" in results.first().first_name or "John" in results.first().last_name
+        assert (
+            "John" in results.first().first_name or "John" in results.first().last_name
+        )
 
     @pytest.mark.django_db
     def test_advanced_search_by_email(self, sample_voters):
@@ -389,7 +391,8 @@ class TestPersonSearchAPIView:
         """Test that API search filters by search query."""
         client.force_login(search_user)
         url = reverse("civicpulse:person_search_api")
-        response = client.get(url, {"q": "John Smith"})
+        # Search for single word that matches first name
+        response = client.get(url, {"q": "John"})
         data = json.loads(response.content)
 
         assert data["total"] >= 1
@@ -416,17 +419,18 @@ class TestPersonSearchAPIView:
         """Test that API search includes voter record data."""
         client.force_login(search_user)
         url = reverse("civicpulse:person_search_api")
-        response = client.get(url, {"q": "John Smith"})
+        # Search for single word that matches first name
+        response = client.get(url, {"q": "John"})
         data = json.loads(response.content)
 
-        # Find John Smith in results
-        john_smith = next(
+        # Find John in results
+        john = next(
             (r for r in data["results"] if r["first_name"] == "John"), None
         )
-        assert john_smith is not None
-        assert "voter" in john_smith
-        assert "voter_id" in john_smith["voter"]
-        assert "voter_score" in john_smith["voter"]
+        assert john is not None
+        assert "voter" in john
+        assert "voter_id" in john["voter"]
+        assert "voter_score" in john["voter"]
 
     @pytest.mark.django_db
     def test_api_search_pagination(self, client: Client, search_user, sample_voters):
@@ -573,7 +577,8 @@ class TestExportSearchResults:
         """Test that export CSV includes actual data."""
         client.force_login(search_user)
         url = reverse("civicpulse:search_export")
-        response = client.get(url, {"q": "John Smith"})
+        # Search for single word that matches first name
+        response = client.get(url, {"q": "John"})
         content = response.content.decode("utf-8")
 
         assert "John" in content

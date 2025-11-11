@@ -940,7 +940,6 @@ class PersonForm(forms.ModelForm):
         has_first_name = cleaned_data.get("first_name")
         has_last_name = cleaned_data.get("last_name")
         if has_first_name and has_last_name:
-
             from civicpulse.services.person_service import (
                 PersonDataDict,
                 PersonDuplicateDetector,

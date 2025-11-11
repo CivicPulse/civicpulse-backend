@@ -8,12 +8,14 @@ NOTE: This is for documentation purposes only. Do not import or use in productio
 """
 
 from datetime import date
+from typing import cast
 
 from django.core.exceptions import ValidationError
 from django.http import HttpRequest
 
 from civicpulse.models import User
 from civicpulse.services import PersonCreationService, PersonDuplicateDetector
+from civicpulse.services.person_service import PersonDataDict
 
 
 def example_create_person_from_view(request: HttpRequest) -> dict:
@@ -25,7 +27,7 @@ def example_create_person_from_view(request: HttpRequest) -> dict:
     service = PersonCreationService()
 
     # Person data typically comes from a form's cleaned_data
-    person_data = {
+    person_data: PersonDataDict = {
         "first_name": "Jane",
         "last_name": "Smith",
         "email": "jane.smith@example.com",
@@ -38,6 +40,10 @@ def example_create_person_from_view(request: HttpRequest) -> dict:
     }
 
     try:
+        # Ensure request.user is an authenticated User, not AnonymousUser
+        if not isinstance(request.user, User):
+            raise ValidationError("User must be authenticated")
+
         person, duplicates = service.create_person(
             person_data=person_data, created_by=request.user, check_duplicates=True
         )
@@ -76,7 +82,7 @@ def example_check_duplicates_only() -> None:
     detector = PersonDuplicateDetector()
 
     # Data from form or API request
-    person_data = {
+    person_data: PersonDataDict = {
         "first_name": "John",
         "last_name": "Doe",
         "email": "john.doe@example.com",
@@ -102,7 +108,7 @@ def example_validate_data_before_form_submission() -> None:
     """
     service = PersonCreationService()
 
-    person_data = {
+    person_data: PersonDataDict = {
         "first_name": "Bob",
         "last_name": "",  # Invalid - empty last name
         "email": "invalid-email",  # Invalid format
@@ -137,7 +143,7 @@ def example_create_person_from_management_command() -> None:
         print("System user not found - create one first")
         return
 
-    person_data = {
+    person_data: PersonDataDict = {
         "first_name": "Import",
         "last_name": "User",
         "email": "import.user@example.com",
@@ -158,7 +164,7 @@ def example_create_person_from_management_command() -> None:
         print(f"Validation failed: {e.message_dict}")
 
 
-def example_create_person_from_celery_task() -> None:
+def example_create_person_from_celery_task() -> str | None:
     """
     Example: Creating a person from a Celery task.
 
@@ -167,7 +173,7 @@ def example_create_person_from_celery_task() -> None:
     service = PersonCreationService()
 
     # In a real Celery task, you'd receive this data as task parameters
-    person_data = {
+    person_data: PersonDataDict = {
         "first_name": "Task",
         "last_name": "User",
         "email": "task.user@example.com",
@@ -178,7 +184,7 @@ def example_create_person_from_celery_task() -> None:
         created_by = User.objects.get(pk="some-user-id")
     except User.DoesNotExist:
         print("User not found")
-        return
+        return None
 
     try:
         person, duplicates = service.create_person(
@@ -189,7 +195,7 @@ def example_create_person_from_celery_task() -> None:
         if duplicates:
             print(f"Task created person with {len(duplicates)} potential duplicates")
 
-        return person.pk
+        return str(person.pk)
 
     except ValidationError as e:
         # Log error and maybe send notification
@@ -207,7 +213,7 @@ def example_create_person_from_api() -> dict:
 
     # In a real API view, this would come from request.data
     # and request.user would come from authentication
-    person_data = {
+    person_data: PersonDataDict = {
         "first_name": "API",
         "last_name": "User",
         "email": "api.user@example.com",
@@ -217,25 +223,29 @@ def example_create_person_from_api() -> dict:
     # Simulate request.user
     api_user = User.objects.first()
 
+    if api_user is None:
+        return {"error": "No user found"}
+
     try:
         person, duplicates = service.create_person(
             person_data=person_data, created_by=api_user, check_duplicates=True
         )
 
         # Return API response
-        response = {
+        response: dict = {
             "id": str(person.pk),
             "full_name": person.full_name,
             "created_at": person.created_at.isoformat(),
         }
 
         if duplicates:
-            response["warnings"] = [
+            warnings_list: list[dict[str, str]] = [
                 {
                     "message": f"Found {len(duplicates)} potential duplicates",
                     "type": "duplicate",
                 }
             ]
+            response["warnings"] = warnings_list
 
         return response
 
@@ -254,7 +264,7 @@ def example_bulk_import_with_duplicate_detection() -> None:
     detector = PersonDuplicateDetector()
 
     # Simulate bulk data (typically from CSV or API)
-    bulk_data = [
+    bulk_data: list[PersonDataDict] = [
         {
             "first_name": "Alice",
             "last_name": "Johnson",
@@ -269,27 +279,34 @@ def example_bulk_import_with_duplicate_detection() -> None:
     ]
 
     import_user = User.objects.first()
-    results = {"created": 0, "skipped": 0, "errors": []}
+    if import_user is None:
+        print("No user found for import")
+        return
+
+    results: dict[str, int | list[dict]] = {"created": 0, "skipped": 0, "errors": []}
 
     for data in bulk_data:
         try:
             # Check for duplicates first
             duplicates = detector.find_duplicates(data)
             if duplicates.exists():
-                first = data["first_name"]
-                last = data["last_name"]
+                first = data.get("first_name", "Unknown")
+                last = data.get("last_name", "Unknown")
                 print(f"Skipping {first} {last} - duplicate found")
-                results["skipped"] += 1
+                skipped_count = cast(int, results["skipped"])
+                results["skipped"] = skipped_count + 1
                 continue
 
             # Create if no duplicates (already checked above)
             person, _ = service.create_person(
                 person_data=data, created_by=import_user, check_duplicates=False
             )
-            results["created"] += 1
+            created_count = cast(int, results["created"])
+            results["created"] = created_count + 1
 
         except ValidationError as e:
-            results["errors"].append({"data": data, "errors": e.message_dict})
+            errors_list = cast(list[dict], results["errors"])
+            errors_list.append({"data": data, "errors": e.message_dict})
 
     created = results["created"]
     skipped = results["skipped"]
@@ -307,18 +324,22 @@ def example_custom_validation() -> None:
     """
     service = PersonCreationService()
 
-    person_data = {
+    # Create a PersonDataDict with additional custom fields
+    person_data: PersonDataDict = {
         "first_name": "Custom",
         "last_name": "Validation",
         "email": "custom@example.com",
-        "age": 25,  # Custom field not in model
     }
+    # Add custom field for validation (not in PersonDataDict)
+    custom_data: dict = dict(person_data)
+    custom_data["age"] = 25  # Custom field not in model
 
     # First, run service validation
     errors = service.validate_person_data(person_data)
 
     # Add your custom validation
-    if person_data.get("age") and person_data["age"] < 18:
+    age_value = custom_data.get("age")
+    if age_value is not None and isinstance(age_value, int) and age_value < 18:
         errors.setdefault("age", []).append("Person must be 18 or older")
 
     if errors:
@@ -339,7 +360,11 @@ def example_transaction_rollback() -> None:
     service = PersonCreationService()
     user = User.objects.first()
 
-    person_data = {
+    if user is None:
+        print("No user found")
+        return
+
+    person_data: PersonDataDict = {
         "first_name": "Transaction",
         "last_name": "Test",
         "email": "transaction@example.com",
