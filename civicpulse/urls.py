@@ -9,6 +9,11 @@ and REST API endpoints.
 from django.urls import include, path
 
 from civicpulse.views import (
+    CampaignCreateView,
+    CampaignDeleteView,
+    CampaignDetailView,
+    CampaignListView,
+    CampaignUpdateView,
     PersonCreateView,
     PersonDetailView,
     PersonExportView,
@@ -84,6 +89,18 @@ urlpatterns = [
     # Person URLs
     path("person/create/", PersonCreateView.as_view(), name="person_create"),
     path("person/<uuid:pk>/", PersonDetailView.as_view(), name="person_detail"),
+    # Campaign URLs
+    path("campaigns/", CampaignListView.as_view(), name="campaign-list"),
+    path("campaigns/create/", CampaignCreateView.as_view(), name="campaign-create"),
+    path("campaigns/<uuid:pk>/", CampaignDetailView.as_view(), name="campaign-detail"),
+    path(
+        "campaigns/<uuid:pk>/edit/", CampaignUpdateView.as_view(), name="campaign-edit"
+    ),
+    path(
+        "campaigns/<uuid:pk>/delete/",
+        CampaignDeleteView.as_view(),
+        name="campaign-delete",
+    ),
     # Export URLs
     path("export/persons/", PersonExportView.as_view(), name="person_export"),
     # Import URLs
