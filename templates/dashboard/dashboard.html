@@ -160,10 +160,10 @@
                             Add New Contact
                         </a>
                         
-                        <button type="button" class="btn btn-outline-primary">
-                            <i class="bi bi-megaphone me-2"></i>
+                        <a href="{% url 'civicpulse:campaign-create' %}" class="btn btn-outline-primary" role="button" aria-label="Create a new campaign">
+                            <i class="bi bi-megaphone me-2" aria-hidden="true"></i>
                             Create Campaign
-                        </button>
+                        </a>
                         {% endif %}
                         
                         {% if user_role == 'admin' or user_role == 'organizer' or user_role == 'volunteer' %}
@@ -236,12 +236,13 @@ document.addEventListener('DOMContentLoaded', function() {
     // Placeholder for dashboard interactivity
     console.log('Dashboard loaded for user role: {{ user_role }}');
     
-    // Add click handlers for placeholder quick action buttons (not real links)
+    // Add click handlers for placeholder quick action buttons
+    // Note: Only affects buttons that are still using type="button"
+    // (e.g., Log Contact Attempt, Generate Report)
+    // Actual links (e.g., Add New Contact, Create Campaign) navigate directly
     const actionButtons = document.querySelectorAll('.btn[type="button"]');
     actionButtons.forEach(button => {
         button.addEventListener('click', function() {
-            // For now, just show an alert
-            // In a real implementation, these would navigate to appropriate pages
             const action = this.textContent.trim();
             alert(`Feature coming soon: ${action}`);
         });
