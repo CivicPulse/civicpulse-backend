@@ -1357,6 +1357,13 @@ class Campaign(models.Model):
         ("archived", "Archived"),
     ]
 
+    SCOPE_CHOICES = [
+        ("district", "Single District"),
+        ("multi_district", "Multiple Districts"),
+        ("statewide", "Statewide"),
+        ("national", "National"),
+    ]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     # Campaign Information
@@ -1366,6 +1373,20 @@ class Campaign(models.Model):
     election_date = models.DateField()
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="active")
     organization = models.CharField(max_length=255, blank=True)
+
+    # District Targeting
+    target_districts: models.ManyToManyField = models.ManyToManyField(
+        "District",
+        related_name="campaigns",
+        blank=True,
+        help_text="Districts this campaign targets for contact outreach",
+    )
+    scope = models.CharField(
+        max_length=50,
+        choices=SCOPE_CHOICES,
+        default="district",
+        help_text="Geographical scope of the campaign",
+    )
 
     # Audit fields
     created_by = models.ForeignKey(
@@ -1399,8 +1420,10 @@ class Campaign(models.Model):
             models.Index(fields=["created_at"]),
             models.Index(fields=["organization"]),
             models.Index(fields=["candidate_name"]),
+            models.Index(fields=["scope"]),
             # Composite index for common queries
             models.Index(fields=["status", "election_date"]),
+            models.Index(fields=["scope", "status"]),
         ]
 
     def __str__(self) -> str:
@@ -1491,3 +1514,241 @@ class Campaign(models.Model):
         if self.election_date < today:
             return None  # Election has passed
         return (self.election_date - today).days
+
+
+class District(models.Model):
+    """Model representing electoral districts."""
+
+    DISTRICT_TYPE_CHOICES = [
+        ("federal_senate", "Federal Senate"),
+        ("federal_house", "Federal House"),
+        ("state_senate", "State Senate"),
+        ("state_house", "State House"),
+        ("county", "County"),
+        ("school_board", "School Board"),
+        ("municipality", "Municipality"),
+        ("other", "Other"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    # District Information
+    name = models.CharField(max_length=200)
+    district_code = models.CharField(max_length=50, unique=True, db_index=True)
+    district_type = models.CharField(max_length=20, choices=DISTRICT_TYPE_CHOICES)
+    state = models.CharField(max_length=2)
+
+    # Geographic Information
+    boundary_description = models.TextField(blank=True)
+    counties_covered = models.JSONField(default=list, blank=True)
+    zip_codes_covered = models.JSONField(default=list, blank=True)
+
+    # Administrative Information
+    election_authority = models.CharField(max_length=255, blank=True)
+    population = models.IntegerField(null=True, blank=True)
+    notes = models.TextField(blank=True)
+
+    # Audit fields
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "districts"
+        verbose_name_plural = "Districts"
+        ordering = ["state", "district_type", "name"]
+        indexes = [
+            models.Index(fields=["district_code"]),
+            models.Index(fields=["district_type"]),
+            models.Index(fields=["state"]),
+            models.Index(fields=["state", "district_type"]),
+            models.Index(fields=["is_active"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.name} ({self.district_code})"
+
+    def clean(self) -> None:
+        """Validate the District instance."""
+        super().clean()
+
+        # Sanitize text fields
+        text_fields = ["name", "boundary_description", "election_authority", "notes"]
+        for field_name in text_fields:
+            value = getattr(self, field_name, "")
+            if value:
+                sanitized_value = sanitize_text_field(value)
+                setattr(self, field_name, sanitized_value)
+                validate_text_content(sanitized_value, field_name)
+
+        # Validate state is a valid US state code
+        if self.state:
+            if self.state.upper() not in VALID_US_STATE_CODES:
+                raise ValidationError(
+                    {"state": f"'{self.state}' is not a valid US state code."}
+                )
+
+        # Validate district_code format
+        if self.district_code:
+            if not re.match(r"^[A-Z]{2}-\d+$", self.district_code):
+                raise ValidationError(
+                    {
+                        "district_code": (
+                            "District code must be in format 'XX-NN' "
+                            "(e.g., 'PA-05', 'CA-12')."
+                        )
+                    }
+                )
+
+        # Validate population is reasonable if provided
+        if self.population is not None and self.population < 0:
+            raise ValidationError({"population": "Population cannot be negative."})
+
+        if self.population is not None and self.population > 50_000_000:
+            raise ValidationError(
+                {"population": "Population seems unreasonably large."}
+            )
+
+
+class Officeholder(models.Model):
+    """Model representing elected officials."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    # Relationship to District
+    district = models.ForeignKey(
+        District, on_delete=models.CASCADE, related_name="officeholders"
+    )
+
+    # Personal Information
+    first_name = models.CharField(max_length=100)
+    last_name = models.CharField(max_length=100)
+    party_affiliation = models.CharField(max_length=50, blank=True)
+
+    # Term Information
+    term_start = models.DateField()
+    term_end = models.DateField(null=True, blank=True)
+    is_current = models.BooleanField(default=True, db_index=True)
+
+    # Contact Information
+    office_phone = models.CharField(
+        max_length=20, blank=True, validators=[validate_phone_number]
+    )
+    office_email = models.EmailField(blank=True)
+    website = models.URLField(blank=True)
+    office_address = models.TextField(blank=True)
+
+    # Audit fields
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "officeholders"
+        ordering = ["-is_current", "-term_start"]
+        indexes = [
+            models.Index(fields=["is_current"]),
+            models.Index(fields=["district"]),
+            models.Index(fields=["last_name", "first_name"]),
+            models.Index(fields=["term_start"]),
+            models.Index(fields=["term_end"]),
+            models.Index(fields=["district", "is_current"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.first_name} {self.last_name} - {self.district.district_code}"
+
+    @property
+    def full_name(self) -> str:
+        """Return the full name of the officeholder."""
+        return f"{self.first_name} {self.last_name}"
+
+    def clean(self) -> None:
+        """Validate the Officeholder instance."""
+        super().clean()
+
+        # Sanitize text fields
+        text_fields = ["first_name", "last_name", "party_affiliation", "office_address"]
+        for field_name in text_fields:
+            value = getattr(self, field_name, "")
+            if value:
+                sanitized_value = sanitize_text_field(value)
+                setattr(self, field_name, sanitized_value)
+                validate_text_content(sanitized_value, field_name)
+
+        # Validate term dates
+        if self.term_start and self.term_start > timezone.now().date():
+            raise ValidationError(
+                {"term_start": "Term start date cannot be in the future."}
+            )
+
+        if self.term_end:
+            if self.term_end < self.term_start:
+                raise ValidationError(
+                    {"term_end": "Term end date cannot be before term start date."}
+                )
+
+            # If term has ended, is_current should be False
+            if self.term_end < timezone.now().date() and self.is_current:
+                raise ValidationError(
+                    {"is_current": ("Cannot be marked as current when term has ended.")}
+                )
+
+
+class PersonDistrict(models.Model):
+    """Many-to-many relationship between Person and District."""
+
+    ASSIGNMENT_METHOD_CHOICES = [
+        ("manual", "Manual Assignment"),
+        ("voter_record", "Voter Record"),
+        ("geocoding", "Geocoding"),
+        ("zip_match", "ZIP Code Match"),
+        ("import", "Data Import"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    # Relationships
+    person = models.ForeignKey(
+        Person, on_delete=models.CASCADE, related_name="person_districts"
+    )
+    district = models.ForeignKey(
+        District, on_delete=models.CASCADE, related_name="district_people"
+    )
+
+    # Assignment Information
+    assignment_method = models.CharField(
+        max_length=20, choices=ASSIGNMENT_METHOD_CHOICES
+    )
+    assigned_at = models.DateTimeField(auto_now_add=True)
+    confidence = models.DecimalField(max_digits=5, decimal_places=2, default=100.00)
+    current_officeholder_name = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        db_table = "person_districts"
+        unique_together = [["person", "district"]]
+        indexes = [
+            models.Index(fields=["person", "district"]),
+            models.Index(fields=["district", "assignment_method"]),
+            models.Index(fields=["assigned_at"]),
+            models.Index(fields=["confidence"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.person.full_name} - {self.district.district_code}"
+
+    def clean(self) -> None:
+        """Validate the PersonDistrict instance."""
+        super().clean()
+
+        # Sanitize text field
+        if self.current_officeholder_name:
+            sanitized_value = sanitize_text_field(self.current_officeholder_name)
+            self.current_officeholder_name = sanitized_value
+            validate_text_content(sanitized_value, "current_officeholder_name")
+
+        # Validate confidence is within valid range (0-100)
+        if self.confidence is not None:
+            if not (0 <= self.confidence <= 100):
+                raise ValidationError(
+                    {"confidence": "Confidence must be between 0 and 100."}
+                )
