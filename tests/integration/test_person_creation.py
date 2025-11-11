@@ -249,7 +249,10 @@ class TestDuplicateDetectionFlow:
 
         # Only the original duplicate_person should exist, no new person created
         assert Person.objects.filter(email="john.doe@example.com").count() == 1
-        assert Person.objects.filter(email="john.doe@example.com").first() == duplicate_person
+        assert (
+            Person.objects.filter(email="john.doe@example.com").first()
+            == duplicate_person
+        )
 
     def test_creation_succeeds_with_confirmation(
         self, authenticated_client, duplicate_person, valid_person_data
@@ -540,6 +543,7 @@ class TestPersonDetailView:
     def test_non_existent_persons_return_404(self, authenticated_client):
         """Test that non-existent persons return 404."""
         import uuid
+
         # Use a random UUID that doesn't exist in the database
         non_existent_uuid = uuid.uuid4()
         url = reverse("civicpulse:person_detail", kwargs={"pk": non_existent_uuid})
@@ -695,7 +699,9 @@ class TestCompleteWorkflow:
         assert response.status_code == 200
         assert Person.objects.filter(email="john.doe@example.com").count() == 2
         # Get the newly created person (not the duplicate_person)
-        persons = Person.objects.filter(email="john.doe@example.com").order_by("-created_at")
+        persons = Person.objects.filter(email="john.doe@example.com").order_by(
+            "-created_at"
+        )
         person = persons.first()
         assert person.first_name == "John"
         assert person.last_name == "Doe"

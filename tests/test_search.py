@@ -424,9 +424,7 @@ class TestPersonSearchAPIView:
         data = json.loads(response.content)
 
         # Find John in results
-        john = next(
-            (r for r in data["results"] if r["first_name"] == "John"), None
-        )
+        john = next((r for r in data["results"] if r["first_name"] == "John"), None)
         assert john is not None
         assert "voter" in john
         assert "voter_id" in john["voter"]
