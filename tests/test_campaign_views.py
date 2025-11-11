@@ -21,12 +21,11 @@ Tests cover:
 """
 
 from datetime import date, timedelta
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import pytest
 from django.contrib.auth import get_user_model
 from django.contrib.messages import get_messages
-from django.test import Client
 from django.urls import reverse
 from django.utils import timezone
 
@@ -492,7 +491,7 @@ class TestCampaignCreateView:
 
     def test_sets_created_by(self, client_logged_in, campaign_form_data, user):
         """Test that created_by is set to current user."""
-        response = client_logged_in.post(self.url, campaign_form_data)
+        client_logged_in.post(self.url, campaign_form_data)
 
         campaign = Campaign.objects.get(name="New Campaign 2025")
         assert campaign.created_by == user
@@ -777,9 +776,7 @@ class TestCampaignDeleteView:
         assert response.status_code == 200
         assert "campaign" in response.context
         assert response.context["campaign"] == campaign
-        assert (
-            response.context["page_title"] == f"Delete Campaign: {campaign.name}"
-        )
+        assert response.context["page_title"] == f"Delete Campaign: {campaign.name}"
 
     def test_soft_delete_campaign(self, client_logged_in, campaign, user):
         """Test successful soft delete of campaign."""
@@ -867,7 +864,7 @@ class TestCampaignDeleteView:
         """Test that deleted_at and deleted_by are set correctly."""
         url = reverse("civicpulse:campaign-delete", kwargs={"pk": campaign.pk})
         before_delete = timezone.now()
-        response = client_logged_in.post(url)
+        client_logged_in.post(url)
 
         campaign.refresh_from_db()
         assert campaign.deleted_by == user

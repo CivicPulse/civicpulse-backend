@@ -145,7 +145,6 @@ class TestCampaignAdmin:
         self, campaign_admin, campaign, request_factory
     ):
         """Test days_until_election_display for upcoming election."""
-        request = request_factory.get("/admin/civicpulse/campaign/")
         result = campaign_admin.days_until_election_display(campaign)
 
         # Should display days count for upcoming election
@@ -156,7 +155,6 @@ class TestCampaignAdmin:
         self, campaign_admin, past_campaign, request_factory
     ):
         """Test days_until_election_display for past election."""
-        request = request_factory.get("/admin/civicpulse/campaign/")
         result = campaign_admin.days_until_election_display(past_campaign)
 
         # Should display "Past Election" for past elections
@@ -197,8 +195,8 @@ class TestCampaignAdmin:
         request = request_factory.get("/admin/civicpulse/campaign/")
         request.user = admin_user
         # Add messages storage
-        setattr(request, "session", {})
-        setattr(request, "_messages", FallbackStorage(request))
+        request.session = {}
+        request._messages = FallbackStorage(request)
 
         queryset = Campaign.objects.filter(pk=campaign.pk)
         campaign_admin.archive_campaigns(request, queryset)
@@ -216,8 +214,8 @@ class TestCampaignAdmin:
         request = request_factory.get("/admin/civicpulse/campaign/")
         request.user = admin_user
         # Add messages storage
-        setattr(request, "session", {})
-        setattr(request, "_messages", FallbackStorage(request))
+        request.session = {}
+        request._messages = FallbackStorage(request)
 
         queryset = Campaign.objects.filter(pk=past_campaign.pk)
         campaign_admin.activate_campaigns(request, queryset)
