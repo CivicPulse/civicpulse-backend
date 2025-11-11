@@ -1,9 +1,10 @@
 """
 Forms for the CivicPulse application.
 
-Provides secure forms for user authentication and Person management, including:
+Provides secure forms for user authentication and data management, including:
 - Login, registration, and password reset functionality
 - Person creation and editing with layered validation
+- Campaign creation and editing with duplicate detection
 - Comprehensive validation with XSS protection
 """
 
@@ -19,9 +20,11 @@ from django.contrib.auth.forms import (
     UserCreationForm,
 )
 from django.core.exceptions import ValidationError
+from django.utils import timezone
 
 from civicpulse.models import (
     VALID_US_STATE_CODES,
+    Campaign,
     Person,
     sanitize_text_field,
     validate_phone_number,
@@ -960,6 +963,303 @@ class PersonForm(forms.ModelForm):
             # Find duplicates (exclude current instance if editing)
             exclude_id = str(self.instance.id) if self.instance.pk else None
             duplicates = detector.find_duplicates(person_data, exclude_id=exclude_id)
+
+            # Store duplicates for view to access (limit to 10 for performance)
+            self.duplicates = list(duplicates[:10])
+
+        return cleaned_data if cleaned_data else {}
+
+
+class CampaignForm(forms.ModelForm):
+    """
+    Form for creating and editing Campaign objects.
+
+    Implements layered validation following the documented pattern:
+    1. Field-level: Sanitization + basic validation (clean_<field>())
+    2. Form-level: Cross-field validation + duplicate detection (clean())
+    3. Model-level: Business rules (automatic on save via Campaign.clean())
+
+    Features:
+    - XSS protection through sanitization of all text fields
+    - Comprehensive validation for election dates and campaign names
+    - Duplicate detection using CampaignDuplicateDetector service
+    - User-friendly Bootstrap styling and help text
+    - Date validation for election dates
+    - Case-insensitive uniqueness check for campaign names
+
+    Example:
+        >>> form = CampaignForm(data={
+        ...     'name': 'Vote for John Doe',
+        ...     'candidate_name': 'John Doe',
+        ...     'election_date': '2024-11-05',
+        ...     'status': 'active'
+        ... })
+        >>> if form.is_valid():
+        ...     campaign = form.save()
+        ...     duplicates = form.duplicates  # Check for potential duplicates
+    """
+
+    class Meta:
+        model = Campaign
+        fields = [
+            "name",
+            "candidate_name",
+            "description",
+            "election_date",
+            "status",
+            "organization",
+        ]
+        widgets = {
+            "name": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "Enter campaign name",
+                }
+            ),
+            "candidate_name": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "Enter candidate's full name",
+                }
+            ),
+            "description": forms.Textarea(
+                attrs={
+                    "class": "form-control",
+                    "rows": 4,
+                    "placeholder": "Enter campaign description",
+                }
+            ),
+            "election_date": forms.DateInput(
+                attrs={
+                    "type": "date",
+                    "class": "form-control",
+                }
+            ),
+            "status": forms.Select(attrs={"class": "form-select"}),
+            "organization": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "Enter organization name (optional)",
+                }
+            ),
+        }
+        help_texts = {
+            "name": "Enter the campaign name (3-200 characters)",
+            "candidate_name": "Enter the candidate's full name",
+            "election_date": "Select the election date",
+            "status": "Current status of the campaign",
+            "organization": "Optional: Organization running the campaign",
+        }
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        """
+        Initialize form with enhanced styling and duplicate tracking.
+
+        Sets up:
+        - Bootstrap styling for all fields
+        - Required field markers
+        - Duplicate detection storage
+        """
+        super().__init__(*args, **kwargs)
+        self.duplicates: list[Campaign] = []  # Store potential duplicates
+
+        # Mark required fields explicitly
+        self.fields["name"].required = True
+        self.fields["candidate_name"].required = True
+        self.fields["election_date"].required = True
+        self.fields["status"].required = True
+
+    def clean_name(self) -> str:
+        """
+        Sanitize and validate campaign name.
+
+        Returns:
+            Sanitized campaign name
+
+        Raises:
+            ValidationError: If name is invalid (length, XSS, or duplicate)
+        """
+        from civicpulse.models import sanitize_text_field
+
+        value = self.cleaned_data.get("name", "")
+
+        # 1. Sanitize FIRST
+        sanitized = sanitize_text_field(value)
+
+        # 2. Validate length
+        if not sanitized or not sanitized.strip():
+            raise ValidationError("Campaign name cannot be empty")
+
+        if len(sanitized) < 3:
+            raise ValidationError("Campaign name must be at least 3 characters long")
+
+        if len(sanitized) > 200:
+            raise ValidationError("Campaign name cannot exceed 200 characters")
+
+        # Note: Uniqueness check is handled by duplicate detection in clean()
+        # to allow for user confirmation workflow
+        return sanitized
+
+    def clean_candidate_name(self) -> str:
+        """
+        Sanitize and validate candidate name.
+
+        Returns:
+            Sanitized candidate name
+
+        Raises:
+            ValidationError: If candidate name is invalid
+        """
+        from civicpulse.models import sanitize_text_field
+
+        value = self.cleaned_data.get("candidate_name", "")
+
+        # 1. Sanitize FIRST
+        sanitized = sanitize_text_field(value)
+
+        # 2. Validate length
+        if not sanitized or not sanitized.strip():
+            raise ValidationError("Candidate name cannot be empty")
+
+        if len(sanitized) < 2:
+            raise ValidationError("Candidate name must be at least 2 characters long")
+
+        if len(sanitized) > 200:
+            raise ValidationError("Candidate name cannot exceed 200 characters")
+
+        return sanitized
+
+    def clean_description(self) -> str:
+        """
+        Sanitize and validate campaign description.
+
+        Returns:
+            Sanitized description
+
+        Raises:
+            ValidationError: If description contains suspicious content
+        """
+        from civicpulse.models import sanitize_text_field
+
+        value = self.cleaned_data.get("description", "")
+
+        if value:
+            # Sanitize for XSS protection
+            sanitized = sanitize_text_field(value)
+
+            # Validate reasonable length
+            if len(sanitized) > 10000:
+                raise ValidationError("Description cannot exceed 10,000 characters")
+
+            return sanitized
+
+        return ""
+
+    def clean_organization(self) -> str:
+        """
+        Sanitize and validate organization name.
+
+        Returns:
+            Sanitized organization name
+        """
+        from civicpulse.models import sanitize_text_field
+
+        value = self.cleaned_data.get("organization", "")
+
+        if value:
+            sanitized = sanitize_text_field(value)
+
+            if len(sanitized) > 255:
+                raise ValidationError("Organization name cannot exceed 255 characters")
+
+            return sanitized
+
+        return ""
+
+    def clean_election_date(self) -> date:
+        """
+        Validate election date.
+
+        Returns:
+            Validated election date
+
+        Raises:
+            ValidationError: If date is in past (for new campaigns) or >10 years future
+        """
+        from datetime import timedelta
+
+        value = self.cleaned_data.get("election_date")
+
+        if not value:
+            raise ValidationError("Election date is required")
+
+        today = timezone.now().date()
+
+        # For new campaigns, election date cannot be in the past
+        # Use _state.adding to properly detect new vs existing instances
+        if self.instance._state.adding and value < today:
+            raise ValidationError(
+                "Election date cannot be in the past for new campaigns"
+            )
+
+        # Election date should not be more than 10 years in the future
+        ten_years_from_now = today + timedelta(days=3650)
+        if value > ten_years_from_now:
+            raise ValidationError(
+                "Election date seems unreasonably far in the future (over 10 years)"
+            )
+
+        return value
+
+    def clean(self) -> dict[str, Any]:
+        """
+        Cross-field validation and duplicate detection.
+
+        Performs:
+        1. Validates relationships between fields
+        2. Detects potential duplicates using CampaignDuplicateDetector
+        3. Stores duplicates in self.duplicates for view access
+        4. Calls model's clean() for additional validation
+
+        Returns:
+            Cleaned data dictionary
+
+        Note:
+            Duplicate detection does not prevent form submission,
+            but provides information for the view to warn the user.
+        """
+        cleaned_data = super().clean()
+
+        # Check for duplicates if we have minimum required data
+        if not cleaned_data:
+            return {}
+
+        has_name = cleaned_data.get("name")
+        has_candidate = cleaned_data.get("candidate_name")
+        has_election_date = cleaned_data.get("election_date")
+
+        if has_name and has_candidate and has_election_date:
+            from civicpulse.services.campaign_service import (
+                CampaignDataDict,
+                CampaignDuplicateDetector,
+            )
+
+            detector = CampaignDuplicateDetector()
+            campaign_data: CampaignDataDict = {
+                "name": cleaned_data.get("name", ""),
+                "candidate_name": cleaned_data.get("candidate_name", ""),
+                "election_date": cleaned_data.get("election_date"),  # type: ignore[typeddict-item]
+            }
+
+            # Add optional organization if present
+            if cleaned_data.get("organization"):
+                campaign_data["organization"] = cleaned_data.get("organization", "")
+
+            # Find duplicates (exclude current instance if editing)
+            exclude_id = (
+                str(self.instance.id) if not self.instance._state.adding else None
+            )
+            duplicates = detector.find_duplicates(campaign_data, exclude_id=exclude_id)
 
             # Store duplicates for view to access (limit to 10 for performance)
             self.duplicates = list(duplicates[:10])

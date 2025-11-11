@@ -1,0 +1,421 @@
+{% extends 'base.html' %}
+
+{% block title %}Edit Campaign - {{ campaign.name }} - CivicPulse{% endblock %}
+
+{% block extra_css %}
+<style>
+    .field-group {
+        background-color: #f8fafc;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        border: 1px solid #e2e8f0;
+    }
+
+    .field-group h5 {
+        color: var(--cp-primary);
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid var(--cp-primary);
+    }
+
+    .required-indicator {
+        color: var(--cp-danger);
+        font-weight: bold;
+    }
+
+    .form-label {
+        font-weight: 500;
+        color: #334155;
+        margin-bottom: 0.5rem;
+    }
+
+    .form-text {
+        font-size: 0.875rem;
+        color: #64748b;
+    }
+
+    .invalid-feedback {
+        display: block;
+        font-size: 0.875rem;
+        color: var(--cp-danger);
+        margin-top: 0.25rem;
+    }
+
+    .btn-submit {
+        min-width: 150px;
+    }
+
+    .loading-spinner {
+        display: none;
+        width: 1rem;
+        height: 1rem;
+        border: 2px solid #ffffff;
+        border-top-color: transparent;
+        border-radius: 50%;
+        animation: spin 0.6s linear infinite;
+    }
+
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    .btn-submit.loading .loading-spinner {
+        display: inline-block;
+    }
+
+    .btn-submit.loading .btn-text {
+        display: none;
+    }
+
+    .edit-notice {
+        background-color: #eff6ff;
+        border-left: 4px solid var(--cp-primary);
+        padding: 1rem 1.25rem;
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+    }
+
+    .edit-notice i {
+        color: var(--cp-primary);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4 mb-5">
+    <!-- Breadcrumb Navigation -->
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item">
+                <a href="{% url 'civicpulse:dashboard' %}">
+                    <i class="bi bi-house-door"></i> Dashboard
+                </a>
+            </li>
+            <li class="breadcrumb-item">
+                <a href="{% url 'civicpulse:campaign-list' %}">Campaigns</a>
+            </li>
+            <li class="breadcrumb-item">
+                <a href="{% url 'civicpulse:campaign-detail' campaign.id %}">{{ campaign.name }}</a>
+            </li>
+            <li class="breadcrumb-item active" aria-current="page">Edit</li>
+        </ol>
+    </nav>
+
+    <!-- Page Header -->
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="h3 mb-0">
+                <i class="bi bi-pencil-square me-2"></i>
+                Edit Campaign - {{ campaign.name }}
+            </h1>
+            <p class="text-muted mt-2">
+                Update the campaign information below. Required fields are marked with
+                <span class="required-indicator">*</span>
+            </p>
+        </div>
+    </div>
+
+    <!-- Edit Notice -->
+    <div class="edit-notice">
+        <i class="bi bi-info-circle-fill me-2"></i>
+        <strong>Note:</strong> You are editing an existing campaign. Past election dates are allowed for historical campaigns.
+    </div>
+
+    <!-- Form -->
+    <form method="post" class="needs-validation" novalidate id="campaignEditForm">
+        {% csrf_token %}
+
+        <!-- Campaign Information Section -->
+        <div class="field-group">
+            <h5>
+                <i class="bi bi-megaphone me-2"></i>
+                Campaign Information
+            </h5>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="{{ form.name.id_for_label }}" class="form-label">
+                        Campaign Name <span class="required-indicator">*</span>
+                    </label>
+                    {{ form.name }}
+                    {% if form.name.errors %}
+                        <div class="invalid-feedback">
+                            {{ form.name.errors.0 }}
+                        </div>
+                    {% endif %}
+                    {% if form.name.help_text %}
+                        <div class="form-text">{{ form.name.help_text }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="col-md-6 mb-3">
+                    <label for="{{ form.candidate_name.id_for_label }}" class="form-label">
+                        Candidate Name <span class="required-indicator">*</span>
+                    </label>
+                    {{ form.candidate_name }}
+                    {% if form.candidate_name.errors %}
+                        <div class="invalid-feedback">
+                            {{ form.candidate_name.errors.0 }}
+                        </div>
+                    {% endif %}
+                    {% if form.candidate_name.help_text %}
+                        <div class="form-text">{{ form.candidate_name.help_text }}</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="{{ form.election_date.id_for_label }}" class="form-label">
+                        Election Date <span class="required-indicator">*</span>
+                    </label>
+                    {{ form.election_date }}
+                    {% if form.election_date.errors %}
+                        <div class="invalid-feedback">
+                            {{ form.election_date.errors.0 }}
+                        </div>
+                    {% endif %}
+                    {% if form.election_date.help_text %}
+                        <div class="form-text">{{ form.election_date.help_text }}</div>
+                    {% endif %}
+                    <div class="form-text">
+                        <i class="bi bi-info-circle me-1"></i>
+                        Past dates are allowed for historical campaigns
+                    </div>
+                </div>
+
+                <div class="col-md-6 mb-3">
+                    <label for="{{ form.status.id_for_label }}" class="form-label">
+                        Status <span class="required-indicator">*</span>
+                    </label>
+                    {{ form.status }}
+                    {% if form.status.errors %}
+                        <div class="invalid-feedback">
+                            {{ form.status.errors.0 }}
+                        </div>
+                    {% endif %}
+                    {% if form.status.help_text %}
+                        <div class="form-text">{{ form.status.help_text }}</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Additional Details Section -->
+        <div class="field-group">
+            <h5>
+                <i class="bi bi-info-circle me-2"></i>
+                Additional Details
+            </h5>
+            <div class="row">
+                <div class="col-md-12 mb-3">
+                    <label for="{{ form.description.id_for_label }}" class="form-label">
+                        Description
+                    </label>
+                    {{ form.description }}
+                    {% if form.description.errors %}
+                        <div class="invalid-feedback">
+                            {{ form.description.errors.0 }}
+                        </div>
+                    {% endif %}
+                    {% if form.description.help_text %}
+                        <div class="form-text">{{ form.description.help_text }}</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-12 mb-3">
+                    <label for="{{ form.organization.id_for_label }}" class="form-label">
+                        Organization
+                    </label>
+                    {{ form.organization }}
+                    {% if form.organization.errors %}
+                        <div class="invalid-feedback">
+                            {{ form.organization.errors.0 }}
+                        </div>
+                    {% endif %}
+                    {% if form.organization.help_text %}
+                        <div class="form-text">{{ form.organization.help_text }}</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Metadata Section (Read-only) -->
+        <div class="field-group">
+            <h5>
+                <i class="bi bi-clock-history me-2"></i>
+                Audit Information
+            </h5>
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Created By</label>
+                    <input type="text" class="form-control"
+                           value="{% if campaign.created_by %}{{ campaign.created_by.get_full_name|default:campaign.created_by.username }}{% else %}Unknown{% endif %}"
+                           disabled>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Created At</label>
+                    <input type="text" class="form-control"
+                           value="{{ campaign.created_at|date:'M d, Y g:i A' }}"
+                           disabled>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Last Updated</label>
+                    <input type="text" class="form-control"
+                           value="{{ campaign.updated_at|date:'M d, Y g:i A' }}"
+                           disabled>
+                </div>
+            </div>
+        </div>
+
+        <!-- Form Actions -->
+        <div class="d-flex justify-content-between align-items-center mt-4">
+            <a href="{% url 'civicpulse:campaign-detail' campaign.id %}" class="btn btn-secondary">
+                <i class="bi bi-x-circle me-2"></i>Cancel
+            </a>
+
+            <button type="submit" class="btn btn-primary btn-submit" id="submitBtn">
+                <span class="loading-spinner me-2"></span>
+                <span class="btn-text">
+                    <i class="bi bi-check-circle me-2"></i>Save Changes
+                </span>
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('campaignEditForm');
+    const submitBtn = document.getElementById('submitBtn');
+
+    // Form submission handling
+    form.addEventListener('submit', function(event) {
+        // HTML5 validation
+        if (!form.checkValidity()) {
+            event.preventDefault();
+            event.stopPropagation();
+            form.classList.add('was-validated');
+
+            // Find first invalid field and focus it
+            const firstInvalid = form.querySelector(':invalid');
+            if (firstInvalid) {
+                firstInvalid.focus();
+                firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+
+            return false;
+        }
+
+        // Show loading state
+        submitBtn.classList.add('loading');
+        submitBtn.disabled = true;
+    });
+
+    // Real-time validation feedback
+    const inputs = form.querySelectorAll('input, select, textarea');
+    inputs.forEach(function(input) {
+        input.addEventListener('blur', function() {
+            if (form.classList.contains('was-validated')) {
+                this.checkValidity();
+            }
+        });
+
+        input.addEventListener('input', function() {
+            if (this.classList.contains('is-invalid')) {
+                this.classList.remove('is-invalid');
+            }
+        });
+    });
+
+    // Character counter for description field
+    const descriptionField = document.querySelector('textarea[id*="description"]');
+    if (descriptionField) {
+        const maxLength = 5000;
+        const counter = document.createElement('div');
+        counter.className = 'form-text text-end';
+        const currentLength = descriptionField.value.length;
+        counter.textContent = currentLength.toLocaleString() + ' / ' + maxLength.toLocaleString() + ' characters';
+        descriptionField.parentElement.appendChild(counter);
+
+        descriptionField.addEventListener('input', function() {
+            const length = this.value.length;
+            counter.textContent = length.toLocaleString() + ' / ' + maxLength.toLocaleString() + ' characters';
+
+            if (length > maxLength * 0.9) {
+                counter.classList.add('text-warning');
+            } else {
+                counter.classList.remove('text-warning');
+            }
+
+            if (length >= maxLength) {
+                counter.classList.add('text-danger');
+            } else {
+                counter.classList.remove('text-danger');
+            }
+        });
+
+        // Trigger on load to set initial state
+        descriptionField.dispatchEvent(new Event('input'));
+    }
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', function(e) {
+        // Ctrl/Cmd + S to save
+        if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+            e.preventDefault();
+            form.requestSubmit();
+        }
+
+        // Escape to cancel
+        if (e.key === 'Escape') {
+            const cancelBtn = document.querySelector('a.btn-secondary');
+            if (cancelBtn && confirm('Are you sure you want to cancel? Any unsaved changes will be lost.')) {
+                window.location.href = cancelBtn.href;
+            }
+        }
+    });
+
+    // Warn before leaving with unsaved changes
+    let formChanged = false;
+    const originalValues = {};
+
+    // Store original values
+    inputs.forEach(function(input) {
+        if (!input.disabled) {
+            originalValues[input.name] = input.value;
+        }
+    });
+
+    // Track changes
+    inputs.forEach(function(input) {
+        input.addEventListener('change', function() {
+            if (!this.disabled && originalValues[this.name] !== this.value) {
+                formChanged = true;
+            }
+        });
+    });
+
+    window.addEventListener('beforeunload', function(e) {
+        if (formChanged && !submitBtn.classList.contains('loading')) {
+            e.preventDefault();
+            e.returnValue = '';
+            return '';
+        }
+    });
+
+    // Clear warning after successful submit
+    form.addEventListener('submit', function() {
+        formChanged = false;
+    });
+
+    console.log('Campaign edit form initialized for: {{ campaign.name }}');
+});
+</script>
+{% endblock %}

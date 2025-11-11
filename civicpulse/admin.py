@@ -16,7 +16,7 @@ from django.utils import timezone
 from django.utils.html import format_html
 
 from .audit import AuditLog
-from .models import ContactAttempt, Person, User, VoterRecord
+from .models import Campaign, ContactAttempt, Person, User, VoterRecord
 
 
 @admin.register(User)
@@ -589,6 +589,243 @@ class ContactAttemptAdmin(admin.ModelAdmin):
         self.message_user(request, f"{positive_contacts.count()} supporters tagged.")
 
     actions = ["mark_for_followup", "mark_positive_sentiment"]
+
+
+class CampaignContactAttemptInline(admin.TabularInline):
+    """Inline admin for ContactAttempt within Campaign admin."""
+
+    model = ContactAttempt
+    extra = 1
+    can_delete = True
+
+    fields = (
+        "contact_type",
+        "contact_date",
+        "result",
+        "notes",
+        "contacted_by",
+    )
+
+    readonly_fields = ("contacted_by", "created_at")
+    ordering = ["-contact_date"]
+
+    # Show only recent contact attempts by default
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.select_related("contacted_by", "person").order_by("-contact_date")
+
+
+@admin.register(Campaign)
+class CampaignAdmin(admin.ModelAdmin):
+    """Custom admin configuration for Campaign model."""
+
+    # Fields to display in the list view
+    list_display = (
+        "name",
+        "candidate_name",
+        "election_date",
+        "status",
+        "days_until_election_display",
+        "created_by",
+        "created_at",
+    )
+
+    # Fields to filter by
+    list_filter = (
+        "status",
+        "election_date",
+        "created_at",
+        "organization",
+    )
+
+    # Fields to search
+    search_fields = (
+        "name",
+        "candidate_name",
+        "description",
+        "organization",
+    )
+
+    # Number of items per page
+    list_per_page = 25
+
+    # Ordering
+    ordering = ["-created_at"]
+
+    # Date hierarchy navigation
+    date_hierarchy = "election_date"
+
+    # Custom fieldsets for the form
+    fieldsets = (
+        (
+            "Campaign Information",
+            {
+                "fields": (
+                    "name",
+                    "candidate_name",
+                    "election_date",
+                    "status",
+                ),
+            },
+        ),
+        (
+            "Details",
+            {
+                "fields": ("description", "organization"),
+            },
+        ),
+        (
+            "Audit Information",
+            {
+                "fields": (
+                    "id",
+                    "created_by",
+                    "created_at",
+                    "updated_at",
+                    "is_active",
+                    "deleted_at",
+                    "deleted_by",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+    )
+
+    readonly_fields = (
+        "id",
+        "created_at",
+        "updated_at",
+        "created_by",
+        "deleted_at",
+        "deleted_by",
+        "days_until_election_display",
+    )
+
+    # Include inlines for related models
+    inlines = [CampaignContactAttemptInline]
+
+    # Optimize queries
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.select_related("created_by", "deleted_by").prefetch_related(
+            "contact_attempts"
+        )
+
+    # Custom methods for list display
+    @admin.display(description="Days Until Election", ordering="election_date")
+    def days_until_election_display(self, obj):
+        """Display days until election with color coding."""
+        days = obj.days_until_election
+        if days is None:
+            # Election has passed
+            return format_html(
+                '<span style="color: {}; font-weight: bold;">{}</span>',
+                "red",
+                "Past Election",
+            )
+        elif days == 0:
+            return format_html(
+                '<span style="color: orange; font-weight: bold;">Today!</span>'
+            )
+        elif days <= 30:
+            return format_html(
+                '<span style="color: orange; font-weight: bold;">{} days</span>', days
+            )
+        else:
+            return format_html('<span style="color: green;">{} days</span>', days)
+
+    # Override save_model to set created_by on creation
+    def save_model(self, request, obj, form, change):
+        """Set created_by on creation."""
+        if not change:  # Only on creation
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
+
+    # Custom actions
+    @admin.action(description="Archive selected campaigns")
+    def archive_campaigns(self, request, queryset):
+        """Set status to archived for selected campaigns."""
+        updated = queryset.update(status="archived")
+        self.message_user(request, f"{updated} campaign(s) successfully archived.")
+
+    @admin.action(description="Activate selected campaigns")
+    def activate_campaigns(self, request, queryset):
+        """Set status to active for selected campaigns."""
+        updated = queryset.update(status="active")
+        self.message_user(request, f"{updated} campaign(s) successfully activated.")
+
+    @admin.action(description="Export selected campaigns to CSV")
+    def export_to_csv(self, request, queryset):
+        """Export selected campaigns to CSV."""
+        import csv
+
+        response = HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = 'attachment; filename="campaigns.csv"'
+
+        writer = csv.writer(response)
+        writer.writerow(
+            [
+                "ID",
+                "Name",
+                "Candidate Name",
+                "Election Date",
+                "Status",
+                "Organization",
+                "Days Until Election",
+                "Created By",
+                "Created At",
+                "Description",
+            ]
+        )
+
+        for campaign in queryset:
+            election_date_str = (
+                campaign.election_date.isoformat() if campaign.election_date else ""
+            )
+            days_until = (
+                campaign.days_until_election
+                if campaign.days_until_election is not None
+                else "Past"
+            )
+            created_by_str = (
+                campaign.created_by.username if campaign.created_by else "Unknown"
+            )
+            created_at_str = (
+                campaign.created_at.isoformat() if campaign.created_at else ""
+            )
+
+            writer.writerow(
+                [
+                    str(campaign.id),
+                    campaign.name,
+                    campaign.candidate_name,
+                    election_date_str,
+                    campaign.status,
+                    campaign.organization,
+                    days_until,
+                    created_by_str,
+                    created_at_str,
+                    campaign.description,
+                ]
+            )
+
+        # Log the export action
+        AuditLog.log_action(
+            action=AuditLog.ACTION_EXPORT,
+            user=request.user,
+            message=f"Exported {queryset.count()} campaign(s) to CSV",
+            category=AuditLog.CATEGORY_ADMIN,
+            severity=AuditLog.SEVERITY_INFO,
+            metadata={
+                "export_type": "campaigns",
+                "format": "csv",
+                "record_count": queryset.count(),
+            },
+        )
+
+        return response
+
+    actions = ["archive_campaigns", "activate_campaigns", "export_to_csv"]
 
 
 @admin.register(AuditLog)

@@ -1,0 +1,522 @@
+{% extends 'base.html' %}
+
+{% block title %}Create New Campaign - CivicPulse{% endblock %}
+
+{% block extra_css %}
+<style>
+    .field-group {
+        background-color: #f8fafc;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        border: 1px solid #e2e8f0;
+    }
+
+    .field-group h5 {
+        color: var(--cp-primary);
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid var(--cp-primary);
+    }
+
+    .required-indicator {
+        color: var(--cp-danger);
+        font-weight: bold;
+    }
+
+    .form-label {
+        font-weight: 500;
+        color: #334155;
+        margin-bottom: 0.5rem;
+    }
+
+    .form-text {
+        font-size: 0.875rem;
+        color: #64748b;
+    }
+
+    .invalid-feedback {
+        display: block;
+        font-size: 0.875rem;
+        color: var(--cp-danger);
+        margin-top: 0.25rem;
+    }
+
+    .duplicate-warning {
+        border-left: 4px solid var(--cp-warning);
+        animation: slideIn 0.3s ease-out;
+    }
+
+    @keyframes slideIn {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .duplicate-table {
+        font-size: 0.9rem;
+    }
+
+    .duplicate-table td {
+        vertical-align: middle;
+    }
+
+    .btn-submit {
+        min-width: 150px;
+    }
+
+    .loading-spinner {
+        display: none;
+        width: 1rem;
+        height: 1rem;
+        border: 2px solid #ffffff;
+        border-top-color: transparent;
+        border-radius: 50%;
+        animation: spin 0.6s linear infinite;
+    }
+
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    .btn-submit.loading .loading-spinner {
+        display: inline-block;
+    }
+
+    .btn-submit.loading .btn-text {
+        display: none;
+    }
+
+    .status-badge {
+        padding: 0.25rem 0.75rem;
+        border-radius: 12px;
+        font-size: 0.875rem;
+        font-weight: 500;
+    }
+
+    .status-active {
+        background-color: #dcfce7;
+        color: #166534;
+    }
+
+    .status-paused {
+        background-color: #fef3c7;
+        color: #92400e;
+    }
+
+    .status-completed {
+        background-color: #e5e7eb;
+        color: #374151;
+    }
+
+    .status-archived {
+        background-color: #f3f4f6;
+        color: #6b7280;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4 mb-5">
+    <!-- Breadcrumb Navigation -->
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item">
+                <a href="{% url 'civicpulse:dashboard' %}">
+                    <i class="bi bi-house-door"></i> Dashboard
+                </a>
+            </li>
+            <li class="breadcrumb-item">
+                <a href="{% url 'civicpulse:campaign-list' %}">Campaigns</a>
+            </li>
+            <li class="breadcrumb-item active" aria-current="page">Create New Campaign</li>
+        </ol>
+    </nav>
+
+    <!-- Page Header -->
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="h3 mb-0">
+                <i class="bi bi-megaphone-fill me-2"></i>
+                Create New Campaign
+            </h1>
+            <p class="text-muted mt-2">
+                Enter the campaign information below. Required fields are marked with
+                <span class="required-indicator">*</span>
+            </p>
+        </div>
+    </div>
+
+    <!-- Duplicate Warning Alert -->
+    {% if duplicates %}
+    <div class="alert alert-warning alert-dismissible fade show duplicate-warning" role="alert">
+        <h5 class="alert-heading">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            Potential Duplicates Found
+        </h5>
+        <p class="mb-3">
+            We found {{ duplicates|length }} existing campaign{{ duplicates|length|pluralize }}
+            that may be similar to the one you're trying to create. Please review
+            {{ duplicates|length|pluralize:"this campaign,these campaigns" }} before continuing.
+        </p>
+
+        <div class="table-responsive">
+            <table class="table table-sm table-bordered duplicate-table bg-white">
+                <thead class="table-light">
+                    <tr>
+                        <th scope="col">Campaign Name</th>
+                        <th scope="col">Candidate</th>
+                        <th scope="col">Election Date</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for duplicate in duplicates %}
+                    <tr>
+                        <td>
+                            <strong>{{ duplicate.name }}</strong>
+                            {% if duplicate.organization %}
+                                <br><small class="text-muted">{{ duplicate.organization }}</small>
+                            {% endif %}
+                        </td>
+                        <td>{{ duplicate.candidate_name }}</td>
+                        <td>{{ duplicate.election_date|date:"M d, Y" }}</td>
+                        <td>
+                            <span class="status-badge status-{{ duplicate.status }}">
+                                {{ duplicate.get_status_display }}
+                            </span>
+                        </td>
+                        <td>
+                            <a href="{% url 'civicpulse:campaign-detail' duplicate.id %}"
+                               class="btn btn-sm btn-outline-primary"
+                               target="_blank"
+                               aria-label="View details for {{ duplicate.name }}">
+                                <i class="bi bi-eye"></i> View
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="form-check mt-3">
+            <input class="form-check-input" type="checkbox" id="confirmDuplicate" name="confirm_duplicates">
+            <label class="form-check-label fw-bold" for="confirmDuplicate">
+                I understand there may be duplicates, create this campaign anyway
+            </label>
+        </div>
+
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <!-- Form -->
+    <form method="post" class="needs-validation" novalidate id="campaignCreateForm">
+        {% csrf_token %}
+
+        <!-- Hidden field to track duplicate confirmation -->
+        <input type="hidden" name="duplicate_confirmed" id="duplicateConfirmed" value="false">
+
+        <!-- Campaign Information Section -->
+        <div class="field-group">
+            <h5>
+                <i class="bi bi-megaphone me-2"></i>
+                Campaign Information
+            </h5>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="{{ form.name.id_for_label }}" class="form-label">
+                        Campaign Name <span class="required-indicator">*</span>
+                    </label>
+                    {{ form.name }}
+                    {% if form.name.errors %}
+                        <div class="invalid-feedback">
+                            {{ form.name.errors.0 }}
+                        </div>
+                    {% endif %}
+                    {% if form.name.help_text %}
+                        <div class="form-text">{{ form.name.help_text }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="col-md-6 mb-3">
+                    <label for="{{ form.candidate_name.id_for_label }}" class="form-label">
+                        Candidate Name <span class="required-indicator">*</span>
+                    </label>
+                    {{ form.candidate_name }}
+                    {% if form.candidate_name.errors %}
+                        <div class="invalid-feedback">
+                            {{ form.candidate_name.errors.0 }}
+                        </div>
+                    {% endif %}
+                    {% if form.candidate_name.help_text %}
+                        <div class="form-text">{{ form.candidate_name.help_text }}</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="{{ form.election_date.id_for_label }}" class="form-label">
+                        Election Date <span class="required-indicator">*</span>
+                    </label>
+                    {{ form.election_date }}
+                    {% if form.election_date.errors %}
+                        <div class="invalid-feedback">
+                            {{ form.election_date.errors.0 }}
+                        </div>
+                    {% endif %}
+                    {% if form.election_date.help_text %}
+                        <div class="form-text">{{ form.election_date.help_text }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="col-md-6 mb-3">
+                    <label for="{{ form.status.id_for_label }}" class="form-label">
+                        Status <span class="required-indicator">*</span>
+                    </label>
+                    {{ form.status }}
+                    {% if form.status.errors %}
+                        <div class="invalid-feedback">
+                            {{ form.status.errors.0 }}
+                        </div>
+                    {% endif %}
+                    {% if form.status.help_text %}
+                        <div class="form-text">{{ form.status.help_text }}</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Additional Details Section -->
+        <div class="field-group">
+            <h5>
+                <i class="bi bi-info-circle me-2"></i>
+                Additional Details
+            </h5>
+            <div class="row">
+                <div class="col-md-12 mb-3">
+                    <label for="{{ form.description.id_for_label }}" class="form-label">
+                        Description
+                    </label>
+                    {{ form.description }}
+                    {% if form.description.errors %}
+                        <div class="invalid-feedback">
+                            {{ form.description.errors.0 }}
+                        </div>
+                    {% endif %}
+                    {% if form.description.help_text %}
+                        <div class="form-text">{{ form.description.help_text }}</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-12 mb-3">
+                    <label for="{{ form.organization.id_for_label }}" class="form-label">
+                        Organization
+                    </label>
+                    {{ form.organization }}
+                    {% if form.organization.errors %}
+                        <div class="invalid-feedback">
+                            {{ form.organization.errors.0 }}
+                        </div>
+                    {% endif %}
+                    {% if form.organization.help_text %}
+                        <div class="form-text">{{ form.organization.help_text }}</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Form Actions -->
+        <div class="d-flex justify-content-between align-items-center mt-4">
+            <a href="{% url 'civicpulse:campaign-list' %}" class="btn btn-secondary">
+                <i class="bi bi-x-circle me-2"></i>Cancel
+            </a>
+
+            <button type="submit" class="btn btn-primary btn-submit" id="submitBtn">
+                <span class="loading-spinner me-2"></span>
+                <span class="btn-text">
+                    <i class="bi bi-check-circle me-2"></i>Create Campaign
+                </span>
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('campaignCreateForm');
+    const submitBtn = document.getElementById('submitBtn');
+    const duplicateConfirmedInput = document.getElementById('duplicateConfirmed');
+    const confirmDuplicateCheckbox = document.getElementById('confirmDuplicate');
+    const electionDateInput = document.getElementById('{{ form.election_date.id_for_label }}');
+
+    // Handle duplicate confirmation
+    if (confirmDuplicateCheckbox) {
+        confirmDuplicateCheckbox.addEventListener('change', function() {
+            duplicateConfirmedInput.value = this.checked ? 'true' : 'false';
+        });
+    }
+
+    // Date validation - prevent past dates for new campaigns
+    if (electionDateInput) {
+        const today = new Date().toISOString().split('T')[0];
+        electionDateInput.setAttribute('min', today);
+
+        electionDateInput.addEventListener('change', function() {
+            const selectedDate = new Date(this.value);
+            const todayDate = new Date(today);
+
+            if (selectedDate < todayDate) {
+                this.setCustomValidity('Election date cannot be in the past');
+                this.classList.add('is-invalid');
+            } else {
+                this.setCustomValidity('');
+                this.classList.remove('is-invalid');
+            }
+        });
+    }
+
+    // Form submission handling
+    form.addEventListener('submit', function(event) {
+        // Check if duplicates exist and not confirmed
+        if (confirmDuplicateCheckbox && !confirmDuplicateCheckbox.checked) {
+            event.preventDefault();
+            event.stopPropagation();
+
+            // Scroll to duplicate warning
+            const duplicateWarning = document.querySelector('.duplicate-warning');
+            if (duplicateWarning) {
+                duplicateWarning.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+                // Highlight the checkbox
+                confirmDuplicateCheckbox.focus();
+                const checkboxParent = confirmDuplicateCheckbox.parentElement;
+                checkboxParent.classList.add('text-danger');
+                setTimeout(function() {
+                    checkboxParent.classList.remove('text-danger');
+                }, 2000);
+            }
+
+            return false;
+        }
+
+        // HTML5 validation
+        if (!form.checkValidity()) {
+            event.preventDefault();
+            event.stopPropagation();
+            form.classList.add('was-validated');
+
+            // Find first invalid field and focus it
+            const firstInvalid = form.querySelector(':invalid');
+            if (firstInvalid) {
+                firstInvalid.focus();
+                firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+
+            return false;
+        }
+
+        // Show loading state
+        submitBtn.classList.add('loading');
+        submitBtn.disabled = true;
+    });
+
+    // Real-time validation feedback
+    const inputs = form.querySelectorAll('input, select, textarea');
+    inputs.forEach(function(input) {
+        input.addEventListener('blur', function() {
+            if (form.classList.contains('was-validated')) {
+                this.checkValidity();
+            }
+        });
+
+        input.addEventListener('input', function() {
+            if (this.classList.contains('is-invalid')) {
+                this.classList.remove('is-invalid');
+            }
+        });
+    });
+
+    // Character counter for description field
+    const descriptionField = document.querySelector('textarea[id*="description"]');
+    if (descriptionField) {
+        const maxLength = 5000;
+        const counter = document.createElement('div');
+        counter.className = 'form-text text-end';
+        counter.textContent = '0 / ' + maxLength.toLocaleString() + ' characters';
+        descriptionField.parentElement.appendChild(counter);
+
+        descriptionField.addEventListener('input', function() {
+            const length = this.value.length;
+            counter.textContent = length.toLocaleString() + ' / ' + maxLength.toLocaleString() + ' characters';
+
+            if (length > maxLength * 0.9) {
+                counter.classList.add('text-warning');
+            } else {
+                counter.classList.remove('text-warning');
+            }
+
+            if (length >= maxLength) {
+                counter.classList.add('text-danger');
+            } else {
+                counter.classList.remove('text-danger');
+            }
+        });
+    }
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', function(e) {
+        // Ctrl/Cmd + S to save
+        if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+            e.preventDefault();
+            form.requestSubmit();
+        }
+
+        // Escape to cancel
+        if (e.key === 'Escape') {
+            const cancelBtn = document.querySelector('a.btn-secondary');
+            if (cancelBtn && confirm('Are you sure you want to cancel? Any unsaved changes will be lost.')) {
+                window.location.href = cancelBtn.href;
+            }
+        }
+    });
+
+    // Warn before leaving with unsaved changes
+    let formChanged = false;
+    inputs.forEach(function(input) {
+        input.addEventListener('change', function() {
+            formChanged = true;
+        });
+    });
+
+    window.addEventListener('beforeunload', function(e) {
+        if (formChanged && !submitBtn.classList.contains('loading')) {
+            e.preventDefault();
+            e.returnValue = '';
+            return '';
+        }
+    });
+
+    // Clear warning after successful submit
+    form.addEventListener('submit', function() {
+        formChanged = false;
+    });
+
+    console.log('Campaign create form initialized with enhanced validation and accessibility features');
+});
+</script>
+{% endblock %}
