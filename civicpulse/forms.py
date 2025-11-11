@@ -1079,7 +1079,7 @@ class CampaignForm(forms.ModelForm):
         Raises:
             ValidationError: If name is invalid (length, XSS, or duplicate)
         """
-        from civicpulse.models import Campaign, sanitize_text_field
+        from civicpulse.models import sanitize_text_field
 
         value = self.cleaned_data.get("name", "")
 
