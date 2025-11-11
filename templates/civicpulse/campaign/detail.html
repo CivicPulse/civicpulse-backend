@@ -1,0 +1,418 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ campaign.name }} - CivicPulse{% endblock %}
+
+{% block extra_css %}
+<style>
+    .campaign-header {
+        background: linear-gradient(135deg, var(--cp-primary) 0%, #1e40af 100%);
+        color: white;
+        padding: 2rem;
+        border-radius: 12px;
+        margin-bottom: 2rem;
+    }
+
+    .campaign-header h1 {
+        font-size: 1.75rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .campaign-header .candidate-name {
+        font-size: 1.25rem;
+        opacity: 0.95;
+        font-weight: 500;
+    }
+
+    .info-card {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        border: 1px solid #e2e8f0;
+        margin-bottom: 1.5rem;
+    }
+
+    .info-card h5 {
+        color: var(--cp-primary);
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid var(--cp-primary);
+    }
+
+    .info-row {
+        display: flex;
+        padding: 0.75rem 0;
+        border-bottom: 1px solid #f1f5f9;
+    }
+
+    .info-row:last-child {
+        border-bottom: none;
+    }
+
+    .info-label {
+        font-weight: 600;
+        color: #64748b;
+        min-width: 180px;
+    }
+
+    .info-value {
+        color: #334155;
+    }
+
+    .status-badge {
+        padding: 0.35rem 0.85rem;
+        border-radius: 12px;
+        font-size: 0.875rem;
+        font-weight: 600;
+        display: inline-block;
+    }
+
+    .status-active {
+        background-color: #dcfce7;
+        color: #166534;
+    }
+
+    .status-paused {
+        background-color: #fef3c7;
+        color: #92400e;
+    }
+
+    .status-completed {
+        background-color: #e5e7eb;
+        color: #374151;
+    }
+
+    .status-archived {
+        background-color: #f3f4f6;
+        color: #6b7280;
+    }
+
+    .days-indicator {
+        font-weight: 600;
+        padding: 0.35rem 0.85rem;
+        border-radius: 12px;
+        font-size: 0.875rem;
+        display: inline-block;
+    }
+
+    .days-upcoming {
+        background-color: #dcfce7;
+        color: #166534;
+    }
+
+    .days-soon {
+        background-color: #fed7aa;
+        color: #9a3412;
+    }
+
+    .days-past {
+        background-color: #fee2e2;
+        color: #991b1b;
+    }
+
+    .contact-attempts-table {
+        font-size: 0.9rem;
+    }
+
+    .contact-attempts-table td {
+        vertical-align: middle;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 2rem;
+        color: #94a3b8;
+    }
+
+    .empty-state i {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        color: #cbd5e1;
+    }
+
+    .action-buttons {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .delete-modal-content {
+        padding: 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4 mb-5">
+    <!-- Breadcrumb Navigation -->
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item">
+                <a href="{% url 'civicpulse:dashboard' %}">
+                    <i class="bi bi-house-door"></i> Dashboard
+                </a>
+            </li>
+            <li class="breadcrumb-item">
+                <a href="{% url 'civicpulse:campaign-list' %}">Campaigns</a>
+            </li>
+            <li class="breadcrumb-item active" aria-current="page">{{ campaign.name }}</li>
+        </ol>
+    </nav>
+
+    <!-- Campaign Header -->
+    <div class="campaign-header">
+        <div class="row align-items-center">
+            <div class="col">
+                <h1>
+                    <i class="bi bi-megaphone-fill me-2"></i>
+                    {{ campaign.name }}
+                </h1>
+                <div class="candidate-name">
+                    <i class="bi bi-person-circle me-2"></i>
+                    {{ campaign.candidate_name }}
+                </div>
+            </div>
+            <div class="col-auto">
+                <div class="action-buttons">
+                    <a href="{% url 'civicpulse:campaign-edit' campaign.id %}"
+                       class="btn btn-light"
+                       aria-label="Edit {{ campaign.name }}">
+                        <i class="bi bi-pencil me-2"></i>Edit
+                    </a>
+                    <button type="button"
+                            class="btn btn-outline-light"
+                            data-bs-toggle="modal"
+                            data-bs-target="#deleteModal"
+                            aria-label="Delete {{ campaign.name }}">
+                        <i class="bi bi-trash me-2"></i>Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Overview Card -->
+        <div class="col-lg-6">
+            <div class="info-card">
+                <h5>
+                    <i class="bi bi-info-circle me-2"></i>
+                    Campaign Overview
+                </h5>
+                <div class="info-row">
+                    <div class="info-label">Campaign Name:</div>
+                    <div class="info-value">{{ campaign.name }}</div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">Candidate:</div>
+                    <div class="info-value">{{ campaign.candidate_name }}</div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">Election Date:</div>
+                    <div class="info-value">{{ campaign.election_date|date:"F d, Y" }}</div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">Days Until Election:</div>
+                    <div class="info-value">
+                        {% with days=campaign.days_until_election %}
+                            {% if days > 7 %}
+                                <span class="days-indicator days-upcoming">
+                                    <i class="bi bi-calendar-check me-1"></i>{{ days }} days
+                                </span>
+                            {% elif days >= 0 %}
+                                <span class="days-indicator days-soon">
+                                    <i class="bi bi-exclamation-circle me-1"></i>{{ days }} day{{ days|pluralize }}
+                                </span>
+                            {% else %}
+                                <span class="days-indicator days-past">
+                                    <i class="bi bi-calendar-x me-1"></i>{{ days|abs }} day{{ days|abs|pluralize }} ago
+                                </span>
+                            {% endif %}
+                        {% endwith %}
+                    </div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">Status:</div>
+                    <div class="info-value">
+                        <span class="status-badge status-{{ campaign.status }}">
+                            {{ campaign.get_status_display }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Details Card -->
+        <div class="col-lg-6">
+            <div class="info-card">
+                <h5>
+                    <i class="bi bi-file-text me-2"></i>
+                    Additional Details
+                </h5>
+                <div class="info-row">
+                    <div class="info-label">Description:</div>
+                    <div class="info-value">
+                        {% if campaign.description %}
+                            {{ campaign.description|linebreaks }}
+                        {% else %}
+                            <em class="text-muted">No description provided</em>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">Organization:</div>
+                    <div class="info-value">
+                        {% if campaign.organization %}
+                            {{ campaign.organization }}
+                        {% else %}
+                            <em class="text-muted">Not specified</em>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">Created By:</div>
+                    <div class="info-value">
+                        {% if campaign.created_by %}
+                            {{ campaign.created_by.get_full_name|default:campaign.created_by.username }}
+                        {% else %}
+                            <em class="text-muted">Unknown</em>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">Created:</div>
+                    <div class="info-value">{{ campaign.created_at|date:"F d, Y g:i A" }}</div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">Last Updated:</div>
+                    <div class="info-value">{{ campaign.updated_at|date:"F d, Y g:i A" }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Related Contact Attempts Section -->
+    <div class="info-card">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0">
+                <i class="bi bi-telephone me-2"></i>
+                Recent Contact Attempts
+            </h5>
+            {% if contact_attempts %}
+                <a href="{% url 'civicpulse:campaign-contact-attempts' campaign.id %}"
+                   class="btn btn-sm btn-outline-primary">
+                    View All
+                </a>
+            {% endif %}
+        </div>
+
+        {% if contact_attempts %}
+        <div class="table-responsive">
+            <table class="table table-hover contact-attempts-table mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th scope="col">Person</th>
+                        <th scope="col">Type</th>
+                        <th scope="col">Date</th>
+                        <th scope="col">Outcome</th>
+                        <th scope="col">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for attempt in contact_attempts %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'civicpulse:person-detail' attempt.person.id %}">
+                                {{ attempt.person.full_name }}
+                            </a>
+                        </td>
+                        <td>
+                            <span class="badge bg-secondary">
+                                {{ attempt.get_contact_type_display }}
+                            </span>
+                        </td>
+                        <td>{{ attempt.contact_date|date:"M d, Y" }}</td>
+                        <td>
+                            {% if attempt.outcome == 'successful' %}
+                                <span class="badge bg-success">
+                                    <i class="bi bi-check-circle me-1"></i>Successful
+                                </span>
+                            {% elif attempt.outcome == 'unsuccessful' %}
+                                <span class="badge bg-danger">
+                                    <i class="bi bi-x-circle me-1"></i>Unsuccessful
+                                </span>
+                            {% else %}
+                                <span class="badge bg-warning">
+                                    <i class="bi bi-clock me-1"></i>{{ attempt.get_outcome_display }}
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{% url 'civicpulse:contact-attempt-detail' attempt.id %}"
+                               class="btn btn-sm btn-outline-primary"
+                               aria-label="View contact attempt details">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <i class="bi bi-telephone-x"></i>
+            <p class="mb-0">No contact attempts recorded for this campaign yet.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteModalLabel">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    Confirm Delete
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body delete-modal-content">
+                <p class="mb-3">
+                    Are you sure you want to delete the campaign <strong>"{{ campaign.name }}"</strong>?
+                </p>
+                <div class="alert alert-warning mb-0">
+                    <i class="bi bi-info-circle me-2"></i>
+                    This will soft delete the campaign. It can be restored by an administrator.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle me-2"></i>Cancel
+                </button>
+                <a href="{% url 'civicpulse:campaign-delete' campaign.id %}" class="btn btn-danger">
+                    <i class="bi bi-trash me-2"></i>Delete Campaign
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Campaign detail view initialized for: {{ campaign.name }}');
+
+    // Keyboard shortcut for edit (Ctrl+E)
+    document.addEventListener('keydown', function(e) {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'e') {
+            e.preventDefault();
+            window.location.href = '{% url "civicpulse:campaign-edit" campaign.id %}';
+        }
+    });
+});
+</script>
+{% endblock %}

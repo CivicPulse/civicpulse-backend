@@ -1,0 +1,366 @@
+{% extends 'base.html' %}
+
+{% block title %}Campaigns - CivicPulse{% endblock %}
+
+{% block extra_css %}
+<style>
+    .search-filter-section {
+        background-color: #f8fafc;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        border: 1px solid #e2e8f0;
+    }
+
+    .table-actions {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .days-indicator {
+        font-weight: 600;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.875rem;
+    }
+
+    .days-upcoming {
+        background-color: #dcfce7;
+        color: #166534;
+    }
+
+    .days-soon {
+        background-color: #fed7aa;
+        color: #9a3412;
+    }
+
+    .days-past {
+        background-color: #fee2e2;
+        color: #991b1b;
+    }
+
+    .status-badge {
+        padding: 0.25rem 0.75rem;
+        border-radius: 12px;
+        font-size: 0.875rem;
+        font-weight: 500;
+    }
+
+    .status-active {
+        background-color: #dcfce7;
+        color: #166534;
+    }
+
+    .status-paused {
+        background-color: #fef3c7;
+        color: #92400e;
+    }
+
+    .status-completed {
+        background-color: #e5e7eb;
+        color: #374151;
+    }
+
+    .status-archived {
+        background-color: #f3f4f6;
+        color: #6b7280;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 4rem 2rem;
+    }
+
+    .empty-state i {
+        font-size: 4rem;
+        color: #cbd5e1;
+        margin-bottom: 1rem;
+    }
+
+    .campaign-count {
+        font-size: 0.875rem;
+        color: #64748b;
+        font-weight: 500;
+    }
+
+    .table-responsive {
+        border-radius: 8px;
+        border: 1px solid #e2e8f0;
+        background: white;
+    }
+
+    .table thead th {
+        background-color: #f8fafc;
+        border-bottom: 2px solid #e2e8f0;
+        font-weight: 600;
+        color: #334155;
+    }
+
+    .table tbody tr:hover {
+        background-color: #f8fafc;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4 mb-5">
+    <!-- Breadcrumb Navigation -->
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item">
+                <a href="{% url 'civicpulse:dashboard' %}">
+                    <i class="bi bi-house-door"></i> Dashboard
+                </a>
+            </li>
+            <li class="breadcrumb-item active" aria-current="page">Campaigns</li>
+        </ol>
+    </nav>
+
+    <!-- Page Header -->
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="h3 mb-0">
+                <i class="bi bi-megaphone-fill me-2"></i>
+                Campaigns
+            </h1>
+            <p class="text-muted mt-2 campaign-count">
+                {% if campaigns %}
+                    Showing {{ campaigns|length }} campaign{{ campaigns|length|pluralize }}
+                    {% if total_count %}of {{ total_count }} total{% endif %}
+                {% else %}
+                    No campaigns found
+                {% endif %}
+            </p>
+        </div>
+        <div class="col-auto">
+            <a href="{% url 'civicpulse:campaign-create' %}" class="btn btn-primary">
+                <i class="bi bi-plus-circle me-2"></i>Create New Campaign
+            </a>
+        </div>
+    </div>
+
+    <!-- Search and Filter Section -->
+    <div class="search-filter-section">
+        <form method="get" action="{% url 'civicpulse:campaign-list' %}" class="row g-3">
+            <div class="col-md-5">
+                <label for="search" class="form-label">Search</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-white">
+                        <i class="bi bi-search"></i>
+                    </span>
+                    <input
+                        type="text"
+                        class="form-control"
+                        id="search"
+                        name="search"
+                        placeholder="Search by name or candidate..."
+                        value="{{ request.GET.search }}"
+                    >
+                </div>
+            </div>
+
+            <div class="col-md-3">
+                <label for="status" class="form-label">Status</label>
+                <select class="form-select" id="status" name="status">
+                    <option value="">All Statuses</option>
+                    <option value="active" {% if request.GET.status == 'active' %}selected{% endif %}>Active</option>
+                    <option value="paused" {% if request.GET.status == 'paused' %}selected{% endif %}>Paused</option>
+                    <option value="completed" {% if request.GET.status == 'completed' %}selected{% endif %}>Completed</option>
+                    <option value="archived" {% if request.GET.status == 'archived' %}selected{% endif %}>Archived</option>
+                </select>
+            </div>
+
+            <div class="col-md-3">
+                <label for="organization" class="form-label">Organization</label>
+                <select class="form-select" id="organization" name="organization">
+                    <option value="">All Organizations</option>
+                    {% for org in organizations %}
+                        <option value="{{ org }}" {% if request.GET.organization == org %}selected{% endif %}>
+                            {{ org }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-md-1 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-funnel"></i>
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Campaigns Table -->
+    {% if campaigns %}
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th scope="col">Campaign Name</th>
+                    <th scope="col">Candidate</th>
+                    <th scope="col">Election Date</th>
+                    <th scope="col">Days Until Election</th>
+                    <th scope="col">Status</th>
+                    <th scope="col" class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for campaign in campaigns %}
+                <tr>
+                    <td>
+                        <strong>{{ campaign.name }}</strong>
+                        {% if campaign.organization %}
+                            <br>
+                            <small class="text-muted">{{ campaign.organization }}</small>
+                        {% endif %}
+                    </td>
+                    <td>{{ campaign.candidate_name }}</td>
+                    <td>{{ campaign.election_date|date:"M d, Y" }}</td>
+                    <td>
+                        {% with days=campaign.days_until_election %}
+                            {% if days > 7 %}
+                                <span class="days-indicator days-upcoming">
+                                    {{ days }} days
+                                </span>
+                            {% elif days >= 0 %}
+                                <span class="days-indicator days-soon">
+                                    {{ days }} day{{ days|pluralize }}
+                                </span>
+                            {% else %}
+                                <span class="days-indicator days-past">
+                                    {{ days|abs }} day{{ days|abs|pluralize }} ago
+                                </span>
+                            {% endif %}
+                        {% endwith %}
+                    </td>
+                    <td>
+                        <span class="status-badge status-{{ campaign.status }}">
+                            {{ campaign.get_status_display }}
+                        </span>
+                    </td>
+                    <td>
+                        <div class="table-actions justify-content-end">
+                            <a href="{% url 'civicpulse:campaign-detail' campaign.id %}"
+                               class="btn btn-sm btn-outline-primary"
+                               aria-label="View {{ campaign.name }}">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                            <a href="{% url 'civicpulse:campaign-edit' campaign.id %}"
+                               class="btn btn-sm btn-outline-secondary"
+                               aria-label="Edit {{ campaign.name }}">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                            <a href="{% url 'civicpulse:campaign-delete' campaign.id %}"
+                               class="btn btn-sm btn-outline-danger"
+                               aria-label="Delete {{ campaign.name }}">
+                                <i class="bi bi-trash"></i>
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if is_paginated %}
+    <nav aria-label="Campaign pagination" class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if page_obj.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?page=1{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}{% if request.GET.organization %}&organization={{ request.GET.organization }}{% endif %}">
+                        <i class="bi bi-chevron-double-left"></i>
+                    </a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}{% if request.GET.organization %}&organization={{ request.GET.organization }}{% endif %}">
+                        <i class="bi bi-chevron-left"></i>
+                    </a>
+                </li>
+            {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link"><i class="bi bi-chevron-double-left"></i></span>
+                </li>
+                <li class="page-item disabled">
+                    <span class="page-link"><i class="bi bi-chevron-left"></i></span>
+                </li>
+            {% endif %}
+
+            <li class="page-item active">
+                <span class="page-link">
+                    Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+                </span>
+            </li>
+
+            {% if page_obj.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}{% if request.GET.organization %}&organization={{ request.GET.organization }}{% endif %}">
+                        <i class="bi bi-chevron-right"></i>
+                    </a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}{% if request.GET.organization %}&organization={{ request.GET.organization }}{% endif %}">
+                        <i class="bi bi-chevron-double-right"></i>
+                    </a>
+                </li>
+            {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link"><i class="bi bi-chevron-right"></i></span>
+                </li>
+                <li class="page-item disabled">
+                    <span class="page-link"><i class="bi bi-chevron-double-right"></i></span>
+                </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+
+    {% else %}
+    <!-- Empty State -->
+    <div class="empty-state">
+        <i class="bi bi-megaphone"></i>
+        <h4 class="text-muted">No Campaigns Found</h4>
+        <p class="text-muted mb-4">
+            {% if request.GET.search or request.GET.status or request.GET.organization %}
+                No campaigns match your current filters. Try adjusting your search criteria.
+            {% else %}
+                Get started by creating your first campaign.
+            {% endif %}
+        </p>
+        <a href="{% url 'civicpulse:campaign-create' %}" class="btn btn-primary">
+            <i class="bi bi-plus-circle me-2"></i>Create New Campaign
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-submit form on filter change
+    const filterSelects = document.querySelectorAll('#status, #organization');
+    filterSelects.forEach(function(select) {
+        select.addEventListener('change', function() {
+            this.form.submit();
+        });
+    });
+
+    // Clear filters button functionality
+    const searchInput = document.getElementById('search');
+    if (searchInput && searchInput.value) {
+        const clearBtn = document.createElement('button');
+        clearBtn.type = 'button';
+        clearBtn.className = 'btn btn-link text-muted btn-sm';
+        clearBtn.innerHTML = '<i class="bi bi-x-circle"></i> Clear';
+        clearBtn.onclick = function() {
+            window.location.href = '{% url "civicpulse:campaign-list" %}';
+        };
+        searchInput.parentElement.parentElement.appendChild(clearBtn);
+    }
+
+    console.log('Campaign list initialized with {{ campaigns|length }} campaigns');
+});
+</script>
+{% endblock %}
