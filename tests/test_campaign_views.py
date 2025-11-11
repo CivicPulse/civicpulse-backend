@@ -599,7 +599,9 @@ class TestCampaignDetailView:
         url = reverse("civicpulse:campaign-detail", kwargs={"pk": campaign.pk})
 
         # Should use Prefetch with select_related for contact_attempts and persons
-        with django_assert_num_queries(8):  # Auth (2) + main (1) + prefetch (1) + duplicate user (1) + transaction (3)
+        with django_assert_num_queries(
+            8
+        ):  # Auth (2) + main (1) + prefetch (1) + duplicate user (1) + transaction (3)
             response = client_logged_in.get(url)
             campaign_obj = response.context["campaign"]
             # Access contact_attempts without additional queries

@@ -152,9 +152,7 @@ class CampaignListView(LoginRequiredMixin, ListView):
 
         # Note: Don't call queryset.count() here as it triggers an extra query.
         # The Paginator will handle counting when needed.
-        logger.info(
-            f"Campaign list query prepared for user {self.request.user}"
-        )
+        logger.info(f"Campaign list query prepared for user {self.request.user}")
 
         return queryset
 
@@ -536,7 +534,9 @@ class CampaignDetailView(LoginRequiredMixin, DetailView):
         return Campaign.objects.filter(is_active=True).prefetch_related(
             Prefetch(
                 "contact_attempts",
-                queryset=ContactAttempt.objects.select_related("person").order_by("-contact_date")
+                queryset=ContactAttempt.objects.select_related("person").order_by(
+                    "-contact_date"
+                ),
             )
         )
 
