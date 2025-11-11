@@ -20,6 +20,6 @@ def absolute_value(value):
         {{ 5|abs }} -> 5
     """
     try:
-        return __builtins__["abs"](int(value))
+        return abs(int(value))
     except (ValueError, TypeError):
         return value

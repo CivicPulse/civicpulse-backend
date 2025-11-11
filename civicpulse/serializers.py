@@ -48,14 +48,17 @@ Example Usage:
 """
 
 from datetime import date
-from typing import Any
+from typing import Any, cast
 
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.utils import timezone
 from rest_framework import serializers
 
 from civicpulse.models import Campaign, ContactAttempt
-from civicpulse.services.campaign_service import CampaignCreationService
+from civicpulse.services.campaign_service import (
+    CampaignCreationService,
+    CampaignDataDict,
+)
 
 
 class CampaignListSerializer(serializers.ModelSerializer):
@@ -734,7 +737,9 @@ class CampaignSerializer(serializers.ModelSerializer):
 
         try:
             # Validate using service layer
-            errors = service.validate_campaign_data(attrs, is_update=is_update)
+            errors = service.validate_campaign_data(
+                cast(CampaignDataDict, attrs), is_update=is_update
+            )
             if errors:
                 # Convert service errors to DRF format
                 raise serializers.ValidationError(errors)
@@ -780,7 +785,7 @@ class CampaignSerializer(serializers.ModelSerializer):
         try:
             # Create campaign using service layer
             campaign, duplicates = service.create_campaign(
-                campaign_data=validated_data,
+                campaign_data=cast(CampaignDataDict, validated_data),
                 created_by=request.user,
                 check_duplicates=True,
             )
@@ -836,7 +841,7 @@ class CampaignSerializer(serializers.ModelSerializer):
             # Update campaign using service layer
             campaign, duplicates = service.update_campaign(
                 campaign_id=str(instance.pk),
-                campaign_data=validated_data,
+                campaign_data=cast(CampaignDataDict, validated_data),
                 updated_by=request.user,
                 check_duplicates=check_duplicates,
             )
