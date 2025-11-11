@@ -826,13 +826,19 @@ class CampaignSerializer(serializers.ModelSerializer):
 
         service = CampaignCreationService()
 
+        # Only check duplicates if name or candidate_name are being updated
+        # This avoids validation errors when updating other fields like status
+        check_duplicates = bool(
+            "name" in validated_data or "candidate_name" in validated_data
+        )
+
         try:
             # Update campaign using service layer
             campaign, duplicates = service.update_campaign(
                 campaign_id=str(instance.pk),
                 campaign_data=validated_data,
                 updated_by=request.user,
-                check_duplicates=True,
+                check_duplicates=check_duplicates,
             )
 
             return campaign
