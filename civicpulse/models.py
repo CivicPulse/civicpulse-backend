@@ -314,6 +314,8 @@ class PersonManager(models.Manager):
         min_age: int | None = None,
         max_age: int | None = None,
         tags: list[str] | None = None,
+        district_id: str | None = None,
+        district_type: str | None = None,
     ) -> QuerySet:
         """
         Advanced search for persons with multiple filter criteria.
@@ -336,6 +338,8 @@ class PersonManager(models.Manager):
             min_age: Minimum age
             max_age: Maximum age
             tags: List of tags to filter by
+            district_id: Filter by specific District UUID
+            district_type: Filter by district type (e.g., federal_senate, state_house)
 
         Returns:
             QuerySet of matching Person objects
@@ -412,6 +416,14 @@ class PersonManager(models.Manager):
             for tag in tags:
                 tag_filters |= Q(tags__contains=[tag])
             queryset = queryset.filter(tag_filters)
+
+        # District filters (using PersonDistrict relationship)
+        if district_id:
+            queryset = queryset.filter(person_districts__district__id=district_id)
+        if district_type:
+            queryset = queryset.filter(
+                person_districts__district__district_type=district_type
+            )
 
         return queryset.distinct()
 

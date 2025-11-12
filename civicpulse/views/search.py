@@ -17,7 +17,7 @@ from django.views import View
 from django.views.decorators.cache import cache_page
 from django.views.generic import TemplateView
 
-from civicpulse.models import Person, VoterRecord
+from civicpulse.models import District, Person, VoterRecord
 
 
 class PersonSearchView(LoginRequiredMixin, TemplateView):
@@ -46,6 +46,8 @@ class PersonSearchView(LoginRequiredMixin, TemplateView):
         max_score = self.request.GET.get("max_score", "")
         precinct = self.request.GET.get("precinct", "")
         ward = self.request.GET.get("ward", "")
+        district_id = self.request.GET.get("district_id", "")
+        district_type = self.request.GET.get("district_type", "")
         page = self.request.GET.get("page", 1)
 
         # Build queryset using advanced search
@@ -60,6 +62,8 @@ class PersonSearchView(LoginRequiredMixin, TemplateView):
             max_voter_score=int(max_score) if max_score else None,
             precinct=precinct if precinct else None,
             ward=ward if ward else None,
+            district_id=district_id if district_id else None,
+            district_type=district_type if district_type else None,
         )
 
         # Apply ordering
@@ -153,12 +157,16 @@ class PersonSearchView(LoginRequiredMixin, TemplateView):
                     "max_score": max_score,
                     "precinct": precinct,
                     "ward": ward,
+                    "district_id": district_id,
+                    "district_type": district_type,
                 },
                 "sort_by": sort_by,
                 # Filter options
                 "us_states": us_states,
                 "voter_statuses": VoterRecord.REGISTRATION_STATUS_CHOICES,
                 "parties": VoterRecord.PARTY_AFFILIATION_CHOICES,
+                "districts": District.objects.all().order_by("name"),
+                "district_types": District.DISTRICT_TYPE_CHOICES,
             }
         )
 
@@ -185,6 +193,8 @@ class PersonSearchAPIView(LoginRequiredMixin, View):
         max_score = request.GET.get("max_score", "")
         precinct = request.GET.get("precinct", "")
         ward = request.GET.get("ward", "")
+        district_id = request.GET.get("district_id", "")
+        district_type = request.GET.get("district_type", "")
         page = request.GET.get("page", 1)
         page_size = min(int(request.GET.get("page_size", 25)), 100)  # Max 100 per page
 
@@ -200,6 +210,8 @@ class PersonSearchAPIView(LoginRequiredMixin, View):
             max_voter_score=int(max_score) if max_score else None,
             precinct=precinct if precinct else None,
             ward=ward if ward else None,
+            district_id=district_id if district_id else None,
+            district_type=district_type if district_type else None,
         )
 
         # Apply ordering
@@ -212,6 +224,9 @@ class PersonSearchAPIView(LoginRequiredMixin, View):
             queryset = queryset.order_by("city", "last_name")
         elif sort_by == "created_at":
             queryset = queryset.order_by("-created_at")
+
+        # Prefetch districts to avoid N+1 queries
+        queryset = queryset.prefetch_related("person_districts__district")
 
         # Paginate
         paginator = Paginator(queryset, page_size)
@@ -245,6 +260,22 @@ class PersonSearchAPIView(LoginRequiredMixin, View):
                     "precinct": person.voter_record.precinct,
                     "ward": person.voter_record.ward,
                 }
+
+            # Add district info if available
+            districts = []
+            for pd in person.person_districts.all():
+                districts.append(
+                    {
+                        "id": str(pd.district.id),
+                        "name": pd.district.name,
+                        "district_type": pd.district.district_type,
+                        "district_type_display": (
+                            pd.district.get_district_type_display()
+                        ),
+                    }
+                )
+            if districts:
+                result["districts"] = districts
 
             results.append(result)
 
