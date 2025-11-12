@@ -292,6 +292,89 @@
         </div>
     </div>
 
+    <!-- District Targeting Section -->
+    {% if campaign.scope or target_districts %}
+    <div class="info-card">
+        <h5>
+            <i class="bi bi-geo-alt me-2"></i>
+            District Targeting
+        </h5>
+        {% if campaign.scope %}
+        <div class="info-row">
+            <div class="info-label">Campaign Scope:</div>
+            <div class="info-value">
+                <span class="badge bg-info">
+                    <i class="bi bi-bullseye me-1"></i>{{ campaign.get_scope_display }}
+                </span>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if target_districts %}
+        <div class="info-row">
+            <div class="info-label">Target Districts:</div>
+            <div class="info-value">
+                <span class="badge bg-primary me-1">{{ target_districts|length }}</span>
+                district{{ target_districts|length|pluralize }}
+            </div>
+        </div>
+
+        <!-- District Details Table -->
+        <div class="table-responsive mt-3">
+            <table class="table table-sm table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th scope="col">District Name</th>
+                        <th scope="col">Type</th>
+                        <th scope="col">State</th>
+                        <th scope="col">Officeholders</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for district in target_districts %}
+                    <tr>
+                        <td>
+                            <strong>{{ district.name }}</strong>
+                        </td>
+                        <td>
+                            <span class="badge bg-secondary">
+                                {{ district.get_district_type_display }}
+                            </span>
+                        </td>
+                        <td>{{ district.state|default:"—" }}</td>
+                        <td>
+                            {% with district_holders=district.officeholders.all %}
+                                {% if district_holders %}
+                                    <ul class="list-unstyled mb-0">
+                                        {% for holder in district_holders %}
+                                        <li class="small">
+                                            <i class="bi bi-person-badge me-1"></i>
+                                            {{ holder.name }}
+                                            {% if holder.party %}
+                                                <span class="text-muted">({{ holder.party }})</span>
+                                            {% endif %}
+                                        </li>
+                                        {% endfor %}
+                                    </ul>
+                                {% else %}
+                                    <em class="text-muted small">No officeholders</em>
+                                {% endif %}
+                            {% endwith %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state small">
+            <i class="bi bi-geo"></i>
+            <p class="mb-0">No specific districts targeted. This is a {{ campaign.get_scope_display|lower }} campaign.</p>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
     <!-- Related Contact Attempts Section -->
     <div class="info-card">
         <div class="d-flex justify-content-between align-items-center mb-3">
