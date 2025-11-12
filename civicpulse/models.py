@@ -530,6 +530,100 @@ class PersonManager(models.Manager):
                 tag_filters |= Q(tags__contains=[tag])
             return self.filter(tag_filters).distinct()
 
+    def in_district(self, district_id: str) -> QuerySet:
+        """Return persons in a specific district."""
+        return self.filter(person_districts__district__id=district_id).distinct()
+
+    def in_districts(self, district_ids: list[str]) -> QuerySet:
+        """Return persons in any of the specified districts."""
+        return self.filter(person_districts__district__id__in=district_ids).distinct()
+
+    def by_district_type(self, district_type: str) -> QuerySet:
+        """Return persons by district type (e.g., federal_senate, state_house)."""
+        return self.filter(
+            person_districts__district__district_type=district_type
+        ).distinct()
+
+    def with_districts(self) -> QuerySet:
+        """Return persons with their districts and officeholders prefetched."""
+        return self.prefetch_related(
+            "person_districts__district",
+            "person_districts__district__officeholders",
+        )
+
+    def in_district_with_officeholder(self, district_id: str) -> QuerySet:
+        """
+        Return persons in a specific district with current officeholder information.
+
+        Args:
+            district_id: The UUID of the district
+
+        Returns:
+            QuerySet of Person objects in the district with officeholder data
+        """
+        return (
+            self.filter(person_districts__district__id=district_id)
+            .select_related("voter_record")
+            .prefetch_related(
+                "person_districts__district",
+                "person_districts__district__officeholders",
+            )
+            .distinct()
+        )
+
+    def by_assignment_method(self, method: str) -> QuerySet:
+        """
+        Filter persons by how they were assigned to districts.
+
+        Args:
+            method: Assignment method
+                (manual, voter_record, geocoding, zip_match, import)
+
+        Returns:
+            QuerySet of Person objects assigned by the specified method
+        """
+        return self.filter(person_districts__assignment_method=method).distinct()
+
+    def high_confidence_assignments(self, min_confidence: float = 90.0) -> QuerySet:
+        """
+        Return persons with high-confidence district assignments.
+
+        Args:
+            min_confidence: Minimum confidence score (0-100, default 90.0)
+
+        Returns:
+            QuerySet of Person objects with confidence >= min_confidence
+        """
+        return (
+            self.filter(person_districts__confidence__gte=min_confidence)
+            .prefetch_related("person_districts__district")
+            .distinct()
+        )
+
+    def without_district_assignment(self) -> QuerySet:
+        """Return persons who have not been assigned to any district."""
+        return self.filter(person_districts__isnull=True)
+
+    def voters_in_districts(self, district_ids: list[str]) -> QuerySet:
+        """
+        Return active voters in specified districts.
+
+        Args:
+            district_ids: List of district UUIDs
+
+        Returns:
+            QuerySet of Person objects who are active voters in the districts
+        """
+        return (
+            self.filter(
+                person_districts__district__id__in=district_ids,
+                voter_record__registration_status="active",
+            )
+            .select_related("voter_record")
+            .prefetch_related("person_districts__district")
+            .distinct()
+        )
+
 
 class VoterRecordManager(models.Manager):
     """Custom manager for VoterRecord model with optimized queries."""
