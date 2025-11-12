@@ -479,6 +479,75 @@
                 </div>
             </section>
 
+            <!-- District Information Card -->
+            {% if districts %}
+            <section class="detail-card" aria-labelledby="district-info-heading">
+                <div class="detail-card-header">
+                    <h2 id="district-info-heading" class="h5">
+                        <i class="bi bi-geo-alt-fill" aria-hidden="true"></i>
+                        Electoral Districts
+                    </h2>
+                </div>
+                <div class="detail-card-body">
+                    <div class="detail-row">
+                        <div class="detail-label" id="district-count-label">Districts</div>
+                        <div class="detail-value" aria-labelledby="district-count-label">
+                            <span class="badge bg-primary me-1">{{ districts|length }}</span>
+                            district{{ districts|length|pluralize }}
+                        </div>
+                    </div>
+
+                    <!-- District Details Table -->
+                    <div class="table-responsive mt-3">
+                        <table class="table table-sm table-hover mb-0" aria-label="District details">
+                            <thead class="table-light">
+                                <tr>
+                                    <th scope="col">District Name</th>
+                                    <th scope="col">Type</th>
+                                    <th scope="col">State</th>
+                                    <th scope="col">Officeholders</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for district in districts %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ district.name }}</strong>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-secondary">
+                                            {{ district.get_district_type_display }}
+                                        </span>
+                                    </td>
+                                    <td>{{ district.state|default:"—" }}</td>
+                                    <td>
+                                        {% with district_holders=district.officeholders.all %}
+                                            {% if district_holders %}
+                                                <ul class="list-unstyled mb-0">
+                                                    {% for holder in district_holders %}
+                                                    <li class="small">
+                                                        <i class="bi bi-person-badge me-1" aria-hidden="true"></i>
+                                                        {{ holder.name }}
+                                                        {% if holder.party %}
+                                                            <span class="text-muted">({{ holder.party }})</span>
+                                                        {% endif %}
+                                                    </li>
+                                                    {% endfor %}
+                                                </ul>
+                                            {% else %}
+                                                <em class="text-muted small">No officeholders</em>
+                                            {% endif %}
+                                        {% endwith %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+            {% endif %}
+
             <!-- Additional Information Card -->
             <section class="detail-card" aria-labelledby="additional-info-heading">
                 <div class="detail-card-header">
