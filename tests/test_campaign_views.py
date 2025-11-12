@@ -586,22 +586,24 @@ class TestCampaignDetailView:
     ):
         """Test that contact_attempts are prefetched with their related persons.
 
-        Expected queries (8 total):
+        Expected queries (9 total):
         1. Session lookup (authentication)
         2. User lookup (authentication)
         3. Campaign query (main object retrieval)
         4. Contact attempts + persons query (optimized with Prefetch + select_related)
-        5. User lookup (duplicate - accessing created_by in template)
-        6. SAVEPOINT (transaction management)
-        7. UPDATE session (transaction management)
-        8. RELEASE SAVEPOINT (transaction management)
+        5. Target districts query (prefetch for district-based filtering)
+        6. User lookup (duplicate - accessing created_by in template)
+        7. SAVEPOINT (transaction management)
+        8. UPDATE session (transaction management)
+        9. RELEASE SAVEPOINT (transaction management)
         """
         url = reverse("civicpulse:campaign-detail", kwargs={"pk": campaign.pk})
 
         # Should use Prefetch with select_related for contact_attempts and persons
+        # Also prefetches target_districts for district-based filtering
         with django_assert_num_queries(
-            8
-        ):  # Auth (2) + main (1) + prefetch (1) + duplicate user (1) + transaction (3)
+            9
+        ):  # Auth (2) + main (1) + contact prefetch (1) + districts prefetch (1) + duplicate user (1) + transaction (3)
             response = client_logged_in.get(url)
             campaign_obj = response.context["campaign"]
             # Access contact_attempts without additional queries

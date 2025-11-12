@@ -108,8 +108,10 @@ class CampaignListView(LoginRequiredMixin, ListView):
         2. Search by campaign name or candidate name (case-insensitive)
         3. Filter by status if provided
         4. Filter by organization if provided
-        5. Optimize with select_related for created_by user
-        6. Order by creation date (newest first)
+        5. Filter by target district if provided
+        6. Filter by scope if provided
+        7. Optimize with select_related for created_by user
+        8. Order by creation date (newest first)
 
         Returns:
             Filtered and optimized QuerySet of Campaign objects
@@ -118,6 +120,9 @@ class CampaignListView(LoginRequiredMixin, ListView):
             - q: Search term for campaign/candidate name
             - status: Campaign status to filter by
             - organization: Organization name to filter by
+            - district: District ID to filter campaigns targeting that district
+            - scope: Scope to filter campaigns by
+                (district, multi_district, statewide, national)
         """
         # Start with active campaigns only
         queryset = Campaign.objects.filter(is_active=True)
@@ -144,8 +149,23 @@ class CampaignListView(LoginRequiredMixin, ListView):
             queryset = queryset.filter(organization__icontains=organization_filter)
             logger.debug(f"Applied organization filter: {organization_filter}")
 
+        # Apply district filter if present
+        district_filter = self.request.GET.get("district", "").strip()
+        if district_filter:
+            queryset = queryset.filter(target_districts__id=district_filter)
+            logger.debug(f"Applied district filter: {district_filter}")
+
+        # Apply scope filter if present
+        scope_filter = self.request.GET.get("scope", "").strip()
+        if scope_filter:
+            queryset = queryset.filter(scope=scope_filter)
+            logger.debug(f"Applied scope filter: {scope_filter}")
+
         # Optimize query with select_related for created_by user
         queryset = queryset.select_related("created_by")
+
+        # Ensure distinct results when filtering by M2M relationships
+        queryset = queryset.distinct()
 
         # Order by creation date (newest first)
         queryset = queryset.order_by("-created_at")
@@ -169,7 +189,10 @@ class CampaignListView(LoginRequiredMixin, ListView):
                 - search_query: Current search query from URL parameters
                 - status_filter: Current status filter value
                 - organization_filter: Current organization filter value
+                - district_filter: Current district filter value
+                - scope_filter: Current scope filter value
                 - status_choices: Available status options for filtering
+                - scope_choices: Available scope options for filtering
         """
         context = super().get_context_data(**kwargs)
         context["page_title"] = "Campaigns"
@@ -180,9 +203,12 @@ class CampaignListView(LoginRequiredMixin, ListView):
         # Add filter values to context
         context["status_filter"] = self.request.GET.get("status", "")
         context["organization_filter"] = self.request.GET.get("organization", "")
+        context["district_filter"] = self.request.GET.get("district", "")
+        context["scope_filter"] = self.request.GET.get("scope", "")
 
-        # Add status choices for filter dropdown
+        # Add choices for filter dropdowns
         context["status_choices"] = Campaign.STATUS_CHOICES
+        context["scope_choices"] = Campaign.SCOPE_CHOICES
 
         return context
 
@@ -522,7 +548,7 @@ class CampaignDetailView(LoginRequiredMixin, DetailView):
 
         Returns:
             QuerySet of Campaign objects where is_active=True,
-            with prefetch_related for contact_attempts
+            with prefetch_related for contact_attempts and target_districts
 
         Note:
             This ensures soft-deleted campaigns (is_active=False) return 404
@@ -538,7 +564,9 @@ class CampaignDetailView(LoginRequiredMixin, DetailView):
                 queryset=ContactAttempt.objects.select_related("person").order_by(
                     "-contact_date"
                 ),
-            )
+            ),
+            "target_districts",  # Prefetch target districts for the campaign
+            "target_districts__officeholders",  # Also prefetch officeholders
         )
 
     def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
@@ -553,7 +581,14 @@ class CampaignDetailView(LoginRequiredMixin, DetailView):
                 - page_title: Title for the page (includes campaign name)
                 - is_upcoming: Boolean indicating if election is in the future
                 - days_until_election: Number of days until election (if upcoming)
+                - target_districts: List of districts targeted by this campaign
+                - district_contact_attempts: Contact attempts from persons
+                    in target districts
+                - district_contact_count: Number of contacts in target districts
+                - total_contact_count: Total number of contact attempts
         """
+        from civicpulse.models import Person
+
         context = super().get_context_data(**kwargs)
         # Use self.object instead of get_object() to avoid duplicate database query
         # The parent DetailView class has already retrieved and set self.object
@@ -564,10 +599,51 @@ class CampaignDetailView(LoginRequiredMixin, DetailView):
         context["is_upcoming"] = campaign.is_upcoming
         context["days_until_election"] = campaign.days_until_election
 
-        # Add contact attempts (already prefetched in get_queryset)
-        # Limit to 5 most recent for the detail page overview
-        # Convert to list first to use the prefetched data, then slice
-        context["contact_attempts"] = list(campaign.contact_attempts.all())[:5]
+        # Get all contact attempts (already prefetched in get_queryset)
+        all_contact_attempts = list(campaign.contact_attempts.all())
+        context["total_contact_count"] = len(all_contact_attempts)
+
+        # Get target districts (already prefetched)
+        target_districts = list(campaign.target_districts.all())
+        context["target_districts"] = target_districts
+
+        # Filter contact attempts to only show those from persons in target districts
+        # if the campaign has target districts
+        if target_districts:
+            target_district_ids = [district.id for district in target_districts]
+
+            # Get all person IDs who are in the target districts (single query)
+            persons_in_districts = set(
+                Person.objects.filter(
+                    person_districts__district_id__in=target_district_ids
+                )
+                .values_list("id", flat=True)
+                .distinct()
+            )
+
+            # Filter contact attempts to only include those from persons
+            # in target districts
+            district_contact_attempts = [
+                attempt
+                for attempt in all_contact_attempts
+                if attempt.person_id in persons_in_districts
+            ]
+
+            context["district_contact_attempts"] = district_contact_attempts[:5]
+            context["district_contact_count"] = len(district_contact_attempts)
+
+            logger.info(
+                f"Campaign {campaign.pk} has {len(target_districts)} target districts, "
+                f"{len(district_contact_attempts)} district contacts out of "
+                f"{len(all_contact_attempts)} total contacts"
+            )
+        else:
+            # No target districts - show all contact attempts
+            context["district_contact_attempts"] = all_contact_attempts[:5]
+            context["district_contact_count"] = len(all_contact_attempts)
+
+        # Also keep the general contact_attempts for backward compatibility
+        context["contact_attempts"] = all_contact_attempts[:5]
 
         logger.info(
             f"User {self.request.user} viewed campaign: {campaign.pk} - {campaign.name}"
