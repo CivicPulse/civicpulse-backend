@@ -1,7 +1,7 @@
 import re
 import uuid
 from datetime import timedelta
-from typing import Optional
+from typing import Optional, cast
 
 import phonenumbers
 from django.conf import settings
@@ -1345,6 +1345,104 @@ class CampaignManager(models.Manager):
     def by_organization(self, organization: str) -> QuerySet:
         """Filter campaigns by organization."""
         return self.filter(organization=organization)
+
+    def by_scope(self, scope: str) -> QuerySet:
+        """Filter campaigns by geographical scope."""
+        return self.filter(scope=scope)
+
+    def targeting_district(self, district_id: str) -> QuerySet:
+        """Return campaigns targeting a specific district."""
+        return self.filter(target_districts__id=district_id).distinct()
+
+    def targeting_districts(self, district_ids: list[str]) -> QuerySet:
+        """Return campaigns targeting any of the specified districts."""
+        return self.filter(target_districts__id__in=district_ids).distinct()
+
+    def multi_district(self) -> QuerySet:
+        """Return campaigns targeting multiple districts."""
+        return self.filter(scope="multi_district").prefetch_related("target_districts")
+
+    def single_district(self) -> QuerySet:
+        """Return campaigns targeting a single district."""
+        return self.filter(scope="district").prefetch_related("target_districts")
+
+    def statewide(self) -> QuerySet:
+        """Return statewide campaigns."""
+        return self.filter(scope="statewide")
+
+    def national(self) -> QuerySet:
+        """Return national campaigns."""
+        return self.filter(scope="national")
+
+    def with_districts(self) -> QuerySet:
+        """Return campaigns with their target districts prefetched."""
+        return self.prefetch_related(
+            "target_districts", "target_districts__officeholders"
+        )
+
+    def eligible_voters_for_campaign(self, campaign_id: str) -> QuerySet:
+        """
+        Return persons eligible for contact based on campaign's target districts.
+
+        Args:
+            campaign_id: The UUID of the campaign
+
+        Returns:
+            QuerySet of Person objects who are in the campaign's target districts
+        """
+        try:
+            campaign = cast("Campaign", self.get(id=campaign_id))
+        except Campaign.DoesNotExist:
+            return Person.objects.none()
+
+        # If campaign has target districts, filter by those
+        if campaign.target_districts.exists():
+            district_ids = campaign.target_districts.values_list("id", flat=True)
+            return (
+                Person.objects.filter(person_districts__district__id__in=district_ids)
+                .select_related("voter_record")
+                .prefetch_related("person_districts__district")
+                .distinct()
+            )
+
+        # If no target districts specified, return all persons
+        # (this could be filtered further based on campaign scope in the future)
+        return Person.objects.select_related("voter_record").all()
+
+    def contacts_in_districts(
+        self, campaign_id: str, district_ids: list[str] | None = None
+    ) -> QuerySet:
+        """
+        Return persons who are contacts for a campaign in specific districts.
+
+        Args:
+            campaign_id: The UUID of the campaign
+            district_ids: Optional list of district UUIDs to filter by
+
+        Returns:
+            QuerySet of Person objects who are in the specified districts
+        """
+        try:
+            campaign = cast("Campaign", self.get(id=campaign_id))
+        except Campaign.DoesNotExist:
+            return Person.objects.none()
+
+        # Start with persons in the campaign's target districts
+        base_queryset = Person.objects.filter(
+            person_districts__district__in=campaign.target_districts.all()
+        )
+
+        # Further filter by specific districts if provided
+        if district_ids:
+            base_queryset = base_queryset.filter(
+                person_districts__district__id__in=district_ids
+            )
+
+        return (
+            base_queryset.select_related("voter_record")
+            .prefetch_related("person_districts__district")
+            .distinct()
+        )
 
 
 class Campaign(models.Model):
