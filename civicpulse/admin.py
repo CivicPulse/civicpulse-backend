@@ -16,7 +16,16 @@ from django.utils import timezone
 from django.utils.html import format_html
 
 from .audit import AuditLog
-from .models import Campaign, ContactAttempt, Person, User, VoterRecord
+from .models import (
+    Campaign,
+    ContactAttempt,
+    District,
+    Officeholder,
+    Person,
+    PersonDistrict,
+    User,
+    VoterRecord,
+)
 
 
 @admin.register(User)
@@ -1364,6 +1373,377 @@ class AuditLogAdmin(admin.ModelAdmin):
         }
 
         return super().changelist_view(request, extra_context=extra_context)
+
+
+class OfficeholderInline(admin.TabularInline):
+    """Inline admin for Officeholder within District admin."""
+
+    model = Officeholder
+    extra = 0
+    max_num = 10
+    fields = (
+        "first_name",
+        "last_name",
+        "party_affiliation",
+        "term_start",
+        "term_end",
+        "is_current",
+    )
+    readonly_fields = ("id",)
+
+
+class PersonDistrictInline(admin.TabularInline):
+    """Inline admin for PersonDistrict within District admin."""
+
+    model = PersonDistrict
+    extra = 0
+    max_num = 20
+    fields = (
+        "person",
+        "assignment_method",
+        "confidence",
+        "current_officeholder_name",
+        "assigned_at",
+    )
+    readonly_fields = ("id", "assigned_at")
+    autocomplete_fields = ("person",)
+
+
+@admin.register(District)
+class DistrictAdmin(admin.ModelAdmin):
+    """Admin configuration for District model."""
+
+    list_display = (
+        "name",
+        "district_code",
+        "district_type",
+        "state",
+        "is_active",
+        "person_count",
+        "current_officeholder_display",
+        "created_at",
+    )
+
+    list_filter = (
+        "district_type",
+        "state",
+        "is_active",
+        ("created_at", DateFieldListFilter),
+    )
+
+    search_fields = (
+        "name",
+        "district_code",
+        "boundary_description",
+    )
+
+    list_per_page = 25
+    ordering = ("state", "district_type", "name")
+
+    readonly_fields = (
+        "id",
+        "created_at",
+        "updated_at",
+        "person_count",
+    )
+
+    fieldsets = (
+        (
+            "Basic Information",
+            {
+                "fields": (
+                    "name",
+                    "district_code",
+                    "district_type",
+                    "state",
+                    "is_active",
+                ),
+            },
+        ),
+        (
+            "Geographical Data",
+            {
+                "fields": (
+                    "boundary_description",
+                    "counties_covered",
+                    "zip_codes_covered",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "Metadata",
+            {
+                "fields": (
+                    "notes",
+                    "data_source",
+                    "last_updated",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "System Information",
+            {
+                "fields": (
+                    "id",
+                    "created_at",
+                    "updated_at",
+                    "person_count",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+    )
+
+    inlines = [OfficeholderInline, PersonDistrictInline]
+
+    def person_count(self, obj: District) -> int:
+        """Display count of people assigned to this district."""
+        return obj.district_people.count()
+
+    person_count.short_description = "People Assigned"  # type: ignore[attr-defined]
+
+    def current_officeholder_display(self, obj: District) -> str:
+        """Display current officeholder(s) for this district."""
+        current_holders = obj.officeholders.filter(is_current=True)
+        if not current_holders.exists():
+            return "-"
+        names = [f"{oh.first_name} {oh.last_name}" for oh in current_holders[:2]]
+        if current_holders.count() > 2:
+            names.append("...")
+        return ", ".join(names)
+
+    current_officeholder_display.short_description = (  # type: ignore[attr-defined]
+        "Current Officeholder(s)"
+    )
+
+    def get_queryset(self, request):
+        """Optimize queryset with prefetch_related."""
+        qs = super().get_queryset(request)
+        return qs.prefetch_related("officeholders", "district_people")
+
+
+@admin.register(Officeholder)
+class OfficeholderAdmin(admin.ModelAdmin):
+    """Admin configuration for Officeholder model."""
+
+    list_display = (
+        "full_name",
+        "district_link",
+        "party_affiliation",
+        "term_start",
+        "term_end",
+        "is_current",
+        "contact_info",
+    )
+
+    list_filter = (
+        "is_current",
+        "party_affiliation",
+        "district__district_type",
+        "district__state",
+        ("term_start", DateFieldListFilter),
+    )
+
+    search_fields = (
+        "first_name",
+        "last_name",
+        "district__name",
+        "district__district_code",
+        "office_email",
+        "office_phone",
+    )
+
+    list_per_page = 25
+    ordering = ("-is_current", "district__state", "last_name", "first_name")
+
+    readonly_fields = (
+        "id",
+        "created_at",
+        "updated_at",
+    )
+
+    autocomplete_fields = ("district",)
+
+    fieldsets = (
+        (
+            "Officeholder Information",
+            {
+                "fields": (
+                    "district",
+                    "first_name",
+                    "last_name",
+                    "party_affiliation",
+                ),
+            },
+        ),
+        (
+            "Term Information",
+            {
+                "fields": (
+                    "term_start",
+                    "term_end",
+                    "is_current",
+                ),
+            },
+        ),
+        (
+            "Contact Information",
+            {
+                "fields": (
+                    "office_email",
+                    "office_phone",
+                    "website",
+                    "office_address",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "System Information",
+            {
+                "fields": (
+                    "id",
+                    "created_at",
+                    "updated_at",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+    )
+
+    def full_name(self, obj: Officeholder) -> str:
+        """Display full name."""
+        return f"{obj.first_name} {obj.last_name}"
+
+    full_name.short_description = "Name"  # type: ignore[attr-defined]
+    full_name.admin_order_field = "last_name"  # type: ignore[attr-defined]
+
+    def district_link(self, obj: Officeholder) -> str:
+        """Display clickable link to district."""
+        if obj.district:
+            url = reverse("admin:civicpulse_district_change", args=[obj.district.id])
+            return format_html('<a href="{}">{}</a>', url, obj.district.name)
+        return "-"
+
+    district_link.short_description = "District"  # type: ignore[attr-defined]
+    district_link.admin_order_field = "district__name"  # type: ignore[attr-defined]
+
+    def contact_info(self, obj: Officeholder) -> str:
+        """Display contact information summary."""
+        info = []
+        if obj.office_email:
+            info.append(f"✉ {obj.office_email}")
+        if obj.office_phone:
+            info.append(f"☎ {obj.office_phone}")
+        return " | ".join(info) if info else "-"
+
+    contact_info.short_description = "Contact"  # type: ignore[attr-defined]
+
+    def get_queryset(self, request):
+        """Optimize queryset with select_related."""
+        qs = super().get_queryset(request)
+        return qs.select_related("district")
+
+
+@admin.register(PersonDistrict)
+class PersonDistrictAdmin(admin.ModelAdmin):
+    """Admin configuration for PersonDistrict model."""
+
+    list_display = (
+        "person_link",
+        "district_link",
+        "assignment_method",
+        "confidence",
+        "current_officeholder_name",
+        "assigned_at",
+    )
+
+    list_filter = (
+        "assignment_method",
+        "district__district_type",
+        "district__state",
+        ("assigned_at", DateFieldListFilter),
+    )
+
+    search_fields = (
+        "person__first_name",
+        "person__last_name",
+        "person__email",
+        "district__name",
+        "district__district_code",
+        "current_officeholder_name",
+    )
+
+    list_per_page = 50
+    ordering = ("-assigned_at",)
+
+    readonly_fields = (
+        "id",
+        "assigned_at",
+    )
+
+    autocomplete_fields = ("person", "district")
+
+    fieldsets = (
+        (
+            "Assignment Information",
+            {
+                "fields": (
+                    "person",
+                    "district",
+                    "assignment_method",
+                    "confidence",
+                ),
+            },
+        ),
+        (
+            "Officeholder Information",
+            {
+                "fields": ("current_officeholder_name",),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "System Information",
+            {
+                "fields": (
+                    "id",
+                    "assigned_at",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+    )
+
+    def person_link(self, obj: PersonDistrict) -> str:
+        """Display clickable link to person."""
+        if obj.person:
+            url = reverse("admin:civicpulse_person_change", args=[obj.person.id])
+            name = f"{obj.person.first_name} {obj.person.last_name}"
+            return format_html('<a href="{}">{}</a>', url, name)
+        return "-"
+
+    person_link.short_description = "Person"  # type: ignore[attr-defined]
+    person_link.admin_order_field = "person__last_name"  # type: ignore[attr-defined]
+
+    def district_link(self, obj: PersonDistrict) -> str:
+        """Display clickable link to district."""
+        if obj.district:
+            url = reverse("admin:civicpulse_district_change", args=[obj.district.id])
+            return format_html('<a href="{}">{}</a>', url, obj.district.name)
+        return "-"
+
+    district_link.short_description = "District"  # type: ignore[attr-defined]
+    district_link.admin_order_field = (  # type: ignore[attr-defined]
+        "district__name"
+    )
+
+    def get_queryset(self, request):
+        """Optimize queryset with select_related."""
+        qs = super().get_queryset(request)
+        return qs.select_related("person", "district")
 
 
 # Admin site customization
