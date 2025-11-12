@@ -349,15 +349,21 @@ class PersonDetailView(LoginRequiredMixin, DetailView):
 
     def get_queryset(self):
         """
-        Filter queryset to only return active persons.
+        Filter queryset to only return active persons with optimized queries.
 
         Returns:
-            QuerySet of Person objects where is_active=True
+            QuerySet of Person objects where is_active=True,
+            with prefetch_related for person_districts, districts,
+            and officeholders
 
         Note:
             This ensures soft-deleted persons (is_active=False) return 404
         """
-        return Person.objects.filter(is_active=True)
+        return Person.objects.filter(is_active=True).prefetch_related(
+            "person_districts",  # Prefetch PersonDistrict junction records
+            "person_districts__district",  # Prefetch the District for each junction
+            "person_districts__district__officeholders",  # Prefetch officeholders
+        )
 
     def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
         """
@@ -369,13 +375,30 @@ class PersonDetailView(LoginRequiredMixin, DetailView):
         Returns:
             Context dictionary with additional keys:
                 - page_title: Title for the page (includes person's name)
+                - districts: List of districts this person belongs to
+                - district_officeholders: Dictionary mapping district IDs
+                    to their officeholders
         """
         context = super().get_context_data(**kwargs)
         person = self.get_object()
         context["page_title"] = f"Person: {person.full_name}"
 
+        # Get all districts for this person (already prefetched)
+        person_districts = list(person.person_districts.all())
+        districts = [pd.district for pd in person_districts]
+        context["districts"] = districts
+
+        # Build a dictionary of district ID to officeholders for template use
+        district_officeholders = {}
+        for district in districts:
+            # Officeholders are already prefetched
+            district_officeholders[district.id] = list(district.officeholders.all())
+
+        context["district_officeholders"] = district_officeholders
+
         logger.info(
-            f"User {self.request.user} viewed person: {person.pk} - {person.full_name}"
+            f"User {self.request.user} viewed person: {person.pk} - "
+            f"{person.full_name}, in {len(districts)} district(s)"
         )
 
         return context
