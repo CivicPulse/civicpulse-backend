@@ -2,6 +2,7 @@
 .worktree
 
 node_modules
+static/CACHE
 
 
 # SQLite databases
