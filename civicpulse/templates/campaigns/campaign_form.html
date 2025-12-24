@@ -1,0 +1,49 @@
+{% extends "_base.html" %}
+
+{% block content %}
+<div class="px-4 max-w-2xl mx-auto">
+    <h1 class="text-2xl font-bold text-gray-900 mb-6">
+        {% if is_create %}Create Campaign{% else %}Edit Campaign{% endif %}
+    </h1>
+
+    <form method="post" class="bg-white rounded-lg shadow p-6">
+        {% csrf_token %}
+
+        <div class="mb-4">
+            <label for="id_name" class="block mb-2 text-sm font-medium text-gray-900">Campaign Name</label>
+            {{ form.name }}
+            {% if form.name.errors %}
+            <p class="mt-1 text-sm text-red-600">{{ form.name.errors.0 }}</p>
+            {% endif %}
+        </div>
+
+        <div class="mb-4">
+            <label for="id_description" class="block mb-2 text-sm font-medium text-gray-900">Description</label>
+            {{ form.description }}
+        </div>
+
+        <div class="mb-4">
+            <label for="id_script" class="block mb-2 text-sm font-medium text-gray-900">Script / Talking Points</label>
+            {{ form.script }}
+            <p class="mt-1 text-xs text-gray-500">This will be shown to callers during the calling session.</p>
+        </div>
+
+        <div class="mb-6">
+            <label class="flex items-center">
+                {{ form.is_active }}
+                <span class="ml-2 text-sm font-medium text-gray-900">Active</span>
+            </label>
+            <p class="mt-1 text-xs text-gray-500">Inactive campaigns won't appear in the calling queue.</p>
+        </div>
+
+        <div class="flex gap-3">
+            <button type="submit" class="text-white bg-green-700 hover:bg-green-800 focus:ring-4 focus:ring-green-300 font-medium rounded-lg text-sm px-5 py-2.5">
+                {% if is_create %}Create Campaign{% else %}Save Changes{% endif %}
+            </button>
+            <a href="{% if is_create %}{% url 'campaign_list' %}{% else %}{% url 'campaign_detail' pk=campaign.pk %}{% endif %}" class="text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 font-medium rounded-lg text-sm px-5 py-2.5">
+                Cancel
+            </a>
+        </div>
+    </form>
+</div>
+{% endblock %}

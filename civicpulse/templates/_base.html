@@ -16,6 +16,7 @@
     <link rel="stylesheet" href="{% static 'src/output.css' %}">
     {% endcompress %}
     <script src="https://cdn.jsdelivr.net/npm/flowbite@4.0.1/dist/flowbite.min.js"></script>
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
 
 
 </head>
@@ -38,6 +39,9 @@
                 <a href="/" class="block py-2 pl-3 pr-4 text-white bg-green-700 rounded-sm md:bg-transparent md:text-green-700 md:p-0 dark:text-white" aria-current="page">Home</a>
               </li>
               {% if user.is_authenticated %}
+              <li>
+                <a href="{% url 'campaign_list' %}" class="block py-2 pl-3 pr-4 text-gray-600 hover:text-green-700 md:p-0 dark:text-gray-400">Campaigns</a>
+              </li>
               <li>
                 <span class="block py-2 pl-3 pr-4 text-gray-600 md:p-0 dark:text-gray-400">{{ user.username }}</span>
               </li>
