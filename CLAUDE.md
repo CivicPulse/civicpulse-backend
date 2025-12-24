@@ -99,24 +99,63 @@ Person.objects.filter(voter_record__registered_party='Democratic')  # Filter by 
 - `notes` for conversation details, `callback_time` for scheduling
 - `phone_number_used` tracks which number was called/texted
 
+**EffortAssignment** - Pre-assigns persons to campaigns with locking:
+- Links to ContactEffort and Person (unique_together)
+- `status`: pending → in_progress → completed
+- `locked_by`/`locked_at`: Prevents concurrent callers from getting same person
+- Stale locks (>10 min) are automatically released
+
 **Terminal outcomes** (defined in `ContactAttempt.TERMINAL_OUTCOMES`):
 Person should not be contacted again within the same effort after: spoke_with, refused, wrong_number
 
-**Query pattern for getting next uncontacted person:**
+**Database indexes:** effort+status, locked_by+locked_at for efficient querying
+
+## Campaign UI
+
+**URL Routes** (`/campaigns/`):
+- `/campaigns/` - List all campaigns with progress stats
+- `/campaigns/create/` - Create new campaign
+- `/campaigns/<uuid>/` - Campaign detail/dashboard
+- `/campaigns/<uuid>/edit/` - Edit campaign
+- `/campaigns/<uuid>/delete/` - Delete with confirmation
+- `/campaigns/<uuid>/assignments/` - Manage assigned persons
+- `/campaigns/<uuid>/assignments/add/` - Bulk assign with filters
+- `/campaigns/<uuid>/call/` - Start calling session (HTMX-powered)
+
+**Calling Workflow (HTMX)**:
+The calling session uses HTMX for smooth transitions without full page reloads:
+- `calling_next` - Locks and returns next person card
+- `calling_log` - Logs outcome, releases lock, returns next person
+- `calling_skip` - Releases lock without logging, returns next person
+
+**Concurrent Caller Support**:
+Uses `select_for_update(skip_locked=True)` for row-level locking:
 ```python
-from civicpulse.models import ContactAttempt, Person
-
-# Get persons who haven't reached a terminal outcome in this effort
-contacted_terminal = ContactAttempt.objects.filter(
-    effort=effort,
-    outcome__in=ContactAttempt.TERMINAL_OUTCOMES
-).values_list('person_id', flat=True)
-
-# Get random available person
-available = Person.objects.exclude(id__in=contacted_terminal).order_by('?').first()
+with transaction.atomic():
+    assignment = (
+        EffortAssignment.objects.select_for_update(skip_locked=True)
+        .filter(effort=effort, status=EffortAssignment.Status.PENDING)
+        .first()
+    )
+    if assignment:
+        assignment.status = EffortAssignment.Status.IN_PROGRESS
+        assignment.locked_by = user
+        assignment.locked_at = timezone.now()
+        assignment.save()
 ```
 
-**Database indexes:** effort+person and effort+outcome for efficient querying
+**Templates** (`civicpulse/templates/campaigns/`):
+- `campaign_list.html` - Campaign grid with progress bars
+- `campaign_detail.html` - Dashboard with stats and actions
+- `campaign_form.html` - Create/edit form
+- `calling_session.html` - Main calling interface
+- `partials/_person_card.html` - Person details + outcome form (HTMX partial)
+- `partials/_session_complete.html` - All done message
+
+**Forms** (`civicpulse/forms.py`):
+- `CampaignForm` - Create/edit campaigns
+- `ContactAttemptForm` - Log call outcomes
+- `AssignmentFilterForm` - Filter persons for bulk assignment (party, likelihood, has_phone)
 
 ## Management Commands
 

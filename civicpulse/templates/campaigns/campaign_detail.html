@@ -55,13 +55,18 @@
     <div class="bg-white rounded-lg shadow p-6 mb-6">
         <h2 class="text-lg font-semibold text-gray-900 mb-4">Actions</h2>
         <div class="flex flex-wrap gap-3">
+            {% if user_in_progress %}
+            <a href="{% url 'calling_session' pk=campaign.pk %}" class="text-white bg-blue-600 hover:bg-blue-700 font-medium rounded-lg text-sm px-5 py-2.5">
+                Continue Session
+            </a>
+            {% endif %}
             {% if stats.pending > 0 and campaign.is_active %}
             <a href="{% url 'calling_session' pk=campaign.pk %}" class="text-white bg-green-700 hover:bg-green-800 font-medium rounded-lg text-sm px-5 py-2.5">
                 Start Calling ({{ stats.pending }} remaining)
             </a>
-            {% elif stats.total == 0 %}
+            {% elif stats.total == 0 and not user_in_progress %}
             <span class="text-gray-500 text-sm">No persons assigned yet</span>
-            {% else %}
+            {% elif not user_in_progress %}
             <span class="text-gray-500 text-sm">All contacts completed!</span>
             {% endif %}
 

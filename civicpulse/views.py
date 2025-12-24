@@ -75,10 +75,17 @@ def campaign_detail(request, pk):
     total = stats["total"] or 1
     stats["percentage"] = round((stats["completed"] / total) * 100, 1) if total else 0
 
+    # Check if user has an in-progress assignment locked to them
+    user_in_progress = EffortAssignment.objects.filter(
+        effort=campaign,
+        status=EffortAssignment.Status.IN_PROGRESS,
+        locked_by=request.user,
+    ).first()
+
     return render(
         request,
         "campaigns/campaign_detail.html",
-        {"campaign": campaign, "stats": stats},
+        {"campaign": campaign, "stats": stats, "user_in_progress": user_in_progress},
     )
 
 
@@ -314,7 +321,17 @@ def calling_session(request, pk):
 def calling_next(request, pk):
     """Get next person to call (HTMX partial)."""
     campaign = get_object_or_404(ContactEffort, pk=pk)
-    assignment = get_next_assignment(campaign, request.user)
+
+    # First check if user already has a locked assignment
+    assignment = EffortAssignment.objects.filter(
+        effort=campaign,
+        status=EffortAssignment.Status.IN_PROGRESS,
+        locked_by=request.user,
+    ).first()
+
+    # If not, get a new one
+    if not assignment:
+        assignment = get_next_assignment(campaign, request.user)
 
     if not assignment:
         stats = get_session_stats(campaign)
