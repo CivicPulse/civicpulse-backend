@@ -1,0 +1,113 @@
+{% extends "_base.html" %}
+
+{% block content %}
+<div class="px-4 max-w-3xl mx-auto">
+    <div class="mb-6">
+        <a href="{% if is_create %}{% url 'election_list' %}{% else %}{% url 'election_detail' pk=election.pk %}{% endif %}" class="text-green-700 hover:underline text-sm">&larr; Back</a>
+    </div>
+
+    <div class="bg-white rounded-lg shadow p-6">
+        <h1 class="text-2xl font-bold text-gray-900 mb-6">
+            {% if is_create %}Create Election{% else %}Edit Election{% endif %}
+        </h1>
+
+        <form method="post">
+            {% csrf_token %}
+
+            <div class="grid md:grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label for="id_office" class="block mb-2 text-sm font-medium text-gray-900">Office</label>
+                    {{ form.office }}
+                    {% if form.office.errors %}
+                    <p class="text-red-500 text-sm mt-1">{{ form.office.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                <div>
+                    <label for="id_election_type" class="block mb-2 text-sm font-medium text-gray-900">Election Type</label>
+                    {{ form.election_type }}
+                </div>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label for="id_year" class="block mb-2 text-sm font-medium text-gray-900">Year</label>
+                    {{ form.year }}
+                    {% if form.year.errors %}
+                    <p class="text-red-500 text-sm mt-1">{{ form.year.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                <div>
+                    <label for="id_status" class="block mb-2 text-sm font-medium text-gray-900">Status</label>
+                    {{ form.status }}
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <label for="id_parent_election" class="block mb-2 text-sm font-medium text-gray-900">Parent Election (for primaries/runoffs)</label>
+                {{ form.parent_election }}
+                <p class="text-gray-500 text-xs mt-1">Link this to the general election it feeds into</p>
+            </div>
+
+            <div class="mb-6">
+                <label for="id_description" class="block mb-2 text-sm font-medium text-gray-900">Description</label>
+                {{ form.description }}
+            </div>
+
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Key Dates</h3>
+
+            <div class="grid md:grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label for="id_qualifying_start" class="block mb-2 text-sm font-medium text-gray-900">Qualifying Start</label>
+                    {{ form.qualifying_start }}
+                </div>
+                <div>
+                    <label for="id_qualifying_end" class="block mb-2 text-sm font-medium text-gray-900">Qualifying End</label>
+                    {{ form.qualifying_end }}
+                </div>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label for="id_registration_deadline" class="block mb-2 text-sm font-medium text-gray-900">Registration Deadline</label>
+                    {{ form.registration_deadline }}
+                </div>
+                <div>
+                    <label for="id_absentee_request_deadline" class="block mb-2 text-sm font-medium text-gray-900">Absentee Request Deadline</label>
+                    {{ form.absentee_request_deadline }}
+                </div>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label for="id_early_voting_start" class="block mb-2 text-sm font-medium text-gray-900">Early Voting Start</label>
+                    {{ form.early_voting_start }}
+                </div>
+                <div>
+                    <label for="id_early_voting_end" class="block mb-2 text-sm font-medium text-gray-900">Early Voting End</label>
+                    {{ form.early_voting_end }}
+                </div>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-4 mb-6">
+                <div>
+                    <label for="id_election_day" class="block mb-2 text-sm font-medium text-gray-900">Election Day</label>
+                    {{ form.election_day }}
+                </div>
+                <div>
+                    <label for="id_certification_date" class="block mb-2 text-sm font-medium text-gray-900">Certification Date</label>
+                    {{ form.certification_date }}
+                </div>
+            </div>
+
+            <div class="flex gap-4">
+                <button type="submit" class="text-white bg-green-700 hover:bg-green-800 focus:ring-4 focus:ring-green-300 font-medium rounded-lg text-sm px-5 py-2.5">
+                    {% if is_create %}Create Election{% else %}Save Changes{% endif %}
+                </button>
+                <a href="{% if is_create %}{% url 'election_list' %}{% else %}{% url 'election_detail' pk=election.pk %}{% endif %}" class="text-gray-600 border border-gray-300 hover:bg-gray-50 font-medium rounded-lg text-sm px-5 py-2.5">
+                    Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

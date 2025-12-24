@@ -1,8 +1,8 @@
 # CivicPulse Backend
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
-[![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
-[![Django](https://img.shields.io/badge/django-4.2%2B-green.svg)](https://www.djangoproject.com/)
+[![Python](https://img.shields.io/badge/python-3.13%2B-blue.svg)](https://www.python.org/downloads/)
+[![Django](https://img.shields.io/badge/django-6.0%2B-green.svg)](https://www.djangoproject.com/)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 ## Project Overview
@@ -25,10 +25,19 @@ Create and manage phone banking or text campaigns with:
 - **Outcome tracking**: Spoke With, No Answer, Left Voicemail, Busy, Callback, Wrong Number, Refused
 - **Progress tracking** with real-time stats and completion percentage
 
+### Election Tracking
+Track elections and candidates for civic engagement:
+- **Office management** - Define elected positions (Mayor, City Council, etc.) with jurisdiction and term info
+- **Election tracking** - General, Primary, Special, and Runoff elections with comprehensive date tracking
+- **Key dates** - Qualifying periods, registration deadlines, early voting, election day, certification
+- **Candidate management** - Link persons as candidates with party, incumbent status, and outcome tracking
+- **Campaign integration** - Associate contact campaigns with specific elections and candidates
+
 ### Tech Stack
-- **Backend**: Django 4.2+, Python 3.11+
-- **Frontend**: Tailwind CSS, Flowbite components, HTMX
+- **Backend**: Django 6.0+, Python 3.13+
+- **Frontend**: Tailwind CSS 4.1+, Flowbite components, HTMX 2.0.4
 - **Database**: SQLite (dev), PostgreSQL (prod)
+- **Package Management**: uv (Python), npm (Node)
 
 ## Quick Start
 

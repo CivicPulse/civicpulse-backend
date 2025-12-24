@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import date, timedelta
 
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
@@ -6,11 +6,23 @@ from django.db.models import Count, Prefetch, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
-from .forms import AssignmentFilterForm, CampaignForm, ContactAttemptForm
+from .forms import (
+    AssignmentFilterForm,
+    CampaignForm,
+    CandidateForm,
+    ContactAttemptForm,
+    ElectionDateForm,
+    ElectionForm,
+    OfficeForm,
+)
 from .models import (
+    Candidate,
     ContactAttempt,
     ContactEffort,
     EffortAssignment,
+    Election,
+    ElectionDate,
+    Office,
     Person,
 )
 
@@ -121,6 +133,426 @@ def campaign_delete(request, pk):
     return render(
         request, "campaigns/campaign_confirm_delete.html", {"campaign": campaign}
     )
+
+
+# =============================================================================
+# Office CRUD Views
+# =============================================================================
+
+
+@login_required
+def office_list(request):
+    """List all offices with election counts."""
+    offices = Office.objects.annotate(
+        election_count=Count("elections"),
+        active_elections=Count(
+            "elections", filter=Q(elections__status=Election.Status.ACTIVE)
+        ),
+    ).order_by("level", "state", "city", "name")
+
+    # Optional filtering
+    level = request.GET.get("level")
+    state = request.GET.get("state")
+    if level:
+        offices = offices.filter(level=level)
+    if state:
+        offices = offices.filter(state=state)
+
+    return render(
+        request,
+        "elections/office_list.html",
+        {"offices": offices, "level_choices": Office.Level.choices},
+    )
+
+
+@login_required
+def office_detail(request, pk):
+    """View office with associated elections."""
+    office = get_object_or_404(Office, pk=pk)
+    elections = (
+        Election.objects.filter(office=office)
+        .annotate(candidate_count=Count("candidates"))
+        .order_by("-year", "-election_day")
+    )
+
+    return render(
+        request,
+        "elections/office_detail.html",
+        {"office": office, "elections": elections},
+    )
+
+
+@login_required
+def office_create(request):
+    """Create a new office."""
+    if request.method == "POST":
+        form = OfficeForm(request.POST)
+        if form.is_valid():
+            office = form.save()
+            return redirect("office_detail", pk=office.pk)
+    else:
+        form = OfficeForm()
+
+    return render(
+        request, "elections/office_form.html", {"form": form, "is_create": True}
+    )
+
+
+@login_required
+def office_edit(request, pk):
+    """Edit an existing office."""
+    office = get_object_or_404(Office, pk=pk)
+
+    if request.method == "POST":
+        form = OfficeForm(request.POST, instance=office)
+        if form.is_valid():
+            form.save()
+            return redirect("office_detail", pk=office.pk)
+    else:
+        form = OfficeForm(instance=office)
+
+    return render(
+        request,
+        "elections/office_form.html",
+        {"form": form, "office": office, "is_create": False},
+    )
+
+
+@login_required
+def office_delete(request, pk):
+    """Delete an office with confirmation."""
+    office = get_object_or_404(Office, pk=pk)
+
+    if request.method == "POST":
+        office.delete()
+        return redirect("office_list")
+
+    return render(request, "elections/office_confirm_delete.html", {"office": office})
+
+
+# =============================================================================
+# Election CRUD Views
+# =============================================================================
+
+
+@login_required
+def election_list(request):
+    """List elections with filtering."""
+    elections = Election.objects.select_related("office").annotate(
+        candidate_count=Count("candidates"),
+        effort_count=Count("contact_efforts"),
+    )
+
+    # Filters
+    status = request.GET.get("status")
+    year = request.GET.get("year")
+    election_type = request.GET.get("type")
+
+    if status:
+        elections = elections.filter(status=status)
+    if year:
+        elections = elections.filter(year=year)
+    if election_type:
+        elections = elections.filter(election_type=election_type)
+
+    elections = elections.order_by("-year", "-election_day")
+
+    # Get distinct years for filter dropdown
+    years = Election.objects.values_list("year", flat=True).distinct().order_by("-year")
+
+    return render(
+        request,
+        "elections/election_list.html",
+        {
+            "elections": elections,
+            "status_choices": Election.Status.choices,
+            "type_choices": Election.ElectionType.choices,
+            "years": years,
+        },
+    )
+
+
+@login_required
+def election_detail(request, pk):
+    """View election details with candidates and dates."""
+    election = get_object_or_404(
+        Election.objects.select_related("office", "parent_election"), pk=pk
+    )
+    # Annotate candidates with will_vote counts from their associated campaigns
+    candidates = (
+        Candidate.objects.filter(election=election)
+        .select_related("person")
+        .annotate(
+            will_vote_count=Count(
+                "contact_efforts__attempts",
+                filter=Q(
+                    contact_efforts__attempts__outcome=ContactAttempt.Outcome.WILL_VOTE
+                ),
+            )
+        )
+    )
+    additional_dates = ElectionDate.objects.filter(election=election)
+    contact_efforts = ContactEffort.objects.filter(election=election).annotate(
+        total_assignments=Count("assignments"),
+        completed_count=Count(
+            "assignments",
+            filter=Q(assignments__status=EffortAssignment.Status.COMPLETED),
+        ),
+    )
+
+    # Calculate days until/since election
+    days_info = None
+    if election.election_day:
+        delta = election.election_day - date.today()
+        days_info = {"days": abs(delta.days), "is_future": delta.days > 0}
+
+    return render(
+        request,
+        "elections/election_detail.html",
+        {
+            "election": election,
+            "candidates": candidates,
+            "additional_dates": additional_dates,
+            "contact_efforts": contact_efforts,
+            "days_info": days_info,
+        },
+    )
+
+
+@login_required
+def election_create(request):
+    """Create a new election."""
+    if request.method == "POST":
+        form = ElectionForm(request.POST)
+        if form.is_valid():
+            election = form.save()
+            return redirect("election_detail", pk=election.pk)
+    else:
+        form = ElectionForm()
+
+    return render(
+        request, "elections/election_form.html", {"form": form, "is_create": True}
+    )
+
+
+@login_required
+def election_edit(request, pk):
+    """Edit an existing election."""
+    election = get_object_or_404(Election, pk=pk)
+
+    if request.method == "POST":
+        form = ElectionForm(request.POST, instance=election)
+        if form.is_valid():
+            form.save()
+            return redirect("election_detail", pk=election.pk)
+    else:
+        form = ElectionForm(instance=election)
+
+    return render(
+        request,
+        "elections/election_form.html",
+        {"form": form, "election": election, "is_create": False},
+    )
+
+
+@login_required
+def election_delete(request, pk):
+    """Delete an election with confirmation."""
+    election = get_object_or_404(Election, pk=pk)
+
+    if request.method == "POST":
+        election.delete()
+        return redirect("election_list")
+
+    return render(
+        request, "elections/election_confirm_delete.html", {"election": election}
+    )
+
+
+# =============================================================================
+# Candidate Views
+# =============================================================================
+
+
+@login_required
+def candidate_list(request, pk):
+    """List candidates for an election."""
+    election = get_object_or_404(Election, pk=pk)
+    candidates = (
+        Candidate.objects.filter(election=election)
+        .select_related("person")
+        .prefetch_related("person__phone_numbers", "person__emails")
+    )
+
+    # Filters
+    status = request.GET.get("status")
+    party = request.GET.get("party")
+    if status:
+        candidates = candidates.filter(status=status)
+    if party:
+        candidates = candidates.filter(party_affiliation=party)
+
+    return render(
+        request,
+        "elections/candidate_list.html",
+        {
+            "election": election,
+            "candidates": candidates,
+            "status_choices": Candidate.Status.choices,
+        },
+    )
+
+
+@login_required
+def candidate_add(request, pk):
+    """Add a candidate to an election."""
+    election = get_object_or_404(Election, pk=pk)
+
+    if request.method == "POST":
+        form = CandidateForm(request.POST)
+        if form.is_valid():
+            candidate = form.save(commit=False)
+            candidate.election = election
+            candidate.save()
+            return redirect("election_detail", pk=election.pk)
+    else:
+        form = CandidateForm()
+
+    return render(
+        request,
+        "elections/candidate_form.html",
+        {"form": form, "election": election, "is_create": True},
+    )
+
+
+@login_required
+def candidate_detail(request, pk):
+    """View candidate details with contact efforts."""
+    candidate = get_object_or_404(
+        Candidate.objects.select_related("person", "election", "election__office"),
+        pk=pk,
+    )
+
+    efforts = ContactEffort.objects.filter(candidate=candidate).annotate(
+        total_assignments=Count("assignments"),
+        completed_count=Count(
+            "assignments",
+            filter=Q(assignments__status=EffortAssignment.Status.COMPLETED),
+        ),
+    )
+
+    person = Person.objects.prefetch_related(
+        "phone_numbers", "emails", "addresses"
+    ).get(pk=candidate.person_id)
+
+    return render(
+        request,
+        "elections/candidate_detail.html",
+        {"candidate": candidate, "person": person, "efforts": efforts},
+    )
+
+
+@login_required
+def candidate_edit(request, pk):
+    """Edit a candidate."""
+    candidate = get_object_or_404(Candidate, pk=pk)
+
+    if request.method == "POST":
+        form = CandidateForm(request.POST, instance=candidate)
+        if form.is_valid():
+            form.save()
+            return redirect("candidate_detail", pk=candidate.pk)
+    else:
+        form = CandidateForm(instance=candidate)
+
+    return render(
+        request,
+        "elections/candidate_form.html",
+        {
+            "form": form,
+            "candidate": candidate,
+            "election": candidate.election,
+            "is_create": False,
+        },
+    )
+
+
+@login_required
+def candidate_delete(request, pk):
+    """Delete a candidate with confirmation."""
+    candidate = get_object_or_404(Candidate, pk=pk)
+    election = candidate.election
+
+    if request.method == "POST":
+        candidate.delete()
+        return redirect("election_detail", pk=election.pk)
+
+    return render(
+        request, "elections/candidate_confirm_delete.html", {"candidate": candidate}
+    )
+
+
+# =============================================================================
+# Election Campaigns View
+# =============================================================================
+
+
+@login_required
+def election_campaigns(request, pk):
+    """View/manage contact efforts for an election."""
+    election = get_object_or_404(Election, pk=pk)
+    efforts = ContactEffort.objects.filter(election=election).annotate(
+        total_assignments=Count("assignments"),
+        completed_count=Count(
+            "assignments",
+            filter=Q(assignments__status=EffortAssignment.Status.COMPLETED),
+        ),
+    )
+
+    return render(
+        request,
+        "elections/election_campaigns.html",
+        {"election": election, "efforts": efforts},
+    )
+
+
+# =============================================================================
+# Election Date Management (HTMX)
+# =============================================================================
+
+
+@login_required
+def election_date_add(request, pk):
+    """Add an additional date to an election."""
+    election = get_object_or_404(Election, pk=pk)
+
+    if request.method == "POST":
+        form = ElectionDateForm(request.POST)
+        if form.is_valid():
+            election_date = form.save(commit=False)
+            election_date.election = election
+            election_date.save()
+            return redirect("election_detail", pk=election.pk)
+    else:
+        form = ElectionDateForm()
+
+    return render(
+        request,
+        "elections/election_date_form.html",
+        {"form": form, "election": election},
+    )
+
+
+@login_required
+def election_date_delete(request, pk, date_pk):
+    """Delete an additional election date."""
+    election = get_object_or_404(Election, pk=pk)
+    election_date = get_object_or_404(ElectionDate, pk=date_pk, election=election)
+
+    if request.method == "POST":
+        election_date.delete()
+
+    return redirect("election_detail", pk=election.pk)
 
 
 # =============================================================================
@@ -413,3 +845,27 @@ def calling_skip(request, pk):
         )
 
     return calling_next(request, pk)
+
+
+# =============================================================================
+# HTMX Helper Views
+# =============================================================================
+
+
+@login_required
+def campaign_candidates(request):
+    """Return candidate dropdown options for a given election (HTMX)."""
+    election_id = request.GET.get("election")
+
+    if election_id:
+        candidates = Candidate.objects.filter(election_id=election_id).select_related(
+            "person"
+        )
+    else:
+        candidates = Candidate.objects.none()
+
+    return render(
+        request,
+        "campaigns/partials/_candidate_select.html",
+        {"candidates": candidates},
+    )

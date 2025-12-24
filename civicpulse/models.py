@@ -194,6 +194,207 @@ class VoterRecord(models.Model):
         return f"Voter record for {self.person}"
 
 
+class Office(models.Model):
+    """Represents an elected office position."""
+
+    class Level(models.TextChoices):
+        FEDERAL = "federal", "Federal"
+        STATE = "state", "State"
+        COUNTY = "county", "County"
+        CITY = "city", "City"
+        SCHOOL_DISTRICT = "school_district", "School District"
+        OTHER = "other", "Other"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(
+        max_length=200, help_text="e.g., 'Mayor', 'City Council Seat 3'"
+    )
+    level = models.CharField(max_length=20, choices=Level.choices, default=Level.CITY)
+
+    # Jurisdiction fields
+    city = models.CharField(max_length=100, blank=True)
+    county = models.CharField(max_length=100, blank=True)
+    state = models.CharField(
+        max_length=2, blank=True, help_text="US state abbreviation"
+    )
+
+    term_length_years = models.PositiveIntegerField(
+        null=True, blank=True, help_text="Term length in years"
+    )
+    description = models.TextField(blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["level", "state", "city", "name"]
+        indexes = [
+            models.Index(fields=["level"]),
+            models.Index(fields=["state", "city"]),
+        ]
+
+    def __str__(self):
+        parts = [self.name]
+        if self.city:
+            parts.append(self.city)
+        if self.state:
+            parts.append(self.state)
+        return " - ".join(parts)
+
+
+class Election(models.Model):
+    """A specific election race for an office."""
+
+    class ElectionType(models.TextChoices):
+        GENERAL = "general", "General Election"
+        PRIMARY = "primary", "Primary Election"
+        SPECIAL = "special", "Special Election"
+        RUNOFF = "runoff", "Runoff Election"
+
+    class Status(models.TextChoices):
+        UPCOMING = "upcoming", "Upcoming"
+        ACTIVE = "active", "Active"
+        COMPLETED = "completed", "Completed"
+        CERTIFIED = "certified", "Certified"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    office = models.ForeignKey(
+        Office, on_delete=models.CASCADE, related_name="elections"
+    )
+    election_type = models.CharField(
+        max_length=20, choices=ElectionType.choices, default=ElectionType.GENERAL
+    )
+    year = models.PositiveIntegerField(help_text="Election year (e.g., 2024)")
+
+    # Parent election relationship (e.g., Primary -> General)
+    parent_election = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="child_elections",
+        help_text="Parent election (e.g., the General election this Primary feeds into)",
+    )
+
+    # Key dates
+    qualifying_start = models.DateField(null=True, blank=True)
+    qualifying_end = models.DateField(null=True, blank=True)
+    registration_deadline = models.DateField(null=True, blank=True)
+    absentee_request_deadline = models.DateField(null=True, blank=True)
+    early_voting_start = models.DateField(null=True, blank=True)
+    early_voting_end = models.DateField(null=True, blank=True)
+    election_day = models.DateField(null=True, blank=True)
+    certification_date = models.DateField(null=True, blank=True)
+
+    status = models.CharField(
+        max_length=15, choices=Status.choices, default=Status.UPCOMING
+    )
+    description = models.TextField(blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-year", "-election_day"]
+        indexes = [
+            models.Index(fields=["year"]),
+            models.Index(fields=["status"]),
+            models.Index(fields=["election_day"]),
+            models.Index(fields=["office", "year"]),
+        ]
+
+    def __str__(self):
+        return f"{self.office.name} - {self.get_election_type_display()} {self.year}"
+
+
+class ElectionDate(models.Model):
+    """Flexible additional dates for an election."""
+
+    class DateType(models.TextChoices):
+        CANDIDATE_FORUM = "candidate_forum", "Candidate Forum"
+        DEBATE = "debate", "Debate"
+        FILING_DEADLINE = "filing_deadline", "Filing Deadline"
+        CAMPAIGN_EVENT = "campaign_event", "Campaign Event"
+        FUNDRAISING_DEADLINE = "fundraising_deadline", "Fundraising Deadline"
+        OTHER = "other", "Other"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    election = models.ForeignKey(
+        Election, on_delete=models.CASCADE, related_name="additional_dates"
+    )
+    date_type = models.CharField(
+        max_length=30, choices=DateType.choices, default=DateType.OTHER
+    )
+    date = models.DateField()
+    description = models.CharField(max_length=255, blank=True)
+    location = models.CharField(max_length=255, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["date"]
+
+    def __str__(self):
+        return f"{self.election} - {self.get_date_type_display()} ({self.date})"
+
+
+class Candidate(models.Model):
+    """Represents a candidate in an election, optionally linked to a Person."""
+
+    class Status(models.TextChoices):
+        ACTIVE = "active", "Active"
+        WITHDRAWN = "withdrawn", "Withdrawn"
+        WON = "won", "Won"
+        LOST = "lost", "Lost"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Candidate name (used if not linked to a Person record)",
+    )
+    person = models.ForeignKey(
+        Person,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="candidacies",
+        help_text="Optional link to an existing Person record",
+    )
+    election = models.ForeignKey(
+        Election, on_delete=models.CASCADE, related_name="candidates"
+    )
+    party_affiliation = models.CharField(max_length=50, blank=True)
+    is_incumbent = models.BooleanField(default=False)
+    status = models.CharField(
+        max_length=15, choices=Status.choices, default=Status.ACTIVE
+    )
+
+    # Optional campaign info
+    campaign_website = models.URLField(blank=True)
+    campaign_slogan = models.CharField(max_length=255, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-election__year", "name"]
+        indexes = [
+            models.Index(fields=["status"]),
+            models.Index(fields=["party_affiliation"]),
+        ]
+
+    @property
+    def display_name(self):
+        """Return the candidate's display name."""
+        if self.person:
+            return self.person.full_name
+        return self.name or "Unknown Candidate"
+
+    def __str__(self):
+        return f"{self.display_name} - {self.election}"
+
+
 class ContactEffort(models.Model):
     """A contact outreach campaign or effort."""
 
@@ -204,6 +405,25 @@ class ContactEffort(models.Model):
         blank=True, help_text="Script or talking points for callers/texters"
     )
     is_active = models.BooleanField(default=True)
+
+    # Optional election association
+    election = models.ForeignKey(
+        Election,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="contact_efforts",
+        help_text="Election this effort is associated with",
+    )
+    candidate = models.ForeignKey(
+        Candidate,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="contact_efforts",
+        help_text="Candidate this effort supports",
+    )
+
     created_by = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
@@ -233,11 +453,17 @@ class ContactAttempt(models.Model):
         LEFT_VOICEMAIL = "left_voicemail", "Left Voicemail"
         WRONG_NUMBER = "wrong_number", "Wrong Number"
         SPOKE_WITH = "spoke_with", "Spoke With Person"
+        WILL_VOTE = "will_vote", "Will Vote for Candidate"
         REFUSED = "refused", "Refused/Do Not Contact"
         CALLBACK_REQUESTED = "callback_requested", "Callback Requested"
 
     # Terminal outcomes - person should not be contacted again in this effort
-    TERMINAL_OUTCOMES = [Outcome.SPOKE_WITH, Outcome.REFUSED, Outcome.WRONG_NUMBER]
+    TERMINAL_OUTCOMES = [
+        Outcome.SPOKE_WITH,
+        Outcome.WILL_VOTE,
+        Outcome.REFUSED,
+        Outcome.WRONG_NUMBER,
+    ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     effort = models.ForeignKey(

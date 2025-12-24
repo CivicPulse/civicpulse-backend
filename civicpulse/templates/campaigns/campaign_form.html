@@ -36,6 +36,35 @@
             <p class="mt-1 text-xs text-gray-500">Inactive campaigns won't appear in the calling queue.</p>
         </div>
 
+        <!-- Election Association -->
+        <div class="border-t pt-6 mb-4">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">Election Association (Optional)</h3>
+            <p class="text-sm text-gray-500 mb-4">Link this campaign to a specific election and candidate to track voter commitments.</p>
+
+            <div class="mb-4">
+                <label for="id_election" class="block mb-2 text-sm font-medium text-gray-900">Election</label>
+                <select name="election" id="id_election"
+                        class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-green-500 focus:border-green-500 block w-full p-2.5"
+                        hx-get="{% url 'campaign_candidates' %}"
+                        hx-target="#candidate-select-wrapper"
+                        hx-trigger="change"
+                        hx-include="[name='election']">
+                    <option value="">— No election —</option>
+                    {% for election in form.election.field.queryset %}
+                    <option value="{{ election.pk }}" {% if form.election.value|stringformat:"s" == election.pk|stringformat:"s" %}selected{% endif %}>
+                        {{ election }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="mb-4" id="candidate-select-wrapper">
+                <label for="id_candidate" class="block mb-2 text-sm font-medium text-gray-900">Candidate</label>
+                {{ form.candidate }}
+                <p class="mt-1 text-xs text-gray-500">Select an election first to see available candidates.</p>
+            </div>
+        </div>
+
         <div class="flex gap-3">
             <button type="submit" class="text-white bg-green-700 hover:bg-green-800 focus:ring-4 focus:ring-green-300 font-medium rounded-lg text-sm px-5 py-2.5">
                 {% if is_create %}Create Campaign{% else %}Save Changes{% endif %}
