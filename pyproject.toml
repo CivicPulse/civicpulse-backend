@@ -5,94 +5,12 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "django==5.2.8",
-    "django-environ>=0.12.0",
-    "psycopg2-binary>=2.9.10",
-    "loguru>=0.7.2",
-    "bandit>=1.8.6",
-    "django-stubs>=5.2.2",
-    "phonenumbers>=9.0.12",
-    "django-axes>=8.0.0",
-    "redis>=6.4.0",
-    "django-redis>=6.0.0",
-    "dj-database-url>=2.3.0",
-    "faker>=37.5.3",
-    "django-ratelimit>=4.1.0",
-    "pip==25.3",
-    "djangorestframework>=3.16.1",
-    "fiona>=1.9.5",
-    "shapely>=2.0.2",
-    "pyshp>=2.3.1",
-    "fastkml>=1.0.0",
-    "gdal==3.4.1",
-    "lxml>=5.0.0",
+    "django>=6.0",
+    "django-compressor>=4.6.0",
 ]
-
-
-[tool.ruff]
-line-length = 88
-target-version = "py313"
-extend-exclude = ["migrations"]
-
-[tool.ruff.lint]
-select = [
-    "E",  # pycodestyle errors
-    "W",  # pycodestyle warnings
-    "F",  # pyflakes
-    "I",  # isort
-    "B",  # flake8-bugbear
-    "C4", # flake8-comprehensions
-    "UP", # pyupgrade
-    "DJ", # flake8-django
-]
-
-[tool.ruff.lint.per-file-ignores]
-"cpback/settings*.py" = ["F403", "F405"]
-"cpback/settings/*.py" = ["F403", "F405"]
-"manage.py" = ["E402"]
-
-[tool.mypy]
-python_version = "3.13"
-check_untyped_defs = true
-ignore_missing_imports = true
-warn_unused_ignores = true
-warn_redundant_casts = true
-warn_unused_configs = true
-plugins = ["mypy_django_plugin.main"]
-
-[tool.django-stubs]
-django_settings_module = "cpback.settings.development"
-
-[tool.pytest.ini_options]
-DJANGO_SETTINGS_MODULE = "cpback.settings.testing"
-python_files = ["tests.py", "test_*.py", "*_tests.py"]
-addopts = [
-    "--cov=civicpulse",
-    "--cov=cpback",
-    "--cov-report=html",
-    "--cov-report=term-missing",
-    "--cov-fail-under=50",
-    "--ignore=migrations",
-]
-
-[tool.bandit]
-exclude_dirs = ["tests", "migrations"]
-skips = ["B101", "B601"]
 
 [dependency-groups]
 dev = [
-    "bandit[toml]>=1.8.6",
-    "django-debug-toolbar>=6.0.0",
-    "django-extensions>=4.1",
-    "factory-boy>=3.3.3",
-    "hypothesis>=6.147.0",
-    "mypy>=1.17.1",
-    "pip-audit>=2.9.0",
-    "pre-commit>=4.3.0",
-    "psutil>=7.0.0",
-    "pytest>=8.4.1",
-    "pytest-benchmark>=5.2.3",
-    "pytest-cov>=6.2.1",
-    "pytest-django>=4.11.1",
-    "ruff>=0.12.9",
+    "black>=25.12.0",
+    "ruff>=0.14.10",
 ]

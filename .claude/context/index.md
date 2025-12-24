@@ -30,8 +30,6 @@
 - **Django Settings**: Multi-environment structure (base/dev/prod)
 
 ## Agent Handoff Checklist
-- [ ] Review authentication implementation progress
-- [ ] Check test coverage status (must be 80%+)
 - [ ] Verify ruff linting passes
 - [ ] Update context with new decisions
 - [ ] Document blockers/dependencies

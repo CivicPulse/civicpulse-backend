@@ -1,6 +1,9 @@
 # Git worktree directories
 .worktree
 
+node_modules
+
+
 # SQLite databases
 *sqlite*
 
