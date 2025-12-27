@@ -61,7 +61,9 @@ def campaign_list(request):
         ),
     ).order_by("-created_at")
 
-    return render(request, "civicpulse/campaigns/campaign_list.html", {"campaigns": campaigns})
+    return render(
+        request, "civicpulse/campaigns/campaign_list.html", {"campaigns": campaigns}
+    )
 
 
 @login_required
@@ -78,7 +80,9 @@ def campaign_create(request):
         form = CampaignForm()
 
     return render(
-        request, "civicpulse/campaigns/campaign_form.html", {"form": form, "is_create": True}
+        request,
+        "civicpulse/campaigns/campaign_form.html",
+        {"form": form, "is_create": True},
     )
 
 
@@ -141,7 +145,9 @@ def campaign_delete(request, pk):
         return redirect("civicpulse:campaign_list")
 
     return render(
-        request, "civicpulse/campaigns/campaign_confirm_delete.html", {"campaign": campaign}
+        request,
+        "civicpulse/campaigns/campaign_confirm_delete.html",
+        {"campaign": campaign},
     )
 
 
@@ -204,7 +210,9 @@ def office_create(request):
         form = OfficeForm()
 
     return render(
-        request, "civicpulse/elections/office_form.html", {"form": form, "is_create": True}
+        request,
+        "civicpulse/elections/office_form.html",
+        {"form": form, "is_create": True},
     )
 
 
@@ -237,7 +245,9 @@ def office_delete(request, pk):
         office.delete()
         return redirect("civicpulse:office_list")
 
-    return render(request, "civicpulse/elections/office_confirm_delete.html", {"office": office})
+    return render(
+        request, "civicpulse/elections/office_confirm_delete.html", {"office": office}
+    )
 
 
 # =============================================================================
@@ -341,7 +351,9 @@ def election_create(request):
         form = ElectionForm()
 
     return render(
-        request, "civicpulse/elections/election_form.html", {"form": form, "is_create": True}
+        request,
+        "civicpulse/elections/election_form.html",
+        {"form": form, "is_create": True},
     )
 
 
@@ -375,7 +387,9 @@ def election_delete(request, pk):
         return redirect("civicpulse:election_list")
 
     return render(
-        request, "civicpulse/elections/election_confirm_delete.html", {"election": election}
+        request,
+        "civicpulse/elections/election_confirm_delete.html",
+        {"election": election},
     )
 
 
@@ -498,7 +512,9 @@ def candidate_delete(request, pk):
         return redirect("civicpulse:election_detail", pk=election.pk)
 
     return render(
-        request, "civicpulse/elections/candidate_confirm_delete.html", {"candidate": candidate}
+        request,
+        "civicpulse/elections/candidate_confirm_delete.html",
+        {"candidate": candidate},
     )
 
 
@@ -599,63 +615,118 @@ def assignment_list(request, pk):
 
 @login_required
 def assignment_add(request, pk):
-    """Filter and bulk assign persons to a campaign."""
+    """Filter and bulk assign persons/voters to a campaign."""
     campaign = get_object_or_404(ContactEffort, pk=pk)
+
+    # Determine if this campaign uses ElectionVoter or Person records
+    uses_election_voters = campaign.election is not None
 
     if request.method == "POST":
         form = AssignmentFilterForm(request.POST)
         if form.is_valid():
-            # Build query based on filters
-            persons = Person.objects.exclude(effort_assignments__effort=campaign)
+            if uses_election_voters:
+                # Query ElectionVoter for election-based campaigns
+                voters = ElectionVoter.objects.filter(
+                    election=campaign.election
+                ).exclude(effort_assignments__effort=campaign)
 
-            if form.cleaned_data["has_phone"]:
-                persons = persons.filter(phone_numbers__isnull=False).distinct()
+                if form.cleaned_data["has_phone"]:
+                    voters = voters.filter(phone_numbers__isnull=False).distinct()
 
-            if form.cleaned_data["party"]:
-                persons = persons.filter(
-                    voter_record__registered_party=form.cleaned_data["party"]
-                )
+                if form.cleaned_data["party"]:
+                    voters = voters.filter(registered_party=form.cleaned_data["party"])
 
-            if form.cleaned_data["likelihood"]:
-                likelihood = form.cleaned_data["likelihood"]
-                if likelihood == "high":
+                if form.cleaned_data["likelihood"]:
+                    likelihood = form.cleaned_data["likelihood"]
+                    if likelihood == "high":
+                        voters = voters.filter(
+                            likelihood_general__regex=r"^[7-9][0-9]%$|^100%$"
+                        )
+                    elif likelihood == "medium":
+                        voters = voters.filter(
+                            likelihood_general__regex=r"^[4-6][0-9]%$"
+                        )
+                    elif likelihood == "low":
+                        voters = voters.filter(
+                            likelihood_general__regex=r"^[0-3]?[0-9]%$"
+                        )
+
+                limit = form.cleaned_data.get("limit") or 100
+                voter_ids = list(voters.values_list("id", flat=True)[:limit])
+
+                # Bulk create assignments with election_voter FK
+                assignments = [
+                    EffortAssignment(effort=campaign, election_voter_id=vid)
+                    for vid in voter_ids
+                ]
+                EffortAssignment.objects.bulk_create(assignments, ignore_conflicts=True)
+            else:
+                # Query Person for non-election campaigns (legacy)
+                persons = Person.objects.exclude(effort_assignments__effort=campaign)
+
+                if form.cleaned_data["has_phone"]:
+                    persons = persons.filter(phone_numbers__isnull=False).distinct()
+
+                if form.cleaned_data["party"]:
                     persons = persons.filter(
-                        voter_record__likelihood_general__regex=r"^[7-9][0-9]%$|^100%$"
-                    )
-                elif likelihood == "medium":
-                    persons = persons.filter(
-                        voter_record__likelihood_general__regex=r"^[4-6][0-9]%$"
-                    )
-                elif likelihood == "low":
-                    persons = persons.filter(
-                        voter_record__likelihood_general__regex=r"^[0-3]?[0-9]%$"
+                        voter_record__registered_party=form.cleaned_data["party"]
                     )
 
-            limit = form.cleaned_data.get("limit") or 100
-            person_ids = list(persons.values_list("id", flat=True)[:limit])
+                if form.cleaned_data["likelihood"]:
+                    likelihood = form.cleaned_data["likelihood"]
+                    if likelihood == "high":
+                        persons = persons.filter(
+                            voter_record__likelihood_general__regex=r"^[7-9][0-9]%$|^100%$"
+                        )
+                    elif likelihood == "medium":
+                        persons = persons.filter(
+                            voter_record__likelihood_general__regex=r"^[4-6][0-9]%$"
+                        )
+                    elif likelihood == "low":
+                        persons = persons.filter(
+                            voter_record__likelihood_general__regex=r"^[0-3]?[0-9]%$"
+                        )
 
-            # Bulk create assignments
-            assignments = [
-                EffortAssignment(effort=campaign, person_id=pid) for pid in person_ids
-            ]
-            EffortAssignment.objects.bulk_create(assignments, ignore_conflicts=True)
+                limit = form.cleaned_data.get("limit") or 100
+                person_ids = list(persons.values_list("id", flat=True)[:limit])
+
+                # Bulk create assignments with person FK
+                assignments = [
+                    EffortAssignment(effort=campaign, person_id=pid)
+                    for pid in person_ids
+                ]
+                EffortAssignment.objects.bulk_create(assignments, ignore_conflicts=True)
 
             return redirect("civicpulse:assignment_list", pk=campaign.pk)
     else:
         form = AssignmentFilterForm()
 
-    # Preview count
-    preview_count = (
-        Person.objects.exclude(effort_assignments__effort=campaign)
-        .filter(phone_numbers__isnull=False)
-        .distinct()
-        .count()
-    )
+    # Preview count - use appropriate model based on campaign type
+    if uses_election_voters:
+        preview_count = (
+            ElectionVoter.objects.filter(election=campaign.election)
+            .exclude(effort_assignments__effort=campaign)
+            .filter(phone_numbers__isnull=False)
+            .distinct()
+            .count()
+        )
+    else:
+        preview_count = (
+            Person.objects.exclude(effort_assignments__effort=campaign)
+            .filter(phone_numbers__isnull=False)
+            .distinct()
+            .count()
+        )
 
     return render(
         request,
         "civicpulse/campaigns/assignment_add.html",
-        {"campaign": campaign, "form": form, "preview_count": preview_count},
+        {
+            "campaign": campaign,
+            "form": form,
+            "preview_count": preview_count,
+            "uses_election_voters": uses_election_voters,
+        },
     )
 
 
@@ -793,7 +864,9 @@ def get_next_assignment_by_distance(effort, user, user_lat, user_lon):
                 status=EffortAssignment.Status.PENDING,
                 person__voter_record__location__isnull=False,
             )
-            .annotate(distance=Distance("person__voter_record__location", user_location))
+            .annotate(
+                distance=Distance("person__voter_record__location", user_location)
+            )
             .order_by("distance")
             .select_related("person__voter_record")
             .first()
@@ -1219,14 +1292,16 @@ def voter_import(request, pk):
             import_job.task_id = task.id
             import_job.save(update_fields=["task_id"])
 
-            return redirect("civicpulse:import_status", pk=election.pk, job_pk=import_job.pk)
+            return redirect(
+                "civicpulse:import_status", pk=election.pk, job_pk=import_job.pk
+            )
     else:
         form = VoterImportForm()
 
     # Get recent import history for this election
-    recent_imports = ImportJob.objects.filter(
-        election=election
-    ).order_by("-created_at")[:5]
+    recent_imports = ImportJob.objects.filter(election=election).order_by(
+        "-created_at"
+    )[:5]
 
     return render(
         request,
@@ -1371,24 +1446,28 @@ def api_campaign_locations(request, pk):
     for assignment in assignments:
         vr = assignment.person.voter_record
         if vr.location:
-            features.append({
-                "type": "Feature",
-                "geometry": {
-                    "type": "Point",
-                    "coordinates": [vr.location.x, vr.location.y],
-                },
-                "properties": {
-                    "id": str(assignment.pk),
-                    "person_id": str(assignment.person.pk),
-                    "name": f"{assignment.person.first_name} {assignment.person.last_name}",
-                    "status": assignment.status,
-                },
-            })
+            features.append(
+                {
+                    "type": "Feature",
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [vr.location.x, vr.location.y],
+                    },
+                    "properties": {
+                        "id": str(assignment.pk),
+                        "person_id": str(assignment.person.pk),
+                        "name": f"{assignment.person.first_name} {assignment.person.last_name}",
+                        "status": assignment.status,
+                    },
+                }
+            )
 
-    return JsonResponse({
-        "type": "FeatureCollection",
-        "features": features,
-    })
+    return JsonResponse(
+        {
+            "type": "FeatureCollection",
+            "features": features,
+        }
+    )
 
 
 @login_required
@@ -1408,7 +1487,9 @@ def api_campaign_route(request, pk):
         return JsonResponse({"error": "Invalid lat/lon parameters"}, status=400)
 
     if not user_lat or not user_lon:
-        return JsonResponse({"error": "lat and lon query parameters required"}, status=400)
+        return JsonResponse(
+            {"error": "lat and lon query parameters required"}, status=400
+        )
 
     # Get pending assignments with locations
     from .services.routing import RouteOptimizer, Waypoint
@@ -1419,7 +1500,9 @@ def api_campaign_route(request, pk):
             status=EffortAssignment.Status.PENDING,
         )
         .select_related("person__voter_record", "person__addresses")
-        .filter(person__voter_record__location__isnull=False)[:50]  # Limit for performance
+        .filter(person__voter_record__location__isnull=False)[
+            :50
+        ]  # Limit for performance
     )
 
     # Build waypoints
@@ -1447,11 +1530,13 @@ def api_campaign_route(request, pk):
             )
 
     if not waypoints:
-        return JsonResponse({
-            "type": "FeatureCollection",
-            "features": [],
-            "properties": {"message": "No waypoints with coordinates found"},
-        })
+        return JsonResponse(
+            {
+                "type": "FeatureCollection",
+                "features": [],
+                "properties": {"message": "No waypoints with coordinates found"},
+            }
+        )
 
     # Get optimized route
     optimizer = RouteOptimizer(str(campaign.pk), request.user.id)
@@ -1484,30 +1569,34 @@ def api_campaign_route(request, pk):
 
     # Add waypoint markers
     for i, wp in enumerate(route.waypoints):
-        features.append({
-            "type": "Feature",
-            "geometry": {
-                "type": "Point",
-                "coordinates": [float(wp.longitude), float(wp.latitude)],
-            },
-            "properties": {
-                "id": wp.id,
-                "order": i + 1,
-                "name": wp.person_name,
-                "address": wp.address,
-            },
-        })
+        features.append(
+            {
+                "type": "Feature",
+                "geometry": {
+                    "type": "Point",
+                    "coordinates": [float(wp.longitude), float(wp.latitude)],
+                },
+                "properties": {
+                    "id": wp.id,
+                    "order": i + 1,
+                    "name": wp.person_name,
+                    "address": wp.address,
+                },
+            }
+        )
 
-    return JsonResponse({
-        "type": "FeatureCollection",
-        "features": features,
-        "properties": {
-            "source": route.source,
-            "total_distance_miles": round(route.total_distance_miles, 2),
-            "total_duration_minutes": round(route.total_duration_minutes, 1),
-            "waypoint_count": len(route.waypoints),
-        },
-    })
+    return JsonResponse(
+        {
+            "type": "FeatureCollection",
+            "features": features,
+            "properties": {
+                "source": route.source,
+                "total_distance_miles": round(route.total_distance_miles, 2),
+                "total_duration_minutes": round(route.total_duration_minutes, 1),
+                "waypoint_count": len(route.waypoints),
+            },
+        }
+    )
 
 
 @login_required
@@ -1544,28 +1633,32 @@ def api_election_voter_distribution(request, pk):
     features = []
     for voter in voters:
         if voter.location:
-            features.append({
-                "type": "Feature",
-                "geometry": {
-                    "type": "Point",
-                    "coordinates": [voter.location.x, voter.location.y],
-                },
-                "properties": {
-                    "id": str(voter.pk),
-                    "name": f"{voter.first_name} {voter.last_name}",
-                    "party": voter.registered_party or "Unknown",
-                    "likelihood": voter.likelihood_general or "",
-                },
-            })
+            features.append(
+                {
+                    "type": "Feature",
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [voter.location.x, voter.location.y],
+                    },
+                    "properties": {
+                        "id": str(voter.pk),
+                        "name": f"{voter.first_name} {voter.last_name}",
+                        "party": voter.registered_party or "Unknown",
+                        "likelihood": voter.likelihood_general or "",
+                    },
+                }
+            )
 
-    return JsonResponse({
-        "type": "FeatureCollection",
-        "features": features,
-        "properties": {
-            "election": str(election),
-            "count": len(features),
-        },
-    })
+    return JsonResponse(
+        {
+            "type": "FeatureCollection",
+            "features": features,
+            "properties": {
+                "election": str(election),
+                "count": len(features),
+            },
+        }
+    )
 
 
 @login_required
@@ -1589,22 +1682,26 @@ def api_districts(request):
     features = []
     for district in districts:
         if district.boundary:
-            features.append({
-                "type": "Feature",
-                "geometry": {
-                    "type": "MultiPolygon",
-                    "coordinates": district.boundary.coords,
-                },
-                "properties": {
-                    "id": str(district.pk),
-                    "name": district.name,
-                    "district_type": district.district_type,
-                    "identifier": district.identifier,
-                    "state": district.state,
-                },
-            })
+            features.append(
+                {
+                    "type": "Feature",
+                    "geometry": {
+                        "type": "MultiPolygon",
+                        "coordinates": district.boundary.coords,
+                    },
+                    "properties": {
+                        "id": str(district.pk),
+                        "name": district.name,
+                        "district_type": district.district_type,
+                        "identifier": district.identifier,
+                        "state": district.state,
+                    },
+                }
+            )
 
-    return JsonResponse({
-        "type": "FeatureCollection",
-        "features": features,
-    })
+    return JsonResponse(
+        {
+            "type": "FeatureCollection",
+            "features": features,
+        }
+    )
