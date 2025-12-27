@@ -1,0 +1,150 @@
+{% extends "civicpulse/base.html" %}
+
+{% block content %}
+<div class="px-4 max-w-4xl mx-auto">
+    <!-- Header -->
+    <div class="bg-white rounded-lg shadow p-4 mb-4 sticky top-0 z-10">
+        <div class="flex justify-between items-center mb-3">
+            <div>
+                <h1 class="text-xl font-bold text-gray-900">{{ campaign.name }}</h1>
+                <span class="text-sm text-gray-500">Door Knocking Session</span>
+            </div>
+            <a href="{% url 'civicpulse:campaign_detail' pk=campaign.pk %}" class="text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 font-medium rounded-lg text-sm px-4 py-2">
+                Pause Session
+            </a>
+        </div>
+
+        <!-- Progress Bar -->
+        <div id="progress-container">
+            {% include "civicpulse/campaigns/partials/_progress_bar.html" %}
+        </div>
+    </div>
+
+    <!-- Location Picker (shown if no location set) -->
+    <div id="location-picker" class="bg-white rounded-lg shadow p-4 mb-4 {% if has_location %}hidden{% endif %}">
+        <h3 class="font-medium text-gray-900 mb-3">Set Your Location</h3>
+        <p class="text-sm text-gray-600 mb-4">We'll show you nearby addresses sorted by walking distance.</p>
+
+        <div id="location-status" class="mb-4">
+            <button type="button" onclick="getLocation()"
+                    class="text-white bg-green-700 hover:bg-green-800 font-medium rounded-lg text-sm px-5 py-2.5 flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                </svg>
+                Use GPS Location
+            </button>
+        </div>
+
+        <div id="location-error" class="hidden text-yellow-600 text-sm mb-3">
+            GPS unavailable. Please allow location access or start without GPS sorting.
+        </div>
+
+        <button type="button" onclick="skipLocation()"
+                class="text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 font-medium rounded-lg text-sm px-4 py-2">
+            Start Without Location
+        </button>
+    </div>
+
+    <!-- Current Location Display (shown if location is set) -->
+    {% if has_location %}
+    <div class="bg-green-50 border border-green-200 rounded-lg p-3 mb-4 flex justify-between items-center">
+        <div class="flex items-center gap-2 text-green-800">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+            </svg>
+            <span class="text-sm font-medium">Location set - showing nearby addresses</span>
+        </div>
+        <button type="button" onclick="updateLocation()" class="text-green-700 hover:text-green-800 text-sm font-medium">
+            Update
+        </button>
+    </div>
+    {% endif %}
+
+    <!-- Person Card Container (HTMX target) -->
+    <div id="person-container"
+         {% if has_location %}
+         hx-get="{% url 'civicpulse:knocking_next' pk=campaign.pk %}"
+         hx-trigger="load"
+         hx-swap="innerHTML"
+         {% endif %}>
+        {% if not has_location %}
+        <div class="bg-white rounded-lg shadow p-8 text-center text-gray-500">
+            Set your location above to see nearby addresses.
+        </div>
+        {% else %}
+        <div class="text-center py-12">
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-green-700 mx-auto"></div>
+            <p class="text-gray-500 mt-4">Finding nearby addresses...</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Script Panel (Collapsible) -->
+    {% if campaign.script %}
+    <details class="bg-white rounded-lg shadow mt-4">
+        <summary class="p-4 cursor-pointer font-medium text-gray-900 hover:bg-gray-50">
+            Script / Talking Points
+        </summary>
+        <div class="p-4 pt-0 border-t text-gray-700 whitespace-pre-wrap">{{ campaign.script }}</div>
+    </details>
+    {% endif %}
+</div>
+
+<script>
+function getLocation() {
+    const statusEl = document.getElementById('location-status');
+    const errorEl = document.getElementById('location-error');
+
+    statusEl.innerHTML = '<div class="flex items-center gap-2 text-gray-600"><div class="animate-spin rounded-full h-5 w-5 border-b-2 border-green-700"></div>Getting location...</div>';
+
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const lat = position.coords.latitude;
+                const lon = position.coords.longitude;
+                setLocationAndLoad(lat, lon);
+            },
+            (error) => {
+                errorEl.classList.remove('hidden');
+                statusEl.innerHTML = '<button type="button" onclick="getLocation()" class="text-white bg-green-700 hover:bg-green-800 font-medium rounded-lg text-sm px-5 py-2.5 flex items-center gap-2"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>Try Again</button>';
+            },
+            { enableHighAccuracy: true, timeout: 10000 }
+        );
+    } else {
+        errorEl.classList.remove('hidden');
+    }
+}
+
+function setLocationAndLoad(lat, lon) {
+    // Hide location picker
+    document.getElementById('location-picker').classList.add('hidden');
+
+    // Create form data
+    const formData = new FormData();
+    formData.append('latitude', lat);
+    formData.append('longitude', lon);
+    formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+
+    // Post location and load first person
+    fetch("{% url 'civicpulse:knocking_set_location' pk=campaign.pk %}", {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.text())
+    .then(html => {
+        document.getElementById('person-container').innerHTML = html;
+    });
+}
+
+function skipLocation() {
+    document.getElementById('location-picker').classList.add('hidden');
+    htmx.ajax('GET', "{% url 'civicpulse:knocking_next' pk=campaign.pk %}", '#person-container');
+}
+
+function updateLocation() {
+    document.getElementById('location-picker').classList.remove('hidden');
+    getLocation();
+}
+</script>
+{% endblock %}

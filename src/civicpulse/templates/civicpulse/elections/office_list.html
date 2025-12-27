@@ -1,0 +1,66 @@
+{% extends "civicpulse/base.html" %}
+
+{% block content %}
+<div class="px-4">
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-2xl font-bold text-gray-900">Offices</h1>
+        <a href="{% url 'civicpulse:office_create' %}" class="text-white bg-green-700 hover:bg-green-800 focus:ring-4 focus:ring-green-300 font-medium rounded-lg text-sm px-5 py-2.5">
+            + New Office
+        </a>
+    </div>
+
+    <!-- Filters -->
+    <div class="mb-4 flex gap-4">
+        <select onchange="window.location.href='?level=' + this.value" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-green-500 focus:border-green-500 p-2.5">
+            <option value="">All Levels</option>
+            {% for value, label in level_choices %}
+            <option value="{{ value }}" {% if request.GET.level == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    {% if offices %}
+    <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {% for office in offices %}
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex justify-between items-start mb-3">
+                <h2 class="text-lg font-semibold text-gray-900">{{ office.name }}</h2>
+                <span class="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded">{{ office.get_level_display }}</span>
+            </div>
+
+            <div class="text-sm text-gray-600 mb-4">
+                {% if office.city %}{{ office.city }}, {% endif %}
+                {% if office.county %}{{ office.county }} County, {% endif %}
+                {{ office.state }}
+            </div>
+
+            {% if office.term_length_years %}
+            <p class="text-sm text-gray-500 mb-2">{{ office.term_length_years }}-year term</p>
+            {% endif %}
+
+            <div class="flex justify-between items-center text-sm text-gray-500 mb-4">
+                <span>{{ office.election_count }} election{{ office.election_count|pluralize }}</span>
+                {% if office.active_elections > 0 %}
+                <span class="text-green-600">{{ office.active_elections }} active</span>
+                {% endif %}
+            </div>
+
+            <div class="flex gap-2">
+                <a href="{% url 'civicpulse:office_detail' pk=office.pk %}" class="flex-1 text-center text-green-700 border border-green-700 hover:bg-green-50 font-medium rounded-lg text-sm px-3 py-2">
+                    View
+                </a>
+                <a href="{% url 'civicpulse:office_edit' pk=office.pk %}" class="text-gray-600 border border-gray-300 hover:bg-gray-50 font-medium rounded-lg text-sm px-3 py-2">
+                    Edit
+                </a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-12">
+        <p class="text-gray-500 mb-4">No offices yet</p>
+        <a href="{% url 'civicpulse:office_create' %}" class="text-green-700 hover:underline">Create your first office</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

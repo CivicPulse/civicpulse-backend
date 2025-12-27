@@ -17,13 +17,23 @@ CivicPulse is a comprehensive multi-tenant CRM/CMS platform designed specificall
 - **CSV import** for bulk voter data loading
 
 ### Contact Campaigns
-Create and manage phone banking or text campaigns with:
+Create and manage multi-channel outreach campaigns:
 - **Campaign creation** with custom scripts and talking points
 - **Bulk assignment** of persons filtered by party, voting likelihood, or phone availability
-- **HTMX-powered calling interface** for smooth, single-page workflow
-- **Concurrent caller support** with row-level locking (multiple callers on same campaign)
-- **Outcome tracking**: Spoke With, No Answer, Left Voicemail, Busy, Callback, Wrong Number, Refused
+- **HTMX-powered interfaces** for smooth, single-page workflows
+- **Concurrent user support** with row-level locking (multiple users on same campaign)
 - **Progress tracking** with real-time stats and completion percentage
+
+#### Phone Banking
+- Click-to-call phone numbers with one-click dialing
+- **Outcomes**: Spoke With, Will Vote, No Answer, Left Voicemail, Busy, Callback, Wrong Number, Refused
+
+#### Door Knocking (Canvassing)
+- **GPS-based location** to show nearby addresses sorted by walking distance
+- **Manual location fallback** for areas with poor GPS signal
+- **Map integration** with directions to each address
+- **Distance indicators** showing how far each address is from current location
+- **Outcomes**: Spoke at Door, Will Vote, Not Home, Left Door Hanger, Refused, No Access (Gated)
 
 ### Election Tracking
 Track elections and candidates for civic engagement:

@@ -1,0 +1,13 @@
+include LICENSE
+include README.rst
+include CHANGELOG.md
+recursive-include src/civicpulse/templates *
+recursive-include src/civicpulse/static *
+recursive-include src/civicpulse/locale *.mo *.po
+recursive-include docs *.rst *.py
+prune docs/_build
+prune example_project
+global-exclude __pycache__
+global-exclude *.py[cod]
+global-exclude .DS_Store
+global-exclude *.sqlite3

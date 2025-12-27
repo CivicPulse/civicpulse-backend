@@ -1,0 +1,93 @@
+{% extends "civicpulse/base.html" %}
+
+{% block content %}
+<div class="px-4 max-w-4xl mx-auto">
+    <!-- Header -->
+    <div class="flex justify-between items-start mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">{{ campaign.name }}</h1>
+            {% if campaign.description %}
+            <p class="text-gray-600 mt-1">{{ campaign.description }}</p>
+            {% endif %}
+        </div>
+        <div class="flex gap-2">
+            <a href="{% url 'civicpulse:campaign_edit' pk=campaign.pk %}" class="text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 font-medium rounded-lg text-sm px-4 py-2">
+                Edit
+            </a>
+            <a href="{% url 'civicpulse:campaign_delete' pk=campaign.pk %}" class="text-red-700 bg-white border border-red-300 hover:bg-red-50 font-medium rounded-lg text-sm px-4 py-2">
+                Delete
+            </a>
+        </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div class="bg-white rounded-lg shadow p-4 text-center">
+            <div class="text-3xl font-bold text-gray-900">{{ stats.total }}</div>
+            <div class="text-sm text-gray-500">Total Assigned</div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4 text-center">
+            <div class="text-3xl font-bold text-green-600">{{ stats.completed }}</div>
+            <div class="text-sm text-gray-500">Completed</div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4 text-center">
+            <div class="text-3xl font-bold text-yellow-600">{{ stats.pending }}</div>
+            <div class="text-sm text-gray-500">Pending</div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4 text-center">
+            <div class="text-3xl font-bold text-blue-600">{{ stats.in_progress }}</div>
+            <div class="text-sm text-gray-500">In Progress</div>
+        </div>
+    </div>
+
+    <!-- Progress Bar -->
+    <div class="bg-white rounded-lg shadow p-4 mb-6">
+        <div class="flex justify-between text-sm text-gray-600 mb-2">
+            <span>Overall Progress</span>
+            <span>{{ stats.percentage }}%</span>
+        </div>
+        <div class="w-full bg-gray-200 rounded-full h-4">
+            <div class="bg-green-600 h-4 rounded-full transition-all" style="width: {{ stats.percentage }}%"></div>
+        </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Actions</h2>
+        <div class="flex flex-wrap gap-3">
+            {% if user_in_progress %}
+            <a href="{% url 'civicpulse:calling_session' pk=campaign.pk %}" class="text-white bg-blue-600 hover:bg-blue-700 font-medium rounded-lg text-sm px-5 py-2.5">
+                Continue Session
+            </a>
+            {% endif %}
+            {% if stats.pending > 0 and campaign.is_active %}
+            <a href="{% url 'civicpulse:calling_session' pk=campaign.pk %}" class="text-white bg-green-700 hover:bg-green-800 font-medium rounded-lg text-sm px-5 py-2.5">
+                Start Calling ({{ stats.pending }} remaining)
+            </a>
+            <a href="{% url 'civicpulse:knocking_session' pk=campaign.pk %}" class="text-white bg-blue-700 hover:bg-blue-800 font-medium rounded-lg text-sm px-5 py-2.5">
+                Start Door Knocking
+            </a>
+            {% elif stats.total == 0 and not user_in_progress %}
+            <span class="text-gray-500 text-sm">No persons assigned yet</span>
+            {% elif not user_in_progress %}
+            <span class="text-gray-500 text-sm">All contacts completed!</span>
+            {% endif %}
+
+            <a href="{% url 'civicpulse:assignment_list' pk=campaign.pk %}" class="text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 font-medium rounded-lg text-sm px-5 py-2.5">
+                Manage Assignments
+            </a>
+            <a href="{% url 'civicpulse:assignment_add' pk=campaign.pk %}" class="text-green-700 bg-white border border-green-700 hover:bg-green-50 font-medium rounded-lg text-sm px-5 py-2.5">
+                + Add Persons
+            </a>
+        </div>
+    </div>
+
+    <!-- Script Preview -->
+    {% if campaign.script %}
+    <div class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Script / Talking Points</h2>
+        <div class="prose prose-sm max-w-none text-gray-700 whitespace-pre-wrap">{{ campaign.script }}</div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,27 @@
+{% extends "civicpulse/base.html" %}
+
+{% block content %}
+<div class="px-4 max-w-lg mx-auto">
+    <div class="bg-white rounded-lg shadow p-6">
+        <h1 class="text-2xl font-bold text-gray-900 mb-4">Delete Candidate</h1>
+
+        <p class="text-gray-600 mb-6">
+            Are you sure you want to remove <strong>{{ candidate.display_name }}</strong>
+            from the <strong>{{ candidate.election.get_election_type_display }} {{ candidate.election.year }}</strong>
+            for <strong>{{ candidate.election.office.name }}</strong>?
+        </p>
+
+        <form method="post">
+            {% csrf_token %}
+            <div class="flex gap-4">
+                <button type="submit" class="text-white bg-red-600 hover:bg-red-700 focus:ring-4 focus:ring-red-300 font-medium rounded-lg text-sm px-5 py-2.5">
+                    Yes, Delete
+                </button>
+                <a href="{% url 'civicpulse:candidate_detail' pk=candidate.pk %}" class="text-gray-600 border border-gray-300 hover:bg-gray-50 font-medium rounded-lg text-sm px-5 py-2.5">
+                    Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

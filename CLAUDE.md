@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-CivicPulse is a Django-based contact management, election tracking, and campaign orchestration platform designed for civic organizations and nonprofits. It provides voter contact data management, election and candidate tracking, campaign creation, and HTMX-powered phone banking/texting workflows with concurrent caller support using database row-level locking.
+CivicPulse is a Django-based contact management, election tracking, and campaign orchestration platform designed for civic organizations and nonprofits. It provides voter contact data management, election and candidate tracking, campaign creation, and HTMX-powered multi-channel outreach workflows (phone banking, texting, and door knocking) with concurrent user support using database row-level locking.
 
 **Tech Stack:**
 - Backend: Django 6.0+, Python 3.13+
@@ -47,9 +47,9 @@ uv run python manage.py test         # Run tests (tests not yet implemented)
 civicpulse-backend/
 ├── civicpulse/                 # Main Django app
 │   ├── models.py              # Core data models (12 models)
-│   ├── views.py               # View functions (30 views, ~700 LOC)
+│   ├── views.py               # View functions (40+ views, ~1100 LOC)
 │   ├── urls.py                # URL routing
-│   ├── forms.py               # Django forms (7 forms)
+│   ├── forms.py               # Django forms (8 forms)
 │   ├── admin.py               # Django admin config
 │   ├── management/
 │   │   └── commands/
@@ -64,13 +64,16 @@ civicpulse-backend/
 │       │   ├── campaign_detail.html
 │       │   ├── campaign_form.html
 │       │   ├── campaign_confirm_delete.html
-│       │   ├── calling_session.html
+│       │   ├── calling_session.html         # Phone banking interface
+│       │   ├── knocking_session.html        # Door knocking interface
 │       │   ├── assignment_list.html
 │       │   ├── assignment_add.html
 │       │   └── partials/
-│       │       ├── _person_card.html       # Person display + outcome form
-│       │       ├── _progress_bar.html      # Reusable progress bar
-│       │       └── _session_complete.html  # All done message
+│       │       ├── _person_card.html        # Phone: person + outcome form
+│       │       ├── _address_card.html       # Door: address + outcome form
+│       │       ├── _progress_bar.html       # Reusable progress bar
+│       │       ├── _session_complete.html   # Phone: all done message
+│       │       └── _knocking_complete.html  # Door: all done message
 │       └── elections/
 │           ├── office_list.html
 │           ├── office_detail.html
@@ -241,23 +244,32 @@ Represents an outreach campaign (e.g., "2024 GOTV Phone Bank").
 - `candidate` (ForeignKey → Candidate, SET_NULL, optional) - Supported candidate
 - `created_by` (ForeignKey → User)
 
-### ContactAttempt (`civicpulse/models.py:223-277`)
+### ContactAttempt (`civicpulse/models.py:443-510`)
 Logs each contact attempt within a campaign.
 
 - `effort` (ForeignKey → ContactEffort)
 - `person` (ForeignKey → Person)
-- `contact_type`: "call" or "text"
+- `contact_type`: "call", "text", or "door_knock"
 - `outcome` choices:
-  - `no_answer` - No Answer (retry eligible)
-  - `busy` - Busy Signal (retry eligible)
-  - `left_voicemail` - Left Voicemail (retry eligible)
-  - `callback_requested` - Callback Requested (retry eligible)
-  - `wrong_number` - Wrong Number (terminal)
-  - `spoke_with` - Spoke With Person (terminal)
-  - `refused` - Refused/Do Not Contact (terminal)
+  - **Phone/Text outcomes:**
+    - `no_answer` - No Answer (retry eligible)
+    - `busy` - Busy Signal (retry eligible)
+    - `left_voicemail` - Left Voicemail (retry eligible)
+    - `callback_requested` - Callback Requested (retry eligible)
+    - `wrong_number` - Wrong Number (terminal)
+    - `spoke_with` - Spoke With Person (terminal)
+    - `will_vote` - Will Vote for Candidate (terminal)
+    - `refused` - Refused/Do Not Contact (terminal)
+  - **Door knock outcomes:**
+    - `not_home` - Not Home (retry eligible)
+    - `left_door_hanger` - Left Door Hanger (retry eligible)
+    - `spoke_at_door` - Spoke at Door (terminal)
+    - `refused_door` - Refused to Answer Door (terminal)
+    - `no_access` - No Access/Gated (retry eligible)
 - `notes`, `callback_time`, `phone_number_used`
+- `address_visited` (ForeignKey → Address, optional) - For door knock attempts
 
-**Terminal outcomes:** `TERMINAL_OUTCOMES = [spoke_with, refused, wrong_number]`
+**Terminal outcomes:** `TERMINAL_OUTCOMES = [spoke_with, will_vote, refused, wrong_number, spoke_at_door, refused_door]`
 
 ### EffortAssignment (`civicpulse/models.py:279-318`)
 Pre-assigns persons to campaigns with locking support.
@@ -324,6 +336,11 @@ Person.objects.select_related("voter_record").prefetch_related(
 /campaigns/<uuid:pk>/call/next/          → calling_next (HTMX)
 /campaigns/<uuid:pk>/call/log/           → calling_log (HTMX POST)
 /campaigns/<uuid:pk>/call/skip/          → calling_skip (HTMX POST)
+/campaigns/<uuid:pk>/knock/              → knocking_session
+/campaigns/<uuid:pk>/knock/location/     → knocking_set_location (HTMX POST)
+/campaigns/<uuid:pk>/knock/next/         → knocking_next (HTMX)
+/campaigns/<uuid:pk>/knock/log/          → knocking_log (HTMX POST)
+/campaigns/<uuid:pk>/knock/skip/         → knocking_skip (HTMX POST)
 
 /offices/                                → office_list
 /offices/create/                         → office_create
@@ -351,24 +368,36 @@ Person.objects.select_related("voter_record").prefetch_related(
 
 Located in `civicpulse/views.py`:
 
-### `get_next_assignment(effort, user)` (lines 241-269)
-Core lock acquisition logic for concurrent callers.
+### `get_next_assignment(effort, user)` (lines 673-701)
+Core lock acquisition logic for concurrent users.
 - Releases stale locks (>10 min old)
 - Uses `select_for_update(skip_locked=True)` for row-level locking
 - Returns locked assignment or None
 
-### `get_person_with_details(person_id, effort)` (lines 272-288)
-Efficiently fetches person with all calling-relevant data.
+### `get_person_with_details(person_id, effort)` (lines 704-720)
+Efficiently fetches person with all contact-relevant data.
 - Uses select_related + prefetch_related
 - Prefetches last 5 attempts for this effort
 
-### `get_session_stats(effort)` (lines 291-304)
+### `get_session_stats(effort)` (lines 723-737)
 Calculates campaign progress stats.
 - Returns: total, pending, in_progress, completed, percentage, remaining
 
-## Concurrent Caller Support
+### `haversine_distance(lat1, lon1, lat2, lon2)` (lines 740-754)
+Calculates great-circle distance between two GPS coordinates.
+- Returns distance in miles
+- Used for sorting nearby addresses in door knocking
 
-Uses `select_for_update(skip_locked=True)` for row-level locking:
+### `get_next_assignment_by_distance(effort, user, user_lat, user_lon)` (lines 757-814)
+Gets next assignment sorted by proximity to user's location.
+- First tries assignments with GPS coordinates, sorted by distance
+- Falls back to assignments without coordinates
+- Uses same row-level locking as `get_next_assignment()`
+
+## Concurrent User Support
+
+Uses `select_for_update(skip_locked=True)` for row-level locking, enabling multiple callers or door knockers to work the same campaign simultaneously:
+
 ```python
 with transaction.atomic():
     assignment = (
@@ -384,9 +413,10 @@ with transaction.atomic():
 ```
 
 **Features:**
-- Skips locked rows, allows multiple concurrent callers
-- Atomic transaction ensures only one caller gets each person
-- 10-minute stale lock timeout auto-releases abandoned locks
+- Skips locked rows, allowing multiple concurrent users (callers + door knockers)
+- Atomic transaction ensures only one user gets each person
+- 10-minute stale lock timeout auto-releases abandoned sessions
+- Same locking mechanism used by both phone banking and door knocking
 
 ## HTMX Calling Workflow
 
@@ -397,10 +427,27 @@ with transaction.atomic():
 5. `calling_log` processes outcome, releases lock, calls `calling_next`
 6. `calling_next` returns next person card or completion message
 
+## HTMX Door Knocking Workflow
+
+1. User loads `/campaigns/<uuid>/knock/` → `knocking_session.html`
+2. Location picker prompts for GPS (browser Geolocation API) or manual skip
+3. On GPS success, coordinates stored in session and `knocking_next` triggered
+4. `knocking_next` finds nearest pending assignment using `get_next_assignment_by_distance()`
+5. Returns `_address_card.html` with address, map link, distance indicator, and outcome form
+6. User selects outcome (Spoke at Door, Not Home, Left Hanger, etc.) and submits via `hx-post="/knock/log/"`
+7. `knocking_log` processes outcome, releases lock, calls `knocking_next`
+8. `knocking_next` returns next nearest address or completion message
+
+**Location handling:**
+- GPS coordinates stored in Django session (`knocker_lat`, `knocker_lon`)
+- User can update location at any time via "Update" button
+- Without GPS, falls back to regular sequential assignment
+
 ## Forms (`civicpulse/forms.py`)
 
 - `CampaignForm` - Create/edit campaigns
-- `ContactAttemptForm` - Log call outcomes with radio buttons
+- `ContactAttemptForm` - Log phone call outcomes with radio buttons
+- `DoorKnockAttemptForm` - Log door knock outcomes (Not Home, Spoke at Door, Left Hanger, etc.)
 - `AssignmentFilterForm` - Filter persons for bulk assignment
   - Filters: party, likelihood (high/medium/low), has_phone, limit
 - `OfficeForm` - Create/edit elected offices
@@ -415,10 +462,18 @@ with transaction.atomic():
 - CDN: Flowbite JS, HTMX 2.0.4
 - Green-50 background, navigation bar
 
-**Calling interface partials (`campaigns/partials/`):**
-- `_person_card.html` - Person display + outcome form (231 lines)
-- `_progress_bar.html` - Reusable progress bar
-- `_session_complete.html` - All done message
+**Calling interface (`campaigns/`):**
+- `calling_session.html` - Phone banking session page
+- `partials/_person_card.html` - Person display with phone + call outcome form
+- `partials/_session_complete.html` - Phone session completion message
+
+**Door knocking interface (`campaigns/`):**
+- `knocking_session.html` - Door knocking session page with GPS location picker
+- `partials/_address_card.html` - Address display with map link + distance + knock outcome form
+- `partials/_knocking_complete.html` - Knocking session completion message
+
+**Shared partials (`campaigns/partials/`):**
+- `_progress_bar.html` - Reusable progress bar (used by both interfaces)
 
 ## Management Commands
 
