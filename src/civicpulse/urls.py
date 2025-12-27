@@ -67,6 +67,22 @@ urlpatterns = [
         views.election_campaigns,
         name="election_campaigns",
     ),
+    # Voter Import
+    path(
+        "elections/<uuid:pk>/import/",
+        views.voter_import,
+        name="voter_import",
+    ),
+    path(
+        "elections/<uuid:pk>/import/<uuid:job_pk>/",
+        views.import_status,
+        name="import_status",
+    ),
+    path(
+        "elections/<uuid:pk>/import/<uuid:job_pk>/progress/",
+        views.import_progress,
+        name="import_progress",
+    ),
     # Election Date Management
     path(
         "elections/<uuid:pk>/dates/add/",

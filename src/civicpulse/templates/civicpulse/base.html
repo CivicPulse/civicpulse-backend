@@ -13,15 +13,7 @@
     {% block extra_head %}{% endblock %}
 
     {% block styles %}
-    {% civicpulse_use_compressor as use_compressor %}
-    {% if use_compressor %}
-        {% load compress %}
-        {% compress css %}
-        <link rel="stylesheet" href="{% static 'civicpulse/css/civicpulse.css' %}">
-        {% endcompress %}
-    {% else %}
-        <link rel="stylesheet" href="{% static 'civicpulse/css/civicpulse.css' %}">
-    {% endif %}
+    <link rel="stylesheet" href="{% static 'civicpulse/css/civicpulse.css' %}">
     {% endblock styles %}
 
     {% block scripts_head %}

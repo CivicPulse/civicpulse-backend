@@ -10,15 +10,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - {% civicpulse_setting "SITE_NAME" %}</title>
 
-    {% civicpulse_use_compressor as use_compressor %}
-    {% if use_compressor %}
-        {% load compress %}
-        {% compress css %}
-        <link rel="stylesheet" href="{% static 'civicpulse/css/civicpulse.css' %}">
-        {% endcompress %}
-    {% else %}
-        <link rel="stylesheet" href="{% static 'civicpulse/css/civicpulse.css' %}">
-    {% endif %}
+    <link rel="stylesheet" href="{% static 'civicpulse/css/civicpulse.css' %}">
 </head>
 
 <body class="bg-green-50">

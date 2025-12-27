@@ -49,6 +49,11 @@ dependencies = [
 compressor = [
     "django-compressor>=4.4",
 ]
+async = [
+    "celery[redis]>=5.4.0",
+    "redis>=5.0.0",
+    "django-celery-results>=2.5.0",
+]
 dev = [
     "black>=24.0",
     "ruff>=0.1",
@@ -109,3 +114,8 @@ ignore = ["E501"]
 DJANGO_SETTINGS_MODULE = "example.settings"
 python_files = ["test_*.py", "*_test.py"]
 pythonpath = ["src", "example_project"]
+
+[dependency-groups]
+dev = [
+    "watchdog>=6.0.0",
+]

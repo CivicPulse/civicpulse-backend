@@ -1,0 +1,118 @@
+{% extends "civicpulse/base.html" %}
+
+{% block content %}
+<div class="px-4 max-w-2xl mx-auto">
+    <div class="mb-6">
+        <a href="{% url 'civicpulse:election_detail' pk=election.pk %}" class="text-green-700 hover:underline text-sm">&larr; Back to {{ election }}</a>
+    </div>
+
+    <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <h1 class="text-2xl font-bold text-gray-900 mb-2">Import Voters</h1>
+        <p class="text-gray-600 mb-6">Upload a CSV file to import voters for this election. Each import creates independent voter records.</p>
+
+        <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+
+            <div class="mb-6">
+                <label for="id_csv_file" class="block mb-2 text-sm font-medium text-gray-900">
+                    CSV File
+                </label>
+                <div class="flex items-center justify-center w-full">
+                    <label for="id_csv_file" class="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
+                        <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                            <svg class="w-8 h-8 mb-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                            </svg>
+                            <p class="mb-2 text-sm text-gray-500">
+                                <span class="font-semibold">Click to upload</span> or drag and drop
+                            </p>
+                            <p class="text-xs text-gray-500">CSV files only (max 100MB)</p>
+                        </div>
+                        {{ form.csv_file }}
+                    </label>
+                </div>
+                {% if form.csv_file.errors %}
+                <p class="mt-2 text-sm text-red-600">{{ form.csv_file.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <details class="bg-blue-50 rounded-lg p-4 mb-6">
+                <summary class="cursor-pointer font-medium text-blue-800 hover:text-blue-900 flex items-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    Expected CSV Format
+                </summary>
+                <div class="mt-3 text-sm text-blue-700">
+                    <p class="mb-2">Your CSV file should include these columns (order does not matter):</p>
+                    <div class="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+                        <div class="bg-blue-100 rounded px-2 py-1 font-semibold">Required:</div>
+                        <div class="bg-white rounded px-2 py-1">Voter ID</div>
+                        <div class="bg-white rounded px-2 py-1">First Name</div>
+                        <div class="bg-white rounded px-2 py-1">Last Name</div>
+                        <div class="bg-blue-100 rounded px-2 py-1 font-semibold col-span-full mt-2">Optional:</div>
+                        <div class="bg-white rounded px-2 py-1">Cell Phone</div>
+                        <div class="bg-white rounded px-2 py-1">Address</div>
+                        <div class="bg-white rounded px-2 py-1">City</div>
+                        <div class="bg-white rounded px-2 py-1">State</div>
+                        <div class="bg-white rounded px-2 py-1">Zipcode</div>
+                        <div class="bg-white rounded px-2 py-1">Registered Party</div>
+                    </div>
+                </div>
+            </details>
+
+            <div class="flex gap-4">
+                <button type="submit" class="text-white bg-green-700 hover:bg-green-800 focus:ring-4 focus:ring-green-300 font-medium rounded-lg text-sm px-5 py-2.5 flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                    </svg>
+                    Upload & Import
+                </button>
+                <a href="{% url 'civicpulse:election_detail' pk=election.pk %}" class="text-gray-600 border border-gray-300 hover:bg-gray-50 font-medium rounded-lg text-sm px-5 py-2.5">
+                    Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+
+    {% if recent_imports %}
+    <div class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Recent Imports</h2>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left text-gray-500">
+                <thead class="text-xs text-gray-700 uppercase bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-3">File</th>
+                        <th class="px-4 py-3">Status</th>
+                        <th class="px-4 py-3">Progress</th>
+                        <th class="px-4 py-3">Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for job in recent_imports %}
+                    <tr class="bg-white border-b">
+                        <td class="px-4 py-3">
+                            <a href="{% url 'civicpulse:import_status' pk=election.pk job_pk=job.pk %}" class="text-green-700 hover:underline">
+                                {{ job.file_name }}
+                            </a>
+                        </td>
+                        <td class="px-4 py-3">
+                            <span class="px-2 py-1 text-xs rounded-full
+                                {% if job.status == 'completed' %}bg-green-100 text-green-800
+                                {% elif job.status == 'failed' %}bg-red-100 text-red-800
+                                {% elif job.status == 'processing' %}bg-blue-100 text-blue-800
+                                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                {{ job.get_status_display }}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3">{{ job.progress_percentage }}%</td>
+                        <td class="px-4 py-3">{{ job.created_at|date:"M j, Y g:i A" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

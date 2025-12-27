@@ -1,0 +1,71 @@
+<div class="mb-4">
+    <div class="flex justify-between items-center mb-2">
+        <span class="text-sm font-medium text-gray-700">Progress</span>
+        <span class="px-2 py-1 text-xs rounded-full
+            {% if import_job.status == 'completed' %}bg-green-100 text-green-800
+            {% elif import_job.status == 'failed' %}bg-red-100 text-red-800
+            {% elif import_job.status == 'processing' %}bg-blue-100 text-blue-800
+            {% else %}bg-gray-100 text-gray-800{% endif %}">
+            {{ import_job.get_status_display }}
+        </span>
+    </div>
+
+    <div class="w-full bg-gray-200 rounded-full h-4 mb-2">
+        <div class="bg-green-600 h-4 rounded-full transition-all duration-300"
+             style="width: {{ import_job.progress_percentage }}%">
+        </div>
+    </div>
+
+    <div class="flex justify-between text-sm text-gray-600">
+        <span>{{ import_job.processed_rows }} of {{ import_job.total_rows }} rows</span>
+        <span>{{ import_job.progress_percentage }}%</span>
+    </div>
+</div>
+
+<div class="grid grid-cols-3 gap-4 mb-4">
+    <div class="bg-green-50 rounded-lg p-4 text-center">
+        <div class="text-2xl font-bold text-green-700">{{ import_job.created_count }}</div>
+        <div class="text-sm text-green-600">Created</div>
+    </div>
+    <div class="bg-blue-50 rounded-lg p-4 text-center">
+        <div class="text-2xl font-bold text-blue-700">{{ import_job.updated_count }}</div>
+        <div class="text-sm text-blue-600">Updated</div>
+    </div>
+    <div class="bg-red-50 rounded-lg p-4 text-center">
+        <div class="text-2xl font-bold text-red-700">{{ import_job.error_count }}</div>
+        <div class="text-sm text-red-600">Errors</div>
+    </div>
+</div>
+
+{% if import_job.status == 'completed' or import_job.status == 'failed' %}
+<div class="text-sm text-gray-500 mb-4">
+    <p>Started: {{ import_job.started_at|date:"M j, Y g:i A" }}</p>
+    <p>Completed: {{ import_job.completed_at|date:"M j, Y g:i A" }}</p>
+</div>
+
+{% if import_job.error_messages %}
+<details class="mb-4">
+    <summary class="cursor-pointer font-medium text-red-700 hover:text-red-800">
+        Show error details ({{ import_job.error_count }})
+    </summary>
+    <div class="mt-2 bg-red-50 rounded p-3 max-h-40 overflow-y-auto">
+        <ul class="text-sm text-red-600 list-disc list-inside">
+            {% for error in import_job.error_messages %}
+            <li>{{ error }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+</details>
+{% endif %}
+
+<div class="flex gap-4">
+    <a href="{% url 'civicpulse:election_detail' pk=election.pk %}"
+       class="text-white bg-green-700 hover:bg-green-800 font-medium rounded-lg text-sm px-5 py-2.5">
+        View Election
+    </a>
+    <a href="{% url 'civicpulse:voter_import' pk=election.pk %}"
+       class="text-gray-600 border border-gray-300 hover:bg-gray-50 font-medium rounded-lg text-sm px-5 py-2.5">
+        Import More
+    </a>
+</div>
+{% endif %}

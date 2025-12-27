@@ -8,10 +8,15 @@ from .models import (
     EffortAssignment,
     Election,
     ElectionDate,
+    ElectionVoter,
     Email,
+    ImportJob,
     Office,
     Person,
     PhoneNumber,
+    VoterAddress,
+    VoterEmail,
+    VoterPhoneNumber,
     VoterRecord,
 )
 
@@ -301,3 +306,166 @@ class ContactAttemptAdmin(admin.ModelAdmin):
         ("Outcome", {"fields": ["outcome", "notes", "callback_time"]}),
         ("Metadata", {"fields": ["created_at"], "classes": ["collapse"]}),
     ]
+
+
+# Election Voter admin classes
+
+
+class VoterPhoneNumberInline(admin.TabularInline):
+    model = VoterPhoneNumber
+    extra = 0
+
+
+class VoterEmailInline(admin.TabularInline):
+    model = VoterEmail
+    extra = 0
+
+
+class VoterAddressInline(admin.TabularInline):
+    model = VoterAddress
+    extra = 0
+
+
+@admin.register(ElectionVoter)
+class ElectionVoterAdmin(admin.ModelAdmin):
+    list_display = [
+        "full_name",
+        "voter_id",
+        "election",
+        "registered_party",
+        "likelihood_combined",
+        "created_at",
+    ]
+    list_filter = ["election", "registered_party", "created_at"]
+    search_fields = ["first_name", "last_name", "voter_id", "election__office__name"]
+    readonly_fields = ["created_at", "updated_at"]
+    raw_id_fields = ["election"]
+    inlines = [VoterPhoneNumberInline, VoterEmailInline, VoterAddressInline]
+    fieldsets = [
+        (
+            None,
+            {"fields": ["election", "voter_id", "first_name", "middle_name", "last_name", "nickname"]},
+        ),
+        (
+            "Demographics",
+            {
+                "fields": [
+                    "registered_party",
+                    "gender",
+                    "age",
+                    "ethnicity",
+                    "marital_status",
+                    "spoken_language",
+                    "military_status",
+                    "changed_party",
+                ],
+                "classes": ["collapse"],
+            },
+        ),
+        (
+            "Location",
+            {
+                "fields": ["latitude", "longitude", "apartment_type", "street_number_parity"],
+                "classes": ["collapse"],
+            },
+        ),
+        (
+            "Voting Scores",
+            {
+                "fields": [
+                    "likelihood_general",
+                    "likelihood_primary",
+                    "likelihood_combined",
+                ]
+            },
+        ),
+        (
+            "Voting History",
+            {
+                "fields": ["voting_history"],
+                "classes": ["collapse"],
+            },
+        ),
+        (
+            "Household",
+            {
+                "fields": [
+                    "household_party",
+                    "mailing_household_size",
+                    "mailing_family_id",
+                    "mailing_household_count",
+                    "mailing_household_party",
+                    "cell_phone_confidence",
+                ],
+                "classes": ["collapse"],
+            },
+        ),
+        ("Metadata", {"fields": ["created_at", "updated_at"], "classes": ["collapse"]}),
+    ]
+
+
+@admin.register(ImportJob)
+class ImportJobAdmin(admin.ModelAdmin):
+    list_display = [
+        "file_name",
+        "election",
+        "status",
+        "progress_display",
+        "created_by",
+        "created_at",
+    ]
+    list_filter = ["status", "election", "created_at"]
+    search_fields = ["file_name", "election__office__name"]
+    readonly_fields = [
+        "task_id",
+        "total_rows",
+        "processed_rows",
+        "created_count",
+        "updated_count",
+        "error_count",
+        "error_messages",
+        "created_at",
+        "started_at",
+        "completed_at",
+    ]
+    raw_id_fields = ["election", "created_by"]
+    fieldsets = [
+        (None, {"fields": ["election", "file_name", "file_path", "status"]}),
+        (
+            "Progress",
+            {
+                "fields": [
+                    "total_rows",
+                    "processed_rows",
+                    "created_count",
+                    "updated_count",
+                    "error_count",
+                ]
+            },
+        ),
+        (
+            "Errors",
+            {
+                "fields": ["error_messages"],
+                "classes": ["collapse"],
+            },
+        ),
+        (
+            "Task Info",
+            {
+                "fields": ["task_id"],
+                "classes": ["collapse"],
+            },
+        ),
+        (
+            "Timestamps",
+            {
+                "fields": ["created_by", "created_at", "started_at", "completed_at"],
+                "classes": ["collapse"],
+            },
+        ),
+    ]
+
+    @admin.display(description="Progress")
+    def progress_display(self, obj):
+        return f"{obj.processed_rows}/{obj.total_rows} ({obj.progress_percentage}%)"

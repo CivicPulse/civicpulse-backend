@@ -15,6 +15,7 @@ from .forms import (
     ElectionDateForm,
     ElectionForm,
     OfficeForm,
+    VoterImportForm,
 )
 from .models import (
     Candidate,
@@ -23,6 +24,7 @@ from .models import (
     EffortAssignment,
     Election,
     ElectionDate,
+    ImportJob,
     Office,
     Person,
 )
@@ -1129,4 +1131,105 @@ def campaign_candidates(request):
         request,
         "civicpulse/campaigns/partials/_candidate_select.html",
         {"candidates": candidates},
+    )
+
+
+# =============================================================================
+# Voter Import Views
+# =============================================================================
+
+
+@login_required
+def voter_import(request, pk):
+    """Handle voter CSV upload and trigger async import."""
+    import os
+    import uuid as uuid_module
+
+    from django.conf import settings
+
+    election = get_object_or_404(Election, pk=pk)
+
+    if request.method == "POST":
+        form = VoterImportForm(request.POST, request.FILES)
+        if form.is_valid():
+            csv_file = form.cleaned_data["csv_file"]
+
+            # Create imports directory if it doesn't exist
+            import_dir = os.path.join(settings.MEDIA_ROOT, "imports")
+            os.makedirs(import_dir, exist_ok=True)
+
+            # Save file to temporary location
+            temp_filename = f"{uuid_module.uuid4()}_{csv_file.name}"
+            temp_path = os.path.join(import_dir, temp_filename)
+
+            with open(temp_path, "wb+") as dest:
+                for chunk in csv_file.chunks():
+                    dest.write(chunk)
+
+            # Create ImportJob record
+            import_job = ImportJob.objects.create(
+                election=election,
+                file_name=csv_file.name,
+                file_path=temp_path,
+                created_by=request.user,
+            )
+
+            # Dispatch Celery task
+            from .tasks import process_voter_import
+
+            task = process_voter_import.delay(str(import_job.pk))
+
+            # Update job with task ID
+            import_job.task_id = task.id
+            import_job.save(update_fields=["task_id"])
+
+            return redirect("civicpulse:import_status", pk=election.pk, job_pk=import_job.pk)
+    else:
+        form = VoterImportForm()
+
+    # Get recent import history for this election
+    recent_imports = ImportJob.objects.filter(
+        election=election
+    ).order_by("-created_at")[:5]
+
+    return render(
+        request,
+        "civicpulse/imports/voter_import.html",
+        {
+            "election": election,
+            "form": form,
+            "recent_imports": recent_imports,
+        },
+    )
+
+
+@login_required
+def import_status(request, pk, job_pk):
+    """Display import job status with real-time progress."""
+    election = get_object_or_404(Election, pk=pk)
+    import_job = get_object_or_404(ImportJob, pk=job_pk, election=election)
+
+    return render(
+        request,
+        "civicpulse/imports/import_status.html",
+        {
+            "election": election,
+            "import_job": import_job,
+        },
+    )
+
+
+@login_required
+def import_progress(request, pk, job_pk):
+    """HTMX endpoint for polling import progress."""
+    election = get_object_or_404(Election, pk=pk)
+    import_job = get_object_or_404(ImportJob, pk=job_pk, election=election)
+
+    return render(
+        request,
+        "civicpulse/imports/partials/_import_progress.html",
+        {
+            "election": election,
+            "import_job": import_job,
+        },
     )

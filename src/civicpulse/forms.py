@@ -448,3 +448,40 @@ class DoorKnockAttemptForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields["notes"].required = False
         self.fields["address_visited"].required = False
+
+
+class VoterImportForm(forms.Form):
+    """Form for uploading voter CSV files to an election."""
+
+    csv_file = forms.FileField(
+        widget=forms.FileInput(
+            attrs={
+                "class": TAILWIND_INPUT,
+                "accept": ".csv,text/csv",
+            }
+        ),
+        help_text="CSV file with voter data (max 100MB)",
+    )
+
+    def clean_csv_file(self):
+        file = self.cleaned_data["csv_file"]
+
+        # Validate file extension
+        if not file.name.endswith(".csv"):
+            raise forms.ValidationError("File must be a CSV file")
+
+        # Validate file size (100MB max)
+        if file.size > 104857600:
+            raise forms.ValidationError("File size must be under 100MB")
+
+        # Validate CSV structure (quick header check)
+        try:
+            content = file.read(2048).decode("utf-8")
+            file.seek(0)  # Reset for later reading
+
+            if "Voter ID" not in content:
+                raise forms.ValidationError("CSV must contain 'Voter ID' column")
+        except UnicodeDecodeError:
+            raise forms.ValidationError("File must be UTF-8 encoded")
+
+        return file

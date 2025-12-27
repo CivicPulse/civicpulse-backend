@@ -424,6 +424,12 @@ class ContactEffort(models.Model):
         help_text="Candidate this effort supports",
     )
 
+    # Flag to indicate this effort uses ElectionVoter records
+    uses_election_voters = models.BooleanField(
+        default=False,
+        help_text="If True, uses ElectionVoter records instead of Person records",
+    )
+
     created_by = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
@@ -479,8 +485,21 @@ class ContactAttempt(models.Model):
     effort = models.ForeignKey(
         ContactEffort, on_delete=models.CASCADE, related_name="attempts"
     )
+    # Legacy: for Person-based campaigns
     person = models.ForeignKey(
-        Person, on_delete=models.CASCADE, related_name="contact_attempts"
+        Person,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="contact_attempts",
+    )
+    # For election-specific campaigns using ElectionVoter
+    election_voter = models.ForeignKey(
+        "ElectionVoter",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="contact_attempts",
     )
     contacted_by = models.ForeignKey(
         User,
@@ -505,7 +524,15 @@ class ContactAttempt(models.Model):
         null=True,
         blank=True,
         related_name="contact_attempts",
-        help_text="The address visited for door knock attempts",
+        help_text="The address visited for door knock attempts (Person)",
+    )
+    voter_address_visited = models.ForeignKey(
+        "VoterAddress",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="contact_attempts",
+        help_text="The address visited for door knock attempts (ElectionVoter)",
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -513,15 +540,27 @@ class ContactAttempt(models.Model):
         ordering = ["-created_at"]
         indexes = [
             models.Index(fields=["effort", "person"]),
+            models.Index(fields=["effort", "election_voter"]),
             models.Index(fields=["effort", "outcome"]),
         ]
 
+    @property
+    def target(self):
+        """Return the contact target (either Person or ElectionVoter)."""
+        return self.election_voter or self.person
+
+    @property
+    def target_name(self):
+        """Return the display name of the contact target."""
+        target = self.target
+        return target.full_name if target else "Unknown"
+
     def __str__(self):
-        return f"{self.person} - {self.get_outcome_display()} ({self.effort.name})"
+        return f"{self.target_name} - {self.get_outcome_display()} ({self.effort.name})"
 
 
 class EffortAssignment(models.Model):
-    """Assigns a person to a contact effort with status tracking and locking."""
+    """Assigns a person or election voter to a contact effort with status tracking and locking."""
 
     class Status(models.TextChoices):
         PENDING = "pending", "Pending"
@@ -532,8 +571,21 @@ class EffortAssignment(models.Model):
     effort = models.ForeignKey(
         ContactEffort, on_delete=models.CASCADE, related_name="assignments"
     )
+    # Legacy: for Person-based campaigns
     person = models.ForeignKey(
-        Person, on_delete=models.CASCADE, related_name="effort_assignments"
+        Person,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="effort_assignments",
+    )
+    # For election-specific campaigns using ElectionVoter
+    election_voter = models.ForeignKey(
+        "ElectionVoter",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="effort_assignments",
     )
     status = models.CharField(
         max_length=15, choices=Status.choices, default=Status.PENDING
@@ -550,12 +602,285 @@ class EffortAssignment(models.Model):
     locked_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        unique_together = ["effort", "person"]
         ordering = ["assigned_at"]
         indexes = [
             models.Index(fields=["effort", "status"]),
             models.Index(fields=["locked_by", "locked_at"]),
         ]
+        constraints = [
+            # Unique per effort + person (when person is set)
+            models.UniqueConstraint(
+                fields=["effort", "person"],
+                condition=models.Q(person__isnull=False),
+                name="unique_person_assignment",
+            ),
+            # Unique per effort + election_voter (when election_voter is set)
+            models.UniqueConstraint(
+                fields=["effort", "election_voter"],
+                condition=models.Q(election_voter__isnull=False),
+                name="unique_election_voter_assignment",
+            ),
+        ]
+
+    @property
+    def target(self):
+        """Return the assignment target (either Person or ElectionVoter)."""
+        return self.election_voter or self.person
+
+    @property
+    def target_name(self):
+        """Return the display name of the assignment target."""
+        target = self.target
+        return target.full_name if target else "Unknown"
 
     def __str__(self):
-        return f"{self.person} - {self.effort.name} ({self.get_status_display()})"
+        return f"{self.target_name} - {self.effort.name} ({self.get_status_display()})"
+
+
+class ElectionVoter(models.Model):
+    """
+    An election-specific voter record. Each import for an election creates
+    completely independent records with NO linking between elections.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    # Core Election Association
+    election = models.ForeignKey(
+        Election,
+        on_delete=models.CASCADE,
+        related_name="voters",
+        help_text="The election this voter record belongs to",
+    )
+
+    # External Identifier - unique PER ELECTION
+    voter_id = models.CharField(
+        max_length=50,
+        help_text="External voter file ID (unique within this election)",
+    )
+
+    # Basic Identity Fields
+    first_name = models.CharField(max_length=100)
+    last_name = models.CharField(max_length=100)
+    middle_name = models.CharField(max_length=100, blank=True)
+    nickname = models.CharField(max_length=100, blank=True)
+
+    # Demographics
+    registered_party = models.CharField(max_length=50, blank=True)
+    gender = models.CharField(max_length=1, blank=True)
+    age = models.PositiveIntegerField(null=True, blank=True)
+    ethnicity = models.CharField(max_length=100, blank=True)
+    marital_status = models.CharField(max_length=20, blank=True)
+    spoken_language = models.CharField(max_length=50, blank=True)
+    military_status = models.CharField(max_length=50, blank=True)
+    changed_party = models.BooleanField(null=True, blank=True)
+
+    # Location (GPS for door knocking)
+    latitude = models.DecimalField(
+        max_digits=10, decimal_places=6, null=True, blank=True
+    )
+    longitude = models.DecimalField(
+        max_digits=10, decimal_places=6, null=True, blank=True
+    )
+    apartment_type = models.CharField(max_length=50, blank=True)
+    street_number_parity = models.CharField(max_length=10, blank=True)
+
+    # Contact metadata
+    cell_phone_confidence = models.CharField(max_length=10, blank=True)
+
+    # Voting scores
+    likelihood_general = models.CharField(max_length=20, blank=True)
+    likelihood_primary = models.CharField(max_length=20, blank=True)
+    likelihood_combined = models.CharField(max_length=20, blank=True)
+
+    # Voting history - stored as JSON for flexibility across election years
+    voting_history = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Historical voting data, e.g., {'general_2024': True, 'primary_2022': False}",
+    )
+
+    # Household data
+    household_party = models.CharField(max_length=100, blank=True)
+    mailing_household_size = models.PositiveIntegerField(null=True, blank=True)
+    mailing_family_id = models.CharField(max_length=50, blank=True)
+    mailing_household_count = models.PositiveIntegerField(null=True, blank=True)
+    mailing_household_party = models.CharField(max_length=100, blank=True)
+
+    # Import tracking
+    import_batch = models.CharField(
+        max_length=36, blank=True, help_text="UUID of the import batch"
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "election voter"
+        verbose_name_plural = "election voters"
+        ordering = ["last_name", "first_name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["election", "voter_id"],
+                name="unique_voter_per_election",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["election", "voter_id"]),
+            models.Index(fields=["last_name", "first_name"]),
+            models.Index(fields=["election", "registered_party"]),
+            models.Index(fields=["election", "likelihood_general"]),
+        ]
+
+    def __str__(self):
+        return f"{self.full_name} ({self.election})"
+
+    @property
+    def full_name(self):
+        """Return the voter's full name."""
+        parts = [self.first_name]
+        if self.middle_name:
+            parts.append(self.middle_name)
+        parts.append(self.last_name)
+        return " ".join(parts)
+
+
+class VoterPhoneNumber(models.Model):
+    """Phone number associated with an election voter."""
+
+    class PhoneType(models.TextChoices):
+        MOBILE = "mobile", "Mobile"
+        HOME = "home", "Home"
+        WORK = "work", "Work"
+        OTHER = "other", "Other"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    voter = models.ForeignKey(
+        ElectionVoter,
+        on_delete=models.CASCADE,
+        related_name="phone_numbers",
+    )
+    number = models.CharField(max_length=20)
+    type = models.CharField(
+        max_length=10, choices=PhoneType.choices, default=PhoneType.MOBILE
+    )
+    is_primary = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["-is_primary", "type"]
+
+    def __str__(self):
+        return f"{self.number} ({self.get_type_display()})"
+
+
+class VoterEmail(models.Model):
+    """Email address associated with an election voter."""
+
+    class EmailType(models.TextChoices):
+        PERSONAL = "personal", "Personal"
+        WORK = "work", "Work"
+        OTHER = "other", "Other"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    voter = models.ForeignKey(
+        ElectionVoter,
+        on_delete=models.CASCADE,
+        related_name="emails",
+    )
+    email = models.EmailField()
+    type = models.CharField(
+        max_length=10, choices=EmailType.choices, default=EmailType.PERSONAL
+    )
+    is_primary = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["-is_primary", "type"]
+
+    def __str__(self):
+        return f"{self.email} ({self.get_type_display()})"
+
+
+class VoterAddress(models.Model):
+    """Physical address associated with an election voter."""
+
+    class AddressType(models.TextChoices):
+        HOME = "home", "Home"
+        WORK = "work", "Work"
+        MAILING = "mailing", "Mailing"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    voter = models.ForeignKey(
+        ElectionVoter,
+        on_delete=models.CASCADE,
+        related_name="addresses",
+    )
+    type = models.CharField(
+        max_length=10, choices=AddressType.choices, default=AddressType.HOME
+    )
+    street_address = models.CharField(max_length=255)
+    street_address_2 = models.CharField(max_length=255, blank=True)
+    city = models.CharField(max_length=100)
+    state = models.CharField(max_length=2, help_text="US state abbreviation")
+    zip_code = models.CharField(max_length=10)
+    is_primary = models.BooleanField(default=False)
+
+    class Meta:
+        verbose_name_plural = "voter addresses"
+        ordering = ["-is_primary", "type"]
+
+    def __str__(self):
+        return f"{self.street_address}, {self.city}, {self.state} {self.zip_code}"
+
+
+class ImportJob(models.Model):
+    """Tracks the status and progress of async voter import jobs."""
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        PROCESSING = "processing", "Processing"
+        COMPLETED = "completed", "Completed"
+        FAILED = "failed", "Failed"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    election = models.ForeignKey(
+        Election, on_delete=models.CASCADE, related_name="import_jobs"
+    )
+    file_name = models.CharField(max_length=255)
+    file_path = models.CharField(max_length=500)  # Temporary file path
+    status = models.CharField(
+        max_length=15, choices=Status.choices, default=Status.PENDING
+    )
+
+    # Progress tracking
+    total_rows = models.PositiveIntegerField(default=0)
+    processed_rows = models.PositiveIntegerField(default=0)
+    created_count = models.PositiveIntegerField(default=0)
+    updated_count = models.PositiveIntegerField(default=0)
+    error_count = models.PositiveIntegerField(default=0)
+
+    # Celery task reference
+    task_id = models.CharField(max_length=255, blank=True)
+
+    # Error details
+    error_messages = models.JSONField(default=list, blank=True)
+
+    # Timestamps
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, related_name="import_jobs"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Import {self.file_name} for {self.election}"
+
+    @property
+    def progress_percentage(self):
+        """Return the import progress as a percentage."""
+        if self.total_rows == 0:
+            return 0
+        return round((self.processed_rows / self.total_rows) * 100, 1)
