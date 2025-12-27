@@ -41,6 +41,13 @@ DEFAULTS = {
     # Default map center (continental US)
     "MAP_DEFAULT_CENTER": [39.8283, -98.5795],
     "MAP_DEFAULT_ZOOM": 4,
+    # Routing service configuration
+    # Local OSRM server URL (e.g., "http://localhost:5000")
+    # If not set, falls back to OpenRouteService or OSRM demo server
+    "OSRM_URL": None,
+    # OpenRouteService API key (https://openrouteservice.org/)
+    # Free tier: 2,000 requests/day. Falls back to OSRM demo if not set.
+    "OPENROUTESERVICE_API_KEY": None,
 }
 
 

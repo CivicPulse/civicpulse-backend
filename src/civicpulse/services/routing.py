@@ -14,6 +14,8 @@ import requests
 from django.conf import settings
 from django.core.cache import cache
 
+from civicpulse.conf import civicpulse_settings
+
 logger = logging.getLogger(__name__)
 
 
@@ -116,7 +118,6 @@ class OSRMRoutingService:
                 return None
 
             trip = trips[0]
-            legs = trip.get("legs", [])
 
             # Extract optimized order from waypoint indices
             waypoint_indices = data.get("waypoints", [])
@@ -158,6 +159,176 @@ class OSRMRoutingService:
             logger.error(f"OSRM response parsing error: {e}")
 
         return None
+
+
+class OpenRouteServiceRouter:
+    """
+    Route optimization using OpenRouteService Directions API.
+
+    Free tier: 2,000 requests/day
+    Docs: https://openrouteservice.org/dev/#/api-docs/v2/directions
+    """
+
+    BASE_URL = "https://api.openrouteservice.org/v2/directions/foot-walking"
+
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+        self.timeout = 30
+
+    def optimize_route(
+        self,
+        start_lat: float,
+        start_lon: float,
+        waypoints: list[Waypoint],
+        profile: str = "foot",  # Unused, ORS uses endpoint for profile
+    ) -> OptimizedRoute | None:
+        """
+        Use ORS Directions API for optimized routing.
+
+        Note: ORS optimize_waypoints requires the Optimization API for true TSP.
+        This uses the standard Directions API which returns a route through
+        waypoints in their given order, but we pre-sort by nearest neighbor
+        to get reasonable results.
+
+        Args:
+            start_lat: Starting latitude (user's current position)
+            start_lon: Starting longitude
+            waypoints: List of locations to visit
+            profile: Routing profile (unused, always foot-walking)
+
+        Returns:
+            OptimizedRoute with ordered waypoints, or None if failed
+        """
+        if not waypoints:
+            return None
+
+        # ORS Directions API visits waypoints in order, so we pre-sort
+        # using nearest neighbor for a reasonable route
+        sorted_waypoints = self._sort_nearest_neighbor(
+            start_lat, start_lon, list(waypoints)
+        )
+
+        # Build coordinates list: [[lon, lat], ...]
+        coordinates = [[start_lon, start_lat]]
+        for wp in sorted_waypoints:
+            coordinates.append([float(wp.longitude), float(wp.latitude)])
+
+        headers = {
+            "Authorization": self.api_key,
+            "Content-Type": "application/json",
+        }
+
+        payload = {
+            "coordinates": coordinates,
+            "instructions": False,
+            "geometry": True,
+        }
+
+        try:
+            response = requests.post(
+                self.BASE_URL,
+                json=payload,
+                headers=headers,
+                timeout=self.timeout,
+            )
+            response.raise_for_status()
+            data = response.json()
+
+            routes = data.get("routes", [])
+            if not routes:
+                return None
+
+            route = routes[0]
+            summary = route.get("summary", {})
+
+            # Extract geometry
+            geometry = None
+            if "geometry" in route:
+                # ORS returns encoded polyline, decode it
+                geometry = self._decode_polyline(route["geometry"])
+
+            return OptimizedRoute(
+                waypoints=sorted_waypoints,
+                total_distance_miles=summary.get("distance", 0) / 1609.34,
+                total_duration_minutes=summary.get("duration", 0) / 60,
+                source="openrouteservice",
+                geometry=geometry,
+            )
+
+        except requests.exceptions.Timeout:
+            logger.warning("OpenRouteService request timed out")
+        except requests.exceptions.RequestException as e:
+            logger.warning(f"OpenRouteService request failed: {e}")
+        except (KeyError, ValueError) as e:
+            logger.error(f"OpenRouteService response parsing error: {e}")
+
+        return None
+
+    def _sort_nearest_neighbor(
+        self, start_lat: float, start_lon: float, waypoints: list[Waypoint]
+    ) -> list[Waypoint]:
+        """Sort waypoints using nearest neighbor algorithm."""
+        if not waypoints:
+            return []
+
+        remaining = list(waypoints)
+        route: list[Waypoint] = []
+        current_lat, current_lon = start_lat, start_lon
+
+        while remaining:
+            min_distance = float("inf")
+            nearest_idx = 0
+
+            for i, wp in enumerate(remaining):
+                dist = haversine_distance(
+                    current_lat, current_lon, float(wp.latitude), float(wp.longitude)
+                )
+                if dist < min_distance:
+                    min_distance = dist
+                    nearest_idx = i
+
+            nearest = remaining.pop(nearest_idx)
+            route.append(nearest)
+            current_lat = float(nearest.latitude)
+            current_lon = float(nearest.longitude)
+
+        return route
+
+    def _decode_polyline(self, encoded: str) -> list[tuple[float, float]]:
+        """Decode Google-style encoded polyline to list of (lat, lon) tuples."""
+        result = []
+        index = 0
+        lat = 0
+        lng = 0
+
+        while index < len(encoded):
+            # Decode latitude
+            shift = 0
+            value = 0
+            while True:
+                b = ord(encoded[index]) - 63
+                index += 1
+                value |= (b & 0x1F) << shift
+                shift += 5
+                if b < 0x20:
+                    break
+            lat += ~(value >> 1) if value & 1 else value >> 1
+
+            # Decode longitude
+            shift = 0
+            value = 0
+            while True:
+                b = ord(encoded[index]) - 63
+                index += 1
+                value |= (b & 0x1F) << shift
+                shift += 5
+                if b < 0x20:
+                    break
+            lng += ~(value >> 1) if value & 1 else value >> 1
+
+            result.append((lat / 1e5, lng / 1e5))
+
+        return result
 
 
 class NearestNeighborRouter:
@@ -227,19 +398,46 @@ class NearestNeighborRouter:
 
 class RouteOptimizer:
     """
-    Main route optimization service with caching and fallback.
+    Main route optimization service with caching and cascading fallback.
 
-    Tries OSRM first for road-aware routing, falls back to
-    nearest neighbor if OSRM is unavailable.
+    Routing chain (tries in order until one succeeds):
+    1. Local OSRM (if OSRM_URL configured) - Self-hosted, no rate limits
+    2. OpenRouteService (if OPENROUTESERVICE_API_KEY configured) - 2,000 req/day
+    3. OSRM Demo Server - Public fallback, rate-limited
+    4. Nearest Neighbor - Always works, uses straight-line distance
     """
 
     CACHE_PREFIX = "route:"
     CACHE_TIMEOUT = 60 * 60  # 1 hour
+    OSRM_DEMO_URL = "https://router.project-osrm.org"
 
     def __init__(self, effort_id: str, user_id: int):
         self.effort_id = effort_id
         self.user_id = user_id
-        self.osrm = OSRMRoutingService()
+
+        # Build routing chain based on available configuration
+        self.routers: list[tuple[str, OSRMRoutingService | OpenRouteServiceRouter]] = []
+
+        # 1. Local OSRM (if configured)
+        osrm_url = civicpulse_settings.OSRM_URL
+        if osrm_url:
+            self.routers.append(("local_osrm", OSRMRoutingService(base_url=osrm_url)))
+            logger.debug(f"Routing: Added local OSRM at {osrm_url}")
+
+        # 2. OpenRouteService (if API key configured)
+        ors_key = civicpulse_settings.OPENROUTESERVICE_API_KEY
+        if ors_key:
+            self.routers.append(
+                ("openrouteservice", OpenRouteServiceRouter(api_key=ors_key))
+            )
+            logger.debug("Routing: Added OpenRouteService")
+
+        # 3. OSRM Demo Server (always available as fallback)
+        self.routers.append(
+            ("osrm_demo", OSRMRoutingService(base_url=self.OSRM_DEMO_URL))
+        )
+
+        # 4. Nearest neighbor (final fallback, always works)
         self.fallback = NearestNeighborRouter()
 
     def _cache_key(self) -> str:
@@ -299,13 +497,20 @@ class RouteOptimizer:
                     source=cached["source"],
                 )
 
-        # Try OSRM first if enabled
+        # Try each router in the chain until one succeeds
         result = None
         if use_osrm:
-            result = self.osrm.optimize_route(start_lat, start_lon, waypoints)
+            for name, router in self.routers:
+                result = router.optimize_route(start_lat, start_lon, waypoints)
+                if result:
+                    logger.info(f"Route optimized using {name}")
+                    break
+                else:
+                    logger.debug(f"Router {name} failed, trying next...")
 
-        # Fall back to nearest neighbor
+        # Final fallback to nearest neighbor (always works)
         if result is None:
+            logger.info("All routers failed, using nearest neighbor fallback")
             result = self.fallback.optimize_route(start_lat, start_lon, waypoints)
 
         # Cache the result

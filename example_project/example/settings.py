@@ -2,21 +2,31 @@
 Django settings for the CivicPulse example project.
 
 This demonstrates how to configure a Django project to use django-civicpulse.
+
+Configuration is loaded from environment variables using python-decouple.
+Create a .env file from .env.example for local development.
 """
 
-import os
 from pathlib import Path
+
+from decouple import Csv, config
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-example-only-change-in-production"
+# =============================================================================
+# Core Django Settings (from environment)
+# =============================================================================
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# SECURITY: Required in production - generate with:
+# python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+SECRET_KEY = config("SECRET_KEY", default="django-insecure-dev-only-change-in-production")
 
-ALLOWED_HOSTS = ["*"]
+# SECURITY: Defaults to False for safety
+DEBUG = config("DEBUG", default=False, cast=bool)
+
+# Comma-separated list: localhost,127.0.0.1,example.com
+ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="localhost,127.0.0.1", cast=Csv())
 
 
 # Application definition
@@ -94,7 +104,7 @@ def _detect_spatialite():
 
 
 # Determine database engine based on environment
-_db_engine = os.environ.get("DB_ENGINE", "")
+_db_engine = config("DB_ENGINE", default="")
 
 if not _db_engine:
     # Auto-detect: use SpatiaLite if available, otherwise standard SQLite
@@ -107,28 +117,30 @@ if not _db_engine:
 DATABASES = {
     "default": {
         "ENGINE": _db_engine,
-        "NAME": os.environ.get("DB_NAME", BASE_DIR / "db.sqlite3"),
+        "NAME": config("DB_NAME", default=str(BASE_DIR / "db.sqlite3")),
     }
 }
 
 # Add PostGIS connection details if using PostgreSQL
 if "postgis" in _db_engine:
     DATABASES["default"].update({
-        "USER": os.environ.get("DB_USER", "postgres"),
-        "PASSWORD": os.environ.get("DB_PASSWORD", ""),
-        "HOST": os.environ.get("DB_HOST", "localhost"),
-        "PORT": os.environ.get("DB_PORT", "5432"),
+        "USER": config("DB_USER", default="postgres"),
+        "PASSWORD": config("DB_PASSWORD", default=""),
+        "HOST": config("DB_HOST", default="localhost"),
+        "PORT": config("DB_PORT", default=5432, cast=int),
     })
 
 # SpatiaLite library path (required for SpatiaLite backend)
 # Ubuntu/Debian: /usr/lib/x86_64-linux-gnu/mod_spatialite.so
 # macOS: /opt/homebrew/lib/mod_spatialite.dylib
-if os.environ.get("SPATIALITE_LIBRARY_PATH"):
-    SPATIALITE_LIBRARY_PATH = os.environ["SPATIALITE_LIBRARY_PATH"]
+_spatialite_path = config("SPATIALITE_LIBRARY_PATH", default="")
+if _spatialite_path:
+    SPATIALITE_LIBRARY_PATH = _spatialite_path
 
 # GDAL library path (if not in standard system paths)
-if os.environ.get("GDAL_LIBRARY_PATH"):
-    GDAL_LIBRARY_PATH = os.environ["GDAL_LIBRARY_PATH"]
+_gdal_path = config("GDAL_LIBRARY_PATH", default="")
+if _gdal_path:
+    GDAL_LIBRARY_PATH = _gdal_path
 
 
 # Password validation
@@ -191,10 +203,14 @@ LOGOUT_REDIRECT_URL = "login"
 # See https://django-civicpulse.readthedocs.io for all options
 
 CIVICPULSE = {
-    "SITE_NAME": "CivicPulse Demo",
-    "LOCK_TIMEOUT_MINUTES": 10,
-    "USE_COMPRESSOR": False,
-    "INCLUDE_DEFAULT_NAV": True,
+    "SITE_NAME": config("CIVICPULSE_SITE_NAME", default="CivicPulse"),
+    "LOCK_TIMEOUT_MINUTES": config("CIVICPULSE_LOCK_TIMEOUT", default=10, cast=int),
+    "USE_COMPRESSOR": config("CIVICPULSE_USE_COMPRESSOR", default=False, cast=bool),
+    "INCLUDE_DEFAULT_NAV": config("CIVICPULSE_INCLUDE_NAV", default=True, cast=bool),
+    # Routing services (see routing fallback chain in services/routing.py)
+    "OSRM_URL": config("OSRM_URL", default=None),
+    "OPENROUTESERVICE_API_KEY": config("OPENROUTESERVICE_API_KEY", default=None),
+    "OPENCAGE_API_KEY": config("OPENCAGE_API_KEY", default=None),
 }
 
 
@@ -205,7 +221,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 
 # Celery Configuration
-CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://localhost:6379/0")
+CELERY_BROKER_URL = config("CELERY_BROKER_URL", default="redis://localhost:6379/0")
 CELERY_RESULT_BACKEND = "django-db"  # Store results in Django database
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
@@ -237,14 +253,14 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = 104857600
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.redis.RedisCache",
-        "LOCATION": os.environ.get("REDIS_URL", "redis://localhost:6379/1"),
+        "LOCATION": config("REDIS_URL", default="redis://localhost:6379/1"),
     }
 }
 
 # Geocoding service configuration
 CIVICPULSE_GEOCODING = {
     # API Keys (use environment variables in production)
-    "OPENCAGE_API_KEY": os.environ.get("OPENCAGE_API_KEY", ""),
+    "OPENCAGE_API_KEY": config("OPENCAGE_API_KEY", default=""),
     # Rate limiting
     "REQUESTS_PER_SECOND": 1,  # Conservative default for free tier
     "BATCH_SIZE": 100,  # Records per batch in bulk geocoding
@@ -257,7 +273,3 @@ CIVICPULSE_GEOCODING = {
     # Quality thresholds
     "MIN_CONFIDENCE": 0.5,  # Minimum confidence to accept geocoding result
 }
-
-# OSRM Routing Service Configuration
-OSRM_URL = os.environ.get("OSRM_URL", "https://router.project-osrm.org")
-# For production, use self-hosted: http://localhost:5000

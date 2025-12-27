@@ -68,6 +68,46 @@ export GDAL_LIBRARY_PATH=/usr/lib/libgdal.so
 export SPATIALITE_LIBRARY_PATH=/usr/lib/mod_spatialite.so
 ```
 
+## Environment Configuration
+
+Configuration uses **python-decouple** following 12-Factor App principles:
+
+1. **Environment Variables** (highest priority) - Production/CI
+2. **.env file** - Local development convenience
+3. **Code defaults** - Fallback only
+
+**Quick Start:**
+```bash
+cp .env.example .env                    # Copy template
+# Edit .env with your settings, then:
+uv run python manage.py runserver       # Settings loaded automatically
+```
+
+**Key Configuration Variables:**
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `SECRET_KEY` | Yes* | dev-only key | Django secret (generate for prod) |
+| `DEBUG` | No | `false` | Enable debug mode |
+| `ALLOWED_HOSTS` | No | `localhost,127.0.0.1` | Comma-separated hosts |
+| `DB_ENGINE` | No | auto-detect | Database backend |
+| `REDIS_URL` | No | `redis://localhost:6379/1` | Cache backend |
+| `CELERY_BROKER_URL` | No | `redis://localhost:6379/0` | Task queue |
+
+**Optional API Keys:**
+
+| Variable | Service | Purpose |
+|----------|---------|---------|
+| `OPENROUTESERVICE_API_KEY` | [OpenRouteService](https://openrouteservice.org/) | Route optimization fallback |
+| `OPENCAGE_API_KEY` | [OpenCage](https://opencagedata.com/) | Geocoding addresses |
+
+*A dev-only default is provided, but production MUST set a secure key.
+
+**Generate SECRET_KEY:**
+```bash
+uv run python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+```
+
 ## Project Structure
 
 ```
@@ -639,26 +679,47 @@ result = service.geocode("123 Main St, Atlanta, GA 30303")
 
 ### Routing Service (`civicpulse/services/routing.py`)
 
-Provides road-aware route optimization using OSRM.
+Provides road-aware route optimization with cascading fallback.
+
+**Routing Chain** (tries in order until one succeeds):
+1. **Local OSRM** (if `OSRM_URL` configured) - Self-hosted, no rate limits
+2. **OpenRouteService** (if `OPENROUTESERVICE_API_KEY` configured) - 2,000 req/day free
+3. **OSRM Demo Server** - Public fallback, rate-limited
+4. **Nearest Neighbor** - Always works, uses straight-line distance
 
 **Classes:**
-- `OSRMRoutingService` - Walking/driving route optimization
+- `OSRMRoutingService` - OSRM Trip API for TSP optimization
+- `OpenRouteServiceRouter` - ORS Directions API with walking profile
+- `NearestNeighborRouter` - Simple greedy fallback
+- `RouteOptimizer` - Main service with caching and fallback chain
 
 **Features:**
-- Traveling salesman optimization via OSRM `/trip` endpoint
+- Traveling salesman optimization
 - Walking profile for door knocking
-- Turn-by-turn directions
+- Route geometry for map display
 - Distance and duration estimates
+- 1-hour result caching
+
+**Configuration** (`CIVICPULSE` settings dict):
+```python
+CIVICPULSE = {
+    "OSRM_URL": "http://localhost:5000",  # Local OSRM (optional)
+    "OPENROUTESERVICE_API_KEY": "your-key",  # ORS API key (optional)
+}
+# If neither configured, uses OSRM demo server automatically
+```
 
 **Usage:**
 ```python
-from civicpulse.services.routing import OSRMRoutingService
-from django.contrib.gis.geos import Point
+from civicpulse.services.routing import RouteOptimizer, Waypoint
 
-service = OSRMRoutingService()
-start = Point(-84.388, 33.749, srid=4326)
-waypoints = [Point(-84.390, 33.751, srid=4326), ...]
-route = service.optimize_route(start, waypoints)
+optimizer = RouteOptimizer(effort_id=str(campaign.pk), user_id=request.user.id)
+route = optimizer.get_optimized_route(
+    waypoints=[Waypoint(id="1", latitude=33.749, longitude=-84.388, ...)],
+    start_lat=33.750,
+    start_lon=-84.390,
+)
+# route.source indicates which router succeeded: "local_osrm", "openrouteservice", "osrm_demo", or "nearest_neighbor"
 ```
 
 ## Celery Tasks (`civicpulse/tasks.py`)
@@ -730,8 +791,10 @@ For production, configure via `.env`:
 **Geocoding:**
 - `OPENCAGE_API_KEY` - OpenCage geocoding API key (2,500 free/day)
 
-**Routing (OSRM):**
-- `OSRM_URL` - OSRM server URL (e.g., `http://localhost:5000`)
+**Routing:**
+- `OSRM_URL` - Local OSRM server URL (e.g., `http://localhost:5000`)
+- `OPENROUTESERVICE_API_KEY` - OpenRouteService API key (2,000 free/day)
+- If neither configured, uses public OSRM demo server as fallback
 
 **Cache/Task Queue:**
 - `REDIS_URL` - Redis connection for caching and Celery broker
