@@ -16,6 +16,9 @@
     <link rel="stylesheet" href="{% static 'civicpulse/css/civicpulse.css' %}">
     {% endblock styles %}
 
+    {# Leaflet.js CSS - include in child templates with {% block leaflet_css %}...{% endblock %} #}
+    {% block leaflet_css %}{% endblock leaflet_css %}
+
     {% block scripts_head %}
     <script src="{% civicpulse_setting 'CDN_FLOWBITE' %}"></script>
     <script src="{% civicpulse_setting 'CDN_HTMX' %}"></script>
@@ -86,6 +89,9 @@
     {% block scripts_footer %}
     <script src="{% civicpulse_setting 'CDN_FLOWBITE' %}"></script>
     {% endblock scripts_footer %}
+
+    {# Leaflet.js - include in child templates with {% block leaflet_js %}...{% endblock %} #}
+    {% block leaflet_js %}{% endblock leaflet_js %}
 </body>
 
 </html>

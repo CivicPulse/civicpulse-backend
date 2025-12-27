@@ -30,10 +30,19 @@ Create and manage multi-channel outreach campaigns:
 
 #### Door Knocking (Canvassing)
 - **GPS-based location** to show nearby addresses sorted by walking distance
-- **Manual location fallback** for areas with poor GPS signal
-- **Map integration** with directions to each address
+- **Interactive route map** with optimized walking path via Leaflet.js
+- **OSRM route optimization** for efficient door-to-door canvassing
 - **Distance indicators** showing how far each address is from current location
 - **Outcomes**: Spoke at Door, Will Vote, Not Home, Left Door Hanger, Refused, No Access (Gated)
+
+### GIS & Mapping
+Full GeoDjango integration for spatial data and mapping:
+- **Geocoding** - Convert addresses to coordinates (OpenCage + Nominatim fallback)
+- **Interactive maps** - Leaflet.js with OpenStreetMap tiles
+- **Route optimization** - OSRM-powered walking routes for door knocking
+- **Spatial queries** - Radius search, district containment, proximity sorting
+- **District boundaries** - Store and query voting precincts, congressional districts, etc.
+- **Background geocoding** - Celery tasks for bulk address processing
 
 ### Election Tracking
 Track elections and candidates for civic engagement:
@@ -44,12 +53,35 @@ Track elections and candidates for civic engagement:
 - **Campaign integration** - Associate contact campaigns with specific elections and candidates
 
 ### Tech Stack
-- **Backend**: Django 6.0+, Python 3.13+
-- **Frontend**: Tailwind CSS 4.1+, Flowbite components, HTMX 2.0.4
-- **Database**: SQLite (dev), PostgreSQL (prod)
+- **Backend**: Django 6.0+, Python 3.13+, GeoDjango
+- **Frontend**: Tailwind CSS 4.1+, Flowbite components, HTMX 2.0.4, Leaflet.js
+- **Database**: SpatiaLite (dev), PostGIS/PostgreSQL (prod)
+- **Task Queue**: Celery with Redis
 - **Package Management**: uv (Python), npm (Node)
 
 ## Quick Start
+
+### Prerequisites
+
+**GIS System Libraries** (required for GeoDjango):
+```bash
+# Ubuntu/Debian
+sudo apt install gdal-bin libgdal-dev libgeos-dev libproj-dev libsqlite3-mod-spatialite
+
+# macOS
+brew install gdal geos proj spatialite-tools
+```
+
+**Redis** (required for Celery background tasks):
+```bash
+# Ubuntu/Debian
+sudo apt install redis-server
+
+# macOS
+brew install redis
+```
+
+### Installation
 
 ```bash
 # Install dependencies
@@ -65,7 +97,10 @@ uv run python manage.py createsuperuser
 # Start Tailwind watcher (terminal 1)
 npx @tailwindcss/cli -i static/src/input.css -o static/src/output.css --watch
 
-# Start dev server (terminal 2)
+# Start Celery worker (terminal 2) - for background geocoding
+uv run celery -A example worker -l info
+
+# Start dev server (terminal 3)
 uv run python manage.py runserver
 ```
 

@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **GeoDjango Integration**: Full spatial database support with PostGIS (prod) and SpatiaLite (dev)
+- **Spatial Fields**: Added `location` PointField to VoterRecord, ElectionVoter, Address, VoterAddress models
+- **District Model**: New model for voting precincts and district boundaries with MultiPolygonField
+- **Geocoding Service**: Address-to-coordinates with OpenCage (primary) and Nominatim (fallback)
+- **Routing Service**: OSRM integration for optimized walking routes in door knocking
+- **Celery Tasks**: Background geocoding tasks with rate limiting and retry logic
+- **GeocodingJob/GeocodingError Models**: Track and monitor bulk geocoding operations
+- **Interactive Maps**: Leaflet.js integration with route visualization in door knocking
+- **GeoJSON API Endpoints**: `/api/campaigns/<pk>/locations/`, `/api/campaigns/<pk>/route/`, `/api/districts/`
+- **Spatial View Helpers**: `get_voters_within_radius()`, `get_voters_in_district()`, etc.
+- **Admin Enhancements**: Geocoding job management, retry failed addresses action, district admin
+
+### Changed
+
+- **Database Engine**: Updated from SQLite to SpatiaLite for development (GeoDjango spatial extension)
+- **Door Knocking**: Now uses GeoDjango `Distance` function for database-level proximity sorting
+- **Tech Stack**: Added Leaflet.js for mapping, Celery for background tasks
+
 ## [0.1.0] - 2024-12-26
 
 ### Added

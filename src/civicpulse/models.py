@@ -1,6 +1,8 @@
 import uuid
 
 from django.contrib.auth.models import User
+from django.contrib.gis.db import models as gis_models
+from django.contrib.gis.geos import Point
 from django.db import models
 
 
@@ -123,6 +125,15 @@ class Address(models.Model):
     zip_code = models.CharField(max_length=10)
     is_primary = models.BooleanField(default=False)
 
+    # Geocoded location (optional - populated by geocoding service)
+    location = gis_models.PointField(
+        srid=4326,
+        geography=True,
+        null=True,
+        blank=True,
+        help_text="Geocoded location of this address",
+    )
+
     class Meta:
         verbose_name_plural = "addresses"
         ordering = ["-is_primary", "type"]
@@ -149,12 +160,20 @@ class VoterRecord(models.Model):
     military_status = models.CharField(max_length=50, blank=True)
     changed_party = models.BooleanField(null=True, blank=True)
 
-    # Location
+    # Location (legacy lat/lon kept for backwards compatibility)
     latitude = models.DecimalField(
         max_digits=10, decimal_places=6, null=True, blank=True
     )
     longitude = models.DecimalField(
         max_digits=10, decimal_places=6, null=True, blank=True
+    )
+    # GeoDjango spatial point (auto-populated from lat/lon on save)
+    location = gis_models.PointField(
+        srid=4326,
+        geography=True,
+        null=True,
+        blank=True,
+        help_text="GPS location (longitude, latitude)",
     )
     apartment_type = models.CharField(max_length=50, blank=True)
     street_number_parity = models.CharField(max_length=10, blank=True)
@@ -192,6 +211,14 @@ class VoterRecord(models.Model):
 
     def __str__(self):
         return f"Voter record for {self.person}"
+
+    def save(self, *args, **kwargs):
+        """Auto-populate location PointField from lat/lon if not set."""
+        if self.latitude and self.longitude and not self.location:
+            self.location = Point(
+                float(self.longitude), float(self.latitude), srid=4326
+            )
+        super().save(*args, **kwargs)
 
 
 class Office(models.Model):
@@ -675,12 +702,20 @@ class ElectionVoter(models.Model):
     military_status = models.CharField(max_length=50, blank=True)
     changed_party = models.BooleanField(null=True, blank=True)
 
-    # Location (GPS for door knocking)
+    # Location (legacy lat/lon kept for backwards compatibility)
     latitude = models.DecimalField(
         max_digits=10, decimal_places=6, null=True, blank=True
     )
     longitude = models.DecimalField(
         max_digits=10, decimal_places=6, null=True, blank=True
+    )
+    # GeoDjango spatial point (auto-populated from lat/lon on save)
+    location = gis_models.PointField(
+        srid=4326,
+        geography=True,
+        null=True,
+        blank=True,
+        help_text="GPS location (longitude, latitude)",
     )
     apartment_type = models.CharField(max_length=50, blank=True)
     street_number_parity = models.CharField(max_length=10, blank=True)
@@ -743,6 +778,14 @@ class ElectionVoter(models.Model):
             parts.append(self.middle_name)
         parts.append(self.last_name)
         return " ".join(parts)
+
+    def save(self, *args, **kwargs):
+        """Auto-populate location PointField from lat/lon if not set."""
+        if self.latitude and self.longitude and not self.location:
+            self.location = Point(
+                float(self.longitude), float(self.latitude), srid=4326
+            )
+        super().save(*args, **kwargs)
 
 
 class VoterPhoneNumber(models.Model):
@@ -824,6 +867,15 @@ class VoterAddress(models.Model):
     zip_code = models.CharField(max_length=10)
     is_primary = models.BooleanField(default=False)
 
+    # Geocoded location (optional - populated by geocoding service)
+    location = gis_models.PointField(
+        srid=4326,
+        geography=True,
+        null=True,
+        blank=True,
+        help_text="Geocoded location of this address",
+    )
+
     class Meta:
         verbose_name_plural = "voter addresses"
         ordering = ["-is_primary", "type"]
@@ -884,3 +936,164 @@ class ImportJob(models.Model):
         if self.total_rows == 0:
             return 0
         return round((self.processed_rows / self.total_rows) * 100, 1)
+
+
+# =============================================================================
+# GIS Models
+# =============================================================================
+
+
+class District(models.Model):
+    """
+    Represents a geographic district or precinct boundary.
+
+    Used for spatial queries like "find all voters within this district"
+    and for map visualization with boundary overlays.
+    """
+
+    class DistrictType(models.TextChoices):
+        PRECINCT = "precinct", "Voting Precinct"
+        CONGRESSIONAL = "congressional", "Congressional District"
+        STATE_HOUSE = "state_house", "State House District"
+        STATE_SENATE = "state_senate", "State Senate District"
+        COUNTY = "county", "County"
+        CITY = "city", "City"
+        SCHOOL_DISTRICT = "school_district", "School District"
+        OTHER = "other", "Other"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=200)
+    district_type = models.CharField(
+        max_length=20,
+        choices=DistrictType.choices,
+        default=DistrictType.PRECINCT,
+    )
+    identifier = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Official district identifier/code",
+    )
+    state = models.CharField(max_length=2, blank=True)
+    county = models.CharField(max_length=100, blank=True)
+
+    # Spatial boundary
+    boundary = gis_models.MultiPolygonField(
+        srid=4326,
+        help_text="Geographic boundary of this district",
+    )
+
+    # Metadata
+    source = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Data source (e.g., Census TIGER, state GIS)",
+    )
+    effective_date = models.DateField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["district_type", "state", "name"]
+        indexes = [
+            models.Index(fields=["district_type", "state"]),
+            models.Index(fields=["identifier"]),
+        ]
+
+    def __str__(self):
+        return f"{self.name} ({self.get_district_type_display()})"
+
+    def contains_point(self, point):
+        """Check if a point is within this district boundary."""
+        return self.boundary.contains(point)
+
+
+class GeocodingJob(models.Model):
+    """Tracks the status of geocoding operations."""
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        PROCESSING = "processing", "Processing"
+        COMPLETED = "completed", "Completed"
+        FAILED = "failed", "Failed"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    # Target - either an election or general bulk operation
+    election = models.ForeignKey(
+        Election,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="geocoding_jobs",
+    )
+
+    status = models.CharField(
+        max_length=15, choices=Status.choices, default=Status.PENDING
+    )
+
+    # Progress tracking
+    total_addresses = models.PositiveIntegerField(default=0)
+    processed_addresses = models.PositiveIntegerField(default=0)
+    success_count = models.PositiveIntegerField(default=0)
+    failure_count = models.PositiveIntegerField(default=0)
+
+    # Celery task reference
+    task_id = models.CharField(max_length=255, blank=True)
+
+    # Timestamps
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, related_name="geocoding_jobs"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "geocoding job"
+        verbose_name_plural = "geocoding jobs"
+
+    def __str__(self):
+        target = self.election or "All"
+        return f"Geocoding job for {target} ({self.get_status_display()})"
+
+    @property
+    def progress_percentage(self):
+        """Return the geocoding progress as a percentage."""
+        if self.total_addresses == 0:
+            return 0
+        return round((self.processed_addresses / self.total_addresses) * 100, 1)
+
+
+class GeocodingError(models.Model):
+    """Logs failed geocoding attempts for review and retry."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    job = models.ForeignKey(
+        GeocodingJob,
+        on_delete=models.CASCADE,
+        related_name="errors",
+    )
+
+    # What failed
+    address_text = models.CharField(max_length=500)
+    model_type = models.CharField(
+        max_length=50,
+        help_text="Model type: address, voter_address, election_voter, voter_record",
+    )
+    model_id = models.UUIDField()
+
+    # Error details
+    error_message = models.TextField()
+    retry_count = models.PositiveIntegerField(default=0)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "geocoding error"
+        verbose_name_plural = "geocoding errors"
+
+    def __str__(self):
+        return f"Geocoding error: {self.address_text[:50]}..."

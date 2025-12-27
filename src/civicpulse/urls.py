@@ -112,4 +112,25 @@ urlpatterns = [
         views.candidate_delete,
         name="candidate_delete",
     ),
+    # GeoJSON API Endpoints
+    path(
+        "api/campaigns/<uuid:pk>/locations/",
+        views.api_campaign_locations,
+        name="api_campaign_locations",
+    ),
+    path(
+        "api/campaigns/<uuid:pk>/route/",
+        views.api_campaign_route,
+        name="api_campaign_route",
+    ),
+    path(
+        "api/elections/<uuid:pk>/voter-distribution/",
+        views.api_election_voter_distribution,
+        name="api_election_voter_distribution",
+    ),
+    path(
+        "api/districts/",
+        views.api_districts,
+        name="api_districts",
+    ),
 ]

@@ -23,7 +23,7 @@ class Command(BaseCommand):
         dry_run = options["dry_run"]
 
         try:
-            with open(csv_file, "r", encoding="utf-8") as f:
+            with open(csv_file, encoding="utf-8") as f:
                 reader = csv.DictReader(f)
                 rows = list(reader)
         except FileNotFoundError:

@@ -1,20 +1,30 @@
 """Celery tasks for CivicPulse async operations."""
 
 import csv
+import logging
 import os
+import time
 import uuid
 from decimal import Decimal, InvalidOperation
 
 from celery import shared_task
-from django.db import transaction
+from django.contrib.gis.geos import Point
+from django.db import models, transaction
 from django.utils import timezone
 
 from .models import (
+    Address,
     ElectionVoter,
+    GeocodingError,
+    GeocodingJob,
     ImportJob,
     VoterAddress,
     VoterPhoneNumber,
+    VoterRecord,
 )
+from .services.geocoding import get_geocoder
+
+logger = logging.getLogger(__name__)
 
 
 @shared_task(bind=True)
@@ -34,7 +44,7 @@ def process_voter_import(self, import_job_id: str):
         import_job.save(update_fields=["status", "started_at", "task_id"])
 
         # Read CSV and count rows
-        with open(import_job.file_path, "r", encoding="utf-8") as f:
+        with open(import_job.file_path, encoding="utf-8") as f:
             reader = csv.DictReader(f)
             rows = list(reader)
 
@@ -50,9 +60,7 @@ def process_voter_import(self, import_job_id: str):
         for i, row in enumerate(rows, 1):
             try:
                 with transaction.atomic():
-                    was_created = _import_single_row(
-                        row, import_job.election, batch_id
-                    )
+                    was_created = _import_single_row(row, import_job.election, batch_id)
                     if was_created:
                         created += 1
                     else:
@@ -287,3 +295,396 @@ def _parse_bool(value):
         return None
     val = value.strip().upper()
     return val in ("Y", "YES", "TRUE", "1")
+
+
+# ============================================================================
+# Geocoding Tasks
+# ============================================================================
+
+
+@shared_task(
+    bind=True,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_backoff_max=300,
+    max_retries=3,
+)
+def geocode_single_address(
+    self,
+    model_type: str,
+    model_id: str,
+    address_text: str,
+    job_id: str | None = None,
+):
+    """
+    Geocode a single address and update the model's location field.
+
+    Args:
+        model_type: One of 'address', 'voter_address', 'election_voter', 'voter_record'
+        model_id: UUID of the model instance
+        address_text: Full address string to geocode
+        job_id: Optional GeocodingJob ID for tracking
+    """
+    geocoder = get_geocoder()
+
+    try:
+        result = geocoder.geocode(address_text)
+
+        if result:
+            # Create Point from coordinates (lon, lat order for GIS)
+            location = Point(float(result.longitude), float(result.latitude), srid=4326)
+
+            # Update the appropriate model
+            if model_type == "address":
+                Address.objects.filter(pk=model_id).update(location=location)
+            elif model_type == "voter_address":
+                VoterAddress.objects.filter(pk=model_id).update(location=location)
+            elif model_type == "election_voter":
+                ElectionVoter.objects.filter(pk=model_id).update(
+                    location=location,
+                    latitude=result.latitude,
+                    longitude=result.longitude,
+                )
+            elif model_type == "voter_record":
+                VoterRecord.objects.filter(pk=model_id).update(
+                    location=location,
+                    latitude=result.latitude,
+                    longitude=result.longitude,
+                )
+
+            logger.info(f"Geocoded {model_type}:{model_id} via {result.source}")
+
+            # Update job success count if tracking
+            if job_id:
+                GeocodingJob.objects.filter(pk=job_id).update(
+                    processed_addresses=models.F("processed_addresses") + 1,
+                    success_count=models.F("success_count") + 1,
+                )
+
+            return {
+                "status": "success",
+                "source": result.source,
+                "confidence": result.confidence,
+            }
+        else:
+            # Geocoding failed - log error
+            logger.warning(
+                f"Geocoding failed for {model_type}:{model_id}: {address_text[:50]}"
+            )
+
+            if job_id:
+                GeocodingJob.objects.filter(pk=job_id).update(
+                    processed_addresses=models.F("processed_addresses") + 1,
+                    failure_count=models.F("failure_count") + 1,
+                )
+                GeocodingError.objects.create(
+                    job_id=job_id,
+                    address_text=address_text[:500],
+                    model_type=model_type,
+                    model_id=model_id,
+                    error_message="No geocoding result returned",
+                )
+
+            return {"status": "failed", "error": "No result"}
+
+    except Exception as e:
+        logger.error(f"Geocoding error for {model_type}:{model_id}: {e}")
+
+        if job_id:
+            GeocodingJob.objects.filter(pk=job_id).update(
+                processed_addresses=models.F("processed_addresses") + 1,
+                failure_count=models.F("failure_count") + 1,
+            )
+            GeocodingError.objects.create(
+                job_id=job_id,
+                address_text=address_text[:500],
+                model_type=model_type,
+                model_id=model_id,
+                error_message=str(e)[:500],
+            )
+
+        raise  # Re-raise for retry
+
+
+@shared_task(bind=True)
+def geocode_batch(
+    self,
+    addresses: list[dict],
+    job_id: str | None = None,
+    rate_limit_seconds: float = 1.0,
+):
+    """
+    Geocode a batch of addresses with rate limiting.
+
+    Args:
+        addresses: List of dicts with keys: model_type, model_id, address_text
+        job_id: Optional GeocodingJob ID for tracking
+        rate_limit_seconds: Delay between requests (default 1.0)
+    """
+    geocoder = get_geocoder()
+    results = {"success": 0, "failed": 0}
+
+    for i, addr in enumerate(addresses):
+        model_type = addr["model_type"]
+        model_id = addr["model_id"]
+        address_text = addr["address_text"]
+
+        try:
+            result = geocoder.geocode(address_text)
+
+            if result:
+                location = Point(
+                    float(result.longitude), float(result.latitude), srid=4326
+                )
+
+                # Update the model
+                if model_type == "address":
+                    Address.objects.filter(pk=model_id).update(location=location)
+                elif model_type == "voter_address":
+                    VoterAddress.objects.filter(pk=model_id).update(location=location)
+                elif model_type == "election_voter":
+                    ElectionVoter.objects.filter(pk=model_id).update(
+                        location=location,
+                        latitude=result.latitude,
+                        longitude=result.longitude,
+                    )
+                elif model_type == "voter_record":
+                    VoterRecord.objects.filter(pk=model_id).update(
+                        location=location,
+                        latitude=result.latitude,
+                        longitude=result.longitude,
+                    )
+
+                results["success"] += 1
+            else:
+                results["failed"] += 1
+                if job_id:
+                    GeocodingError.objects.create(
+                        job_id=job_id,
+                        address_text=address_text[:500],
+                        model_type=model_type,
+                        model_id=model_id,
+                        error_message="No geocoding result returned",
+                    )
+
+        except Exception as e:
+            results["failed"] += 1
+            logger.error(f"Batch geocoding error: {e}")
+            if job_id:
+                GeocodingError.objects.create(
+                    job_id=job_id,
+                    address_text=address_text[:500],
+                    model_type=model_type,
+                    model_id=model_id,
+                    error_message=str(e)[:500],
+                )
+
+        # Update progress
+        if job_id and (i + 1) % 10 == 0:
+            GeocodingJob.objects.filter(pk=job_id).update(
+                processed_addresses=i + 1,
+                success_count=results["success"],
+                failure_count=results["failed"],
+            )
+
+        # Rate limiting
+        if i < len(addresses) - 1:
+            time.sleep(rate_limit_seconds)
+
+    # Final update
+    if job_id:
+        GeocodingJob.objects.filter(pk=job_id).update(
+            processed_addresses=len(addresses),
+            success_count=results["success"],
+            failure_count=results["failed"],
+        )
+
+    return results
+
+
+@shared_task(bind=True)
+def geocode_election_voters(
+    self,
+    election_id: str,
+    job_id: str | None = None,
+    batch_size: int = 100,
+    rate_limit_seconds: float = 1.0,
+):
+    """
+    Geocode all ElectionVoters for an election that lack coordinates.
+
+    Args:
+        election_id: UUID of the Election
+        job_id: Optional GeocodingJob ID (will create one if not provided)
+        batch_size: Number of addresses to process per batch
+        rate_limit_seconds: Delay between geocoding requests
+    """
+    from .models import Election
+
+    election = Election.objects.get(pk=election_id)
+
+    # Create or update job
+    if job_id:
+        job = GeocodingJob.objects.get(pk=job_id)
+    else:
+        job = GeocodingJob.objects.create(
+            election=election,
+            status=GeocodingJob.Status.PROCESSING,
+            started_at=timezone.now(),
+            task_id=self.request.id,
+        )
+        job_id = str(job.pk)
+
+    # Find voters needing geocoding (have address but no coordinates)
+    voters_needing_geocoding = ElectionVoter.objects.filter(
+        election=election,
+        location__isnull=True,
+    ).prefetch_related("addresses")
+
+    # Build address list
+    addresses_to_geocode = []
+    for voter in voters_needing_geocoding:
+        # Try home address first
+        home_addr = voter.addresses.filter(type=VoterAddress.AddressType.HOME).first()
+        if home_addr:
+            address_text = _build_address_string(home_addr)
+            if address_text:
+                addresses_to_geocode.append(
+                    {
+                        "model_type": "election_voter",
+                        "model_id": str(voter.pk),
+                        "address_text": address_text,
+                    }
+                )
+
+    # Update job with total count
+    job.total_addresses = len(addresses_to_geocode)
+    job.status = GeocodingJob.Status.PROCESSING
+    job.started_at = timezone.now()
+    job.task_id = self.request.id
+    job.save(update_fields=["total_addresses", "status", "started_at", "task_id"])
+
+    if not addresses_to_geocode:
+        job.status = GeocodingJob.Status.COMPLETED
+        job.completed_at = timezone.now()
+        job.save(update_fields=["status", "completed_at"])
+        return {"status": "completed", "message": "No addresses to geocode"}
+
+    geocoder = get_geocoder()
+    success_count = 0
+    failure_count = 0
+
+    for i, addr in enumerate(addresses_to_geocode):
+        try:
+            result = geocoder.geocode(addr["address_text"])
+
+            if result:
+                location = Point(
+                    float(result.longitude), float(result.latitude), srid=4326
+                )
+                ElectionVoter.objects.filter(pk=addr["model_id"]).update(
+                    location=location,
+                    latitude=result.latitude,
+                    longitude=result.longitude,
+                )
+                success_count += 1
+            else:
+                failure_count += 1
+                GeocodingError.objects.create(
+                    job=job,
+                    address_text=addr["address_text"][:500],
+                    model_type="election_voter",
+                    model_id=addr["model_id"],
+                    error_message="No geocoding result returned",
+                )
+
+        except Exception as e:
+            failure_count += 1
+            logger.error(f"Geocoding error: {e}")
+            GeocodingError.objects.create(
+                job=job,
+                address_text=addr["address_text"][:500],
+                model_type="election_voter",
+                model_id=addr["model_id"],
+                error_message=str(e)[:500],
+            )
+
+        # Update progress every 10 records
+        if (i + 1) % 10 == 0:
+            job.processed_addresses = i + 1
+            job.success_count = success_count
+            job.failure_count = failure_count
+            job.save(
+                update_fields=["processed_addresses", "success_count", "failure_count"]
+            )
+
+        # Rate limiting
+        if i < len(addresses_to_geocode) - 1:
+            time.sleep(rate_limit_seconds)
+
+    # Final update
+    job.status = GeocodingJob.Status.COMPLETED
+    job.completed_at = timezone.now()
+    job.processed_addresses = len(addresses_to_geocode)
+    job.success_count = success_count
+    job.failure_count = failure_count
+    job.save()
+
+    return {
+        "status": "completed",
+        "total": len(addresses_to_geocode),
+        "success": success_count,
+        "failed": failure_count,
+    }
+
+
+@shared_task(bind=True)
+def geocode_import_job_voters(
+    self, import_job_id: str, rate_limit_seconds: float = 1.0
+):
+    """
+    Geocode voters from a completed import job that lack coordinates.
+
+    Called automatically after voter import completes.
+
+    Args:
+        import_job_id: UUID of the completed ImportJob
+        rate_limit_seconds: Delay between geocoding requests
+    """
+    import_job = ImportJob.objects.select_related("election").get(pk=import_job_id)
+
+    if import_job.status != ImportJob.Status.COMPLETED:
+        logger.warning(
+            f"Import job {import_job_id} is not completed, skipping geocoding"
+        )
+        return {"status": "skipped", "reason": "Import not completed"}
+
+    # Create geocoding job
+    job = GeocodingJob.objects.create(
+        election=import_job.election,
+        status=GeocodingJob.Status.PENDING,
+        task_id=self.request.id,
+    )
+
+    # Delegate to the election geocoding task
+    return geocode_election_voters(
+        str(import_job.election.pk),
+        job_id=str(job.pk),
+        rate_limit_seconds=rate_limit_seconds,
+    )
+
+
+def _build_address_string(addr) -> str:
+    """Build a geocodable address string from an address model."""
+    parts = []
+    if addr.street_address:
+        parts.append(addr.street_address)
+    if addr.street_address_2:
+        parts.append(addr.street_address_2)
+    if addr.city:
+        parts.append(addr.city)
+    if addr.state:
+        parts.append(addr.state)
+    if addr.zip_code:
+        parts.append(addr.zip_code)
+    return ", ".join(parts) if parts else ""

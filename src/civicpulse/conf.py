@@ -28,6 +28,19 @@ DEFAULTS = {
     # CDN URLs (can be overridden for self-hosting)
     "CDN_FLOWBITE": "https://cdn.jsdelivr.net/npm/flowbite@4.0.1/dist/flowbite.min.js",
     "CDN_HTMX": "https://unpkg.com/htmx.org@2.0.4",
+    # Leaflet.js for interactive maps
+    "CDN_LEAFLET_JS": "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
+    "CDN_LEAFLET_CSS": "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css",
+    # Leaflet Markercluster for clustering markers
+    "CDN_LEAFLET_MARKERCLUSTER_JS": "https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js",
+    "CDN_LEAFLET_MARKERCLUSTER_CSS": "https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css",
+    "CDN_LEAFLET_MARKERCLUSTER_DEFAULT_CSS": "https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css",
+    # Default map tile provider (OpenStreetMap)
+    "MAP_TILE_URL": "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    "MAP_TILE_ATTRIBUTION": '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    # Default map center (continental US)
+    "MAP_DEFAULT_CENTER": [39.8283, -98.5795],
+    "MAP_DEFAULT_ZOOM": 4,
 }
 
 

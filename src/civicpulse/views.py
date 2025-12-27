@@ -2,8 +2,12 @@ from datetime import date, timedelta
 from math import atan2, cos, radians, sin, sqrt
 
 from django.contrib.auth.decorators import login_required
+from django.contrib.gis.db.models.functions import Distance
+from django.contrib.gis.geos import Point
+from django.contrib.gis.measure import D
 from django.db import transaction
 from django.db.models import Count, Prefetch, Q
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
@@ -21,12 +25,15 @@ from .models import (
     Candidate,
     ContactAttempt,
     ContactEffort,
+    District,
     EffortAssignment,
     Election,
     ElectionDate,
+    ElectionVoter,
     ImportJob,
     Office,
     Person,
+    VoterRecord,
 )
 
 
@@ -757,7 +764,11 @@ def haversine_distance(lat1, lon1, lat2, lon2):
 
 
 def get_next_assignment_by_distance(effort, user, user_lat, user_lon):
-    """Get next uncontacted person sorted by distance from user location."""
+    """Get next uncontacted person sorted by distance from user location.
+
+    Uses GeoDjango's Distance function for database-level spatial sorting
+    when spatial fields are available, with fallback to haversine calculation.
+    """
     # Release stale locks (>10 min)
     stale_threshold = timezone.now() - timedelta(minutes=10)
     EffortAssignment.objects.filter(
@@ -770,8 +781,33 @@ def get_next_assignment_by_distance(effort, user, user_lat, user_lon):
         locked_at=None,
     )
 
+    # Create user's location as a Point
+    user_location = Point(float(user_lon), float(user_lat), srid=4326)
+
     with transaction.atomic():
-        # First try: assignments with coordinates, sorted by distance
+        # First try: Use GeoDjango Distance with PointField (preferred)
+        assignments_with_location = (
+            EffortAssignment.objects.select_for_update(skip_locked=True)
+            .filter(
+                effort=effort,
+                status=EffortAssignment.Status.PENDING,
+                person__voter_record__location__isnull=False,
+            )
+            .annotate(distance=Distance("person__voter_record__location", user_location))
+            .order_by("distance")
+            .select_related("person__voter_record")
+            .first()
+        )
+
+        if assignments_with_location:
+            assignment = assignments_with_location
+            assignment.status = EffortAssignment.Status.IN_PROGRESS
+            assignment.locked_by = user
+            assignment.locked_at = timezone.now()
+            assignment.save(update_fields=["status", "locked_by", "locked_at"])
+            return assignment
+
+        # Second try: Fallback to legacy lat/lon fields with Python sorting
         assignments_with_coords = (
             EffortAssignment.objects.select_for_update(skip_locked=True)
             .filter(
@@ -800,7 +836,7 @@ def get_next_assignment_by_distance(effort, user, user_lat, user_lon):
             assignment.save(update_fields=["status", "locked_by", "locked_at"])
             return assignment
 
-        # Fallback: get any pending assignment without coordinates
+        # Final fallback: get any pending assignment without coordinates
         assignment = (
             EffortAssignment.objects.select_for_update(skip_locked=True)
             .filter(effort=effort, status=EffortAssignment.Status.PENDING)
@@ -1233,3 +1269,342 @@ def import_progress(request, pk, job_pk):
             "import_job": import_job,
         },
     )
+
+
+# =============================================================================
+# Spatial Query Helper Functions
+# =============================================================================
+
+
+def get_voters_within_radius(center_lat, center_lon, radius_miles, election=None):
+    """
+    Find voters within a given radius of a center point.
+
+    Args:
+        center_lat: Center latitude
+        center_lon: Center longitude
+        radius_miles: Search radius in miles
+        election: Optional Election to filter by
+
+    Returns:
+        QuerySet of ElectionVoter or VoterRecord objects with distance annotation
+    """
+    center = Point(float(center_lon), float(center_lat), srid=4326)
+
+    if election:
+        return (
+            ElectionVoter.objects.filter(
+                election=election,
+                location__isnull=False,
+                location__distance_lte=(center, D(mi=radius_miles)),
+            )
+            .annotate(distance=Distance("location", center))
+            .order_by("distance")
+        )
+    else:
+        return (
+            VoterRecord.objects.filter(
+                location__isnull=False,
+                location__distance_lte=(center, D(mi=radius_miles)),
+            )
+            .annotate(distance=Distance("location", center))
+            .order_by("distance")
+        )
+
+
+def get_voters_in_district(district):
+    """
+    Find all voters whose location falls within a district boundary.
+
+    Args:
+        district: District model instance with MultiPolygonField boundary
+
+    Returns:
+        QuerySet of VoterRecord objects within the district
+    """
+    return VoterRecord.objects.filter(
+        location__isnull=False,
+        location__within=district.boundary,
+    )
+
+
+def get_election_voters_in_district(election, district):
+    """
+    Find election-specific voters within a district boundary.
+
+    Args:
+        election: Election instance
+        district: District instance with boundary polygon
+
+    Returns:
+        QuerySet of ElectionVoter objects
+    """
+    return ElectionVoter.objects.filter(
+        election=election,
+        location__isnull=False,
+        location__within=district.boundary,
+    )
+
+
+# =============================================================================
+# GeoJSON API Endpoints
+# =============================================================================
+
+
+@login_required
+def api_campaign_locations(request, pk):
+    """
+    Return voter locations for a campaign as GeoJSON FeatureCollection.
+
+    Used by Leaflet maps to display voter markers.
+    """
+    campaign = get_object_or_404(ContactEffort, pk=pk)
+
+    # Get assignments with voter location data
+    assignments = (
+        EffortAssignment.objects.filter(effort=campaign)
+        .select_related("person__voter_record")
+        .filter(person__voter_record__location__isnull=False)
+    )
+
+    features = []
+    for assignment in assignments:
+        vr = assignment.person.voter_record
+        if vr.location:
+            features.append({
+                "type": "Feature",
+                "geometry": {
+                    "type": "Point",
+                    "coordinates": [vr.location.x, vr.location.y],
+                },
+                "properties": {
+                    "id": str(assignment.pk),
+                    "person_id": str(assignment.person.pk),
+                    "name": f"{assignment.person.first_name} {assignment.person.last_name}",
+                    "status": assignment.status,
+                },
+            })
+
+    return JsonResponse({
+        "type": "FeatureCollection",
+        "features": features,
+    })
+
+
+@login_required
+def api_campaign_route(request, pk):
+    """
+    Return optimized walking route as GeoJSON LineString.
+
+    Requires user location in query params (lat, lon).
+    """
+    campaign = get_object_or_404(ContactEffort, pk=pk)
+
+    # Get user location from query params
+    try:
+        user_lat = float(request.GET.get("lat", 0))
+        user_lon = float(request.GET.get("lon", 0))
+    except (TypeError, ValueError):
+        return JsonResponse({"error": "Invalid lat/lon parameters"}, status=400)
+
+    if not user_lat or not user_lon:
+        return JsonResponse({"error": "lat and lon query parameters required"}, status=400)
+
+    # Get pending assignments with locations
+    from .services.routing import RouteOptimizer, Waypoint
+
+    assignments = (
+        EffortAssignment.objects.filter(
+            effort=campaign,
+            status=EffortAssignment.Status.PENDING,
+        )
+        .select_related("person__voter_record", "person__addresses")
+        .filter(person__voter_record__location__isnull=False)[:50]  # Limit for performance
+    )
+
+    # Build waypoints
+    waypoints = []
+    for assignment in assignments:
+        vr = assignment.person.voter_record
+        if vr.location:
+            # Get address for display
+            address = (
+                assignment.person.addresses.filter(type="home").first()
+                or assignment.person.addresses.first()
+            )
+            address_str = ""
+            if address:
+                address_str = f"{address.street_address}, {address.city}"
+
+            waypoints.append(
+                Waypoint(
+                    id=str(assignment.pk),
+                    latitude=vr.location.y,
+                    longitude=vr.location.x,
+                    address=address_str,
+                    person_name=f"{assignment.person.first_name} {assignment.person.last_name}",
+                )
+            )
+
+    if not waypoints:
+        return JsonResponse({
+            "type": "FeatureCollection",
+            "features": [],
+            "properties": {"message": "No waypoints with coordinates found"},
+        })
+
+    # Get optimized route
+    optimizer = RouteOptimizer(str(campaign.pk), request.user.id)
+    route = optimizer.get_optimized_route(waypoints, user_lat, user_lon)
+
+    # Build GeoJSON response
+    route_coords = []
+    if route.geometry:
+        route_coords = [[lon, lat] for lat, lon in route.geometry]
+    else:
+        # Build simple line from waypoints
+        route_coords = [[user_lon, user_lat]]
+        for wp in route.waypoints:
+            route_coords.append([float(wp.longitude), float(wp.latitude)])
+
+    features = [
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": route_coords,
+            },
+            "properties": {
+                "source": route.source,
+                "total_distance_miles": route.total_distance_miles,
+                "total_duration_minutes": route.total_duration_minutes,
+            },
+        }
+    ]
+
+    # Add waypoint markers
+    for i, wp in enumerate(route.waypoints):
+        features.append({
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [float(wp.longitude), float(wp.latitude)],
+            },
+            "properties": {
+                "id": wp.id,
+                "order": i + 1,
+                "name": wp.person_name,
+                "address": wp.address,
+            },
+        })
+
+    return JsonResponse({
+        "type": "FeatureCollection",
+        "features": features,
+        "properties": {
+            "source": route.source,
+            "total_distance_miles": round(route.total_distance_miles, 2),
+            "total_duration_minutes": round(route.total_duration_minutes, 1),
+            "waypoint_count": len(route.waypoints),
+        },
+    })
+
+
+@login_required
+def api_election_voter_distribution(request, pk):
+    """
+    Return voter distribution for an election as GeoJSON.
+
+    Supports optional filtering by party, likelihood, etc.
+    """
+    election = get_object_or_404(Election, pk=pk)
+
+    voters = ElectionVoter.objects.filter(
+        election=election,
+        location__isnull=False,
+    )
+
+    # Apply filters
+    party = request.GET.get("party")
+    if party:
+        voters = voters.filter(registered_party__iexact=party)
+
+    likelihood = request.GET.get("likelihood")
+    if likelihood == "high":
+        voters = voters.filter(likelihood_general__regex=r"^[7-9][0-9]%$|^100%$")
+    elif likelihood == "medium":
+        voters = voters.filter(likelihood_general__regex=r"^[4-6][0-9]%$")
+    elif likelihood == "low":
+        voters = voters.filter(likelihood_general__regex=r"^[0-3]?[0-9]%$")
+
+    # Limit for performance
+    limit = min(int(request.GET.get("limit", 1000)), 5000)
+    voters = voters[:limit]
+
+    features = []
+    for voter in voters:
+        if voter.location:
+            features.append({
+                "type": "Feature",
+                "geometry": {
+                    "type": "Point",
+                    "coordinates": [voter.location.x, voter.location.y],
+                },
+                "properties": {
+                    "id": str(voter.pk),
+                    "name": f"{voter.first_name} {voter.last_name}",
+                    "party": voter.registered_party or "Unknown",
+                    "likelihood": voter.likelihood_general or "",
+                },
+            })
+
+    return JsonResponse({
+        "type": "FeatureCollection",
+        "features": features,
+        "properties": {
+            "election": str(election),
+            "count": len(features),
+        },
+    })
+
+
+@login_required
+def api_districts(request):
+    """
+    Return district boundaries as GeoJSON.
+
+    Supports filtering by type and state.
+    """
+    districts = District.objects.all()
+
+    # Apply filters
+    district_type = request.GET.get("type")
+    if district_type:
+        districts = districts.filter(district_type=district_type)
+
+    state = request.GET.get("state")
+    if state:
+        districts = districts.filter(state__iexact=state)
+
+    features = []
+    for district in districts:
+        if district.boundary:
+            features.append({
+                "type": "Feature",
+                "geometry": {
+                    "type": "MultiPolygon",
+                    "coordinates": district.boundary.coords,
+                },
+                "properties": {
+                    "id": str(district.pk),
+                    "name": district.name,
+                    "district_type": district.district_type,
+                    "identifier": district.identifier,
+                    "state": district.state,
+                },
+            })
+
+    return JsonResponse({
+        "type": "FeatureCollection",
+        "features": features,
+    })

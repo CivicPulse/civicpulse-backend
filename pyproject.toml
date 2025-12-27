@@ -54,6 +54,11 @@ async = [
     "redis>=5.0.0",
     "django-celery-results>=2.5.0",
 ]
+geo = [
+    "psycopg[binary]>=3.1.0",  # PostgreSQL driver with PostGIS support
+    "geopy>=2.4.0",  # Geocoding (OpenCage, Nominatim)
+    "requests>=2.31.0",  # HTTP client for OSRM routing API
+]
 dev = [
     "black>=24.0",
     "ruff>=0.1",

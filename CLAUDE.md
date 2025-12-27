@@ -7,9 +7,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 CivicPulse is a Django-based contact management, election tracking, and campaign orchestration platform designed for civic organizations and nonprofits. It provides voter contact data management, election and candidate tracking, campaign creation, and HTMX-powered multi-channel outreach workflows (phone banking, texting, and door knocking) with concurrent user support using database row-level locking.
 
 **Tech Stack:**
-- Backend: Django 6.0+, Python 3.13+
-- Frontend: Tailwind CSS 4.1+, Flowbite components, HTMX 2.0.4
-- Database: SQLite (dev), PostgreSQL (prod-capable)
+- Backend: Django 6.0+, Python 3.13+, GeoDjango
+- Frontend: Tailwind CSS 4.1+, Flowbite components, HTMX 2.0.4, Leaflet.js
+- Database: SpatiaLite (dev), PostGIS/PostgreSQL (prod)
+- Task Queue: Celery with Redis
 - CSS Compilation: django-compressor
 - Dependency Management: uv (Python), npm (Node)
 
@@ -41,65 +42,83 @@ uv run djlint .                      # Lint templates
 uv run python manage.py test         # Run tests (tests not yet implemented)
 ```
 
+**Celery (background tasks):**
+```bash
+uv run celery -A example worker -l info       # Start worker
+uv run celery -A example beat -l info         # Start scheduler (for periodic tasks)
+```
+
+## GIS System Dependencies
+
+GeoDjango requires system-level GIS libraries. Install before running migrations:
+
+**Ubuntu/Debian:**
+```bash
+sudo apt install gdal-bin libgdal-dev libgeos-dev libproj-dev libsqlite3-mod-spatialite
+```
+
+**macOS (Homebrew):**
+```bash
+brew install gdal geos proj spatialite-tools
+```
+
+**Environment variables (if libraries not auto-detected):**
+```bash
+export GDAL_LIBRARY_PATH=/usr/lib/libgdal.so
+export SPATIALITE_LIBRARY_PATH=/usr/lib/mod_spatialite.so
+```
+
 ## Project Structure
 
 ```
 civicpulse-backend/
-├── civicpulse/                 # Main Django app
-│   ├── models.py              # Core data models (12 models)
-│   ├── views.py               # View functions (40+ views, ~1100 LOC)
-│   ├── urls.py                # URL routing
-│   ├── forms.py               # Django forms (8 forms)
-│   ├── admin.py               # Django admin config
+├── src/civicpulse/                # Main Django app (src-layout)
+│   ├── models.py                  # Core data models (15+ models)
+│   ├── views.py                   # View functions (50+ views)
+│   ├── urls.py                    # URL routing
+│   ├── forms.py                   # Django forms
+│   ├── admin.py                   # Django admin config
+│   ├── tasks.py                   # Celery background tasks
+│   ├── conf.py                    # App configuration/defaults
+│   ├── services/                  # Business logic services
+│   │   ├── geocoding.py           # Geocoding service (OpenCage/Nominatim)
+│   │   └── routing.py             # Route optimization (OSRM)
 │   ├── management/
 │   │   └── commands/
-│   │       └── import_voters.py  # CSV bulk import command
-│   └── templates/
-│       ├── _base.html         # Base template with nav & CDN libs
-│       ├── index.html         # Home page
+│   │       └── import_voters.py   # CSV bulk import command
+│   └── templates/civicpulse/
+│       ├── base.html              # Base template with nav & CDN libs
+│       ├── index.html             # Home page
 │       ├── registration/
-│       │   └── login.html     # Login page
+│       │   └── login.html         # Login page
 │       ├── campaigns/
 │       │   ├── campaign_list.html
 │       │   ├── campaign_detail.html
-│       │   ├── campaign_form.html
-│       │   ├── campaign_confirm_delete.html
-│       │   ├── calling_session.html         # Phone banking interface
-│       │   ├── knocking_session.html        # Door knocking interface
-│       │   ├── assignment_list.html
-│       │   ├── assignment_add.html
+│       │   ├── knocking_session.html      # Door knocking with route map
+│       │   ├── calling_session.html       # Phone banking interface
 │       │   └── partials/
-│       │       ├── _person_card.html        # Phone: person + outcome form
-│       │       ├── _address_card.html       # Door: address + outcome form
-│       │       ├── _progress_bar.html       # Reusable progress bar
-│       │       ├── _session_complete.html   # Phone: all done message
-│       │       └── _knocking_complete.html  # Door: all done message
+│       │       ├── _person_card.html      # Phone: person + outcome form
+│       │       ├── _address_card.html     # Door: address + outcome form
+│       │       └── _progress_bar.html     # Reusable progress bar
+│       ├── maps/
+│       │   └── partials/
+│       │       ├── _map_container.html    # Reusable Leaflet map container
+│       │       └── _map_init.html         # Map initialization script
 │       └── elections/
-│           ├── office_list.html
-│           ├── office_detail.html
-│           ├── office_form.html
-│           ├── office_confirm_delete.html
 │           ├── election_list.html
 │           ├── election_detail.html
-│           ├── election_form.html
-│           ├── election_confirm_delete.html
-│           ├── election_campaigns.html
-│           ├── election_date_form.html
-│           ├── candidate_list.html
-│           ├── candidate_detail.html
-│           ├── candidate_form.html
-│           └── candidate_confirm_delete.html
-├── example/                   # Django project config
-│   ├── settings.py           # Django settings
-│   ├── urls.py               # Root URL config
-│   └── wsgi.py               # WSGI app entry
-├── static/
-│   └── src/
-│       ├── input.css         # Tailwind source
-│       └── output.css        # Compiled Tailwind
-├── pyproject.toml            # uv/Python config
-├── package.json              # Node dependencies
-└── db.sqlite3                # Dev database
+│           └── ...
+├── example_project/example/       # Django project config
+│   ├── settings.py               # Django settings (GeoDjango config)
+│   ├── celery.py                 # Celery app configuration
+│   ├── urls.py                   # Root URL config
+│   └── wsgi.py                   # WSGI app entry
+├── static/src/
+│   ├── input.css                 # Tailwind source
+│   └── output.css                # Compiled Tailwind
+├── pyproject.toml                # uv/Python config
+├── package.json                  # Node dependencies
+└── db.sqlite3                    # Dev database (SpatiaLite)
 ```
 
 ## Architecture
@@ -108,6 +127,7 @@ civicpulse-backend/
 - Tailwind CSS with django-compressor for bundling
 - Flowbite components (loaded from CDN)
 - HTMX 2.0.4 for seamless partial page updates
+- Leaflet.js for interactive maps (loaded from CDN)
 - Templates use `{% compress css %}` for CSS processing
 
 **Authentication:**
@@ -117,9 +137,22 @@ civicpulse-backend/
 - `LOGIN_URL = "login"`, `LOGIN_REDIRECT_URL = "/"`
 
 **Database:**
-- SQLite by default (db.sqlite3)
-- PostgreSQL supported via .env configuration
+- SpatiaLite by default (db.sqlite3) - GeoDjango spatial extension
+- PostGIS/PostgreSQL for production
 - All models use UUID primary keys
+- Spatial fields use SRID 4326 (WGS84)
+
+**GIS/Spatial:**
+- GeoDjango with `django.contrib.gis` for spatial database operations
+- PointField for voter/address locations
+- MultiPolygonField for district boundaries
+- Database-level spatial queries (distance, containment)
+- OSRM for road-aware route optimization
+
+**Background Tasks:**
+- Celery with Redis broker for async processing
+- Geocoding tasks with rate limiting and retry logic
+- Batch processing for bulk imports
 
 ## Data Models
 
@@ -158,15 +191,16 @@ Core contact record with UUID primary key.
 - `street_address`, `street_address_2`, `city`, `state` (2-char), `zip_code`
 - `is_primary` (BooleanField)
 
-### VoterRecord (`civicpulse/models.py:134-195`)
+### VoterRecord (`civicpulse/models.py`)
 OneToOne with Person, stores comprehensive voter data.
 
 **Demographics:**
 - `registered_party`, `gender`, `age`, `ethnicity`, `marital_status`
 - `spoken_language`, `military_status`, `changed_party`
 
-**Location:**
-- `latitude`, `longitude` (DecimalField, 6 decimal places)
+**Location (GIS):**
+- `location` (PointField, geography=True, srid=4326) - GeoDjango spatial field
+- `latitude`, `longitude` (DecimalField) - Legacy fields for backwards compatibility
 - `apartment_type`, `street_number_parity`
 
 **Voting Scores** (stored as strings like "77%"):
@@ -271,7 +305,7 @@ Logs each contact attempt within a campaign.
 
 **Terminal outcomes:** `TERMINAL_OUTCOMES = [spoke_with, will_vote, refused, wrong_number, spoke_at_door, refused_door]`
 
-### EffortAssignment (`civicpulse/models.py:279-318`)
+### EffortAssignment (`civicpulse/models.py`)
 Pre-assigns persons to campaigns with locking support.
 
 - `effort` (ForeignKey → ContactEffort)
@@ -279,6 +313,42 @@ Pre-assigns persons to campaigns with locking support.
 - `status`: pending → in_progress → completed
 - `locked_by` / `locked_at`: Prevents concurrent callers from getting same person
 - `unique_together = ["effort", "person"]`
+
+### District (`civicpulse/models.py`) - GIS Model
+Represents voting precincts, congressional districts, etc. with geographic boundaries.
+
+- `name` (CharField) - Display name
+- `district_type` (TextChoices: precinct/congressional/state_house/state_senate/county/city)
+- `identifier` (CharField) - Official district code
+- `state`, `county` (CharField) - Jurisdiction
+- `boundary` (MultiPolygonField, srid=4326) - Geographic boundary polygon
+- `source` (CharField) - Data source (e.g., "Census Bureau TIGER")
+- `effective_date` (DateField) - When boundaries took effect
+
+**Spatial Queries:**
+```python
+from django.contrib.gis.geos import Point
+point = Point(-84.388, 33.749, srid=4326)
+District.objects.filter(boundary__contains=point)  # Districts containing point
+```
+
+### GeocodingJob (`civicpulse/models.py`) - GIS Model
+Tracks bulk geocoding operations for elections.
+
+- `election` (ForeignKey → Election)
+- `status` (TextChoices: pending/running/completed/failed)
+- `total_addresses`, `processed_count`, `success_count`, `error_count` (IntegerField)
+- `created_by` (ForeignKey → User)
+- `started_at`, `completed_at` (DateTimeField)
+
+### GeocodingError (`civicpulse/models.py`) - GIS Model
+Logs failed geocoding attempts for review and retry.
+
+- `job` (ForeignKey → GeocodingJob)
+- `address_text` (CharField) - The address that failed
+- `error_message` (TextField) - Error details
+- `model_type` (CharField) - "VoterRecord", "Address", etc.
+- `model_id` (UUIDField) - ID of the record that failed
 
 ## Common Access Patterns
 
@@ -313,6 +383,29 @@ Person.objects.select_related("voter_record").prefetch_related(
         to_attr="effort_attempts",
     ),
 )
+
+# --- Spatial Queries (GeoDjango) ---
+
+from django.contrib.gis.geos import Point
+from django.contrib.gis.db.models.functions import Distance
+from django.contrib.gis.measure import D
+
+# Create a point from coordinates (lon, lat order!)
+user_location = Point(-84.388, 33.749, srid=4326)
+
+# Find voters within 0.5 miles radius
+VoterRecord.objects.filter(
+    location__distance_lte=(user_location, D(mi=0.5))
+)
+
+# Sort by distance from user
+VoterRecord.objects.annotate(
+    distance=Distance("location", user_location)
+).order_by("distance")
+
+# Find voters within a district boundary
+district = District.objects.get(name="Precinct 42")
+VoterRecord.objects.filter(location__within=district.boundary)
 ```
 
 ## URL Routes
@@ -362,6 +455,12 @@ Person.objects.select_related("voter_record").prefetch_related(
 /candidates/<uuid:pk>/                   → candidate_detail
 /candidates/<uuid:pk>/edit/              → candidate_edit
 /candidates/<uuid:pk>/delete/            → candidate_delete
+
+# GeoJSON API Endpoints
+/api/campaigns/<uuid:pk>/locations/      → api_campaign_locations (FeatureCollection)
+/api/campaigns/<uuid:pk>/route/          → api_campaign_route (optimized walking route)
+/api/elections/<uuid:pk>/voter-distribution/ → api_election_voter_distribution
+/api/districts/                          → api_districts (boundary polygons)
 ```
 
 ## View Helper Functions
@@ -383,16 +482,30 @@ Efficiently fetches person with all contact-relevant data.
 Calculates campaign progress stats.
 - Returns: total, pending, in_progress, completed, percentage, remaining
 
-### `haversine_distance(lat1, lon1, lat2, lon2)` (lines 740-754)
+### `haversine_distance(lat1, lon1, lat2, lon2)`
 Calculates great-circle distance between two GPS coordinates.
 - Returns distance in miles
-- Used for sorting nearby addresses in door knocking
+- Legacy fallback when GeoDjango unavailable
 
-### `get_next_assignment_by_distance(effort, user, user_lat, user_lon)` (lines 757-814)
+### `get_next_assignment_by_distance(effort, user, user_lat, user_lon)`
 Gets next assignment sorted by proximity to user's location.
-- First tries assignments with GPS coordinates, sorted by distance
-- Falls back to assignments without coordinates
+- Uses GeoDjango `Distance` function for database-level sorting
+- Falls back to haversine if spatial fields unavailable
 - Uses same row-level locking as `get_next_assignment()`
+
+### `get_voters_within_radius(center_point, radius_miles, queryset=None)`
+Returns voters within specified radius of a point.
+- Uses GeoDjango `distance_lte` lookup
+- Returns VoterRecord queryset
+
+### `get_voters_in_district(district, queryset=None)`
+Returns voters located within a district boundary.
+- Uses GeoDjango `within` lookup
+- Works with any District (precinct, congressional, etc.)
+
+### `get_election_voters_in_district(election, district)`
+Returns ElectionVoters for an election within a district.
+- Combines election filtering with spatial containment
 
 ## Concurrent User Support
 
@@ -496,10 +609,82 @@ uv run python manage.py import_voters path/to/file.csv --dry-run # Validate only
 
 - `PersonAdmin` with TabularInline for phone/email/address and StackedInline for VoterRecord
 - `OfficeAdmin` with election count display
-- `ElectionAdmin` with CandidateInline and ElectionDateInline
+- `ElectionAdmin` with CandidateInline, ElectionDateInline, and geocoding status
+  - `trigger_geocoding` action - Start geocoding job for election voters
 - `CandidateAdmin` with raw_id_fields for person/election
 - `ContactEffortAdmin` with assignment inline, election/candidate fields, and stats
 - `ContactAttemptAdmin` with raw_id_fields for person lookup
+- `GeocodingJobAdmin` with progress display, success rate, and retry action
+- `DistrictAdmin` with boundary management
+
+## Services
+
+### Geocoding Service (`civicpulse/services/geocoding.py`)
+
+Provides address-to-coordinates conversion with caching and fallback.
+
+**Classes:**
+- `CachedGeocodingService` - Main interface with Redis caching (30-day TTL)
+- `OpenCageGeocodingService` - Primary provider (2,500 free requests/day)
+- `NominatimGeocodingService` - Free fallback with rate limiting
+
+**Usage:**
+```python
+from civicpulse.services.geocoding import CachedGeocodingService
+
+service = CachedGeocodingService()
+result = service.geocode("123 Main St, Atlanta, GA 30303")
+# Returns: {"latitude": 33.749, "longitude": -84.388, "confidence": 0.95}
+```
+
+### Routing Service (`civicpulse/services/routing.py`)
+
+Provides road-aware route optimization using OSRM.
+
+**Classes:**
+- `OSRMRoutingService` - Walking/driving route optimization
+
+**Features:**
+- Traveling salesman optimization via OSRM `/trip` endpoint
+- Walking profile for door knocking
+- Turn-by-turn directions
+- Distance and duration estimates
+
+**Usage:**
+```python
+from civicpulse.services.routing import OSRMRoutingService
+from django.contrib.gis.geos import Point
+
+service = OSRMRoutingService()
+start = Point(-84.388, 33.749, srid=4326)
+waypoints = [Point(-84.390, 33.751, srid=4326), ...]
+route = service.optimize_route(start, waypoints)
+```
+
+## Celery Tasks (`civicpulse/tasks.py`)
+
+Background tasks for geocoding and data processing.
+
+### `geocode_single_address(model_type, model_id, address_text, job_id=None)`
+Geocodes a single address and updates the model's location field.
+- Auto-retry with exponential backoff (max 3 retries)
+- Updates GeocodingJob progress if job_id provided
+
+### `geocode_batch(addresses, job_id=None, rate_limit_seconds=1.0)`
+Processes a batch of addresses with rate limiting.
+- Respects API rate limits (default 1 req/sec)
+- Updates batch progress atomically
+
+### `geocode_election_voters(election_id, job_id=None, batch_size=100)`
+Geocodes all ElectionVoters for an election lacking coordinates.
+- Creates GeocodingJob for tracking
+- Processes in batches to avoid memory issues
+- Logs errors for failed addresses
+
+### `geocode_import_job_voters(import_job_id, rate_limit_seconds=1.0)`
+Chains from import task to geocode newly imported voters.
+- Triggered after CSV import completes
+- Only geocodes voters without existing coordinates
 
 ## Security Considerations
 
@@ -528,7 +713,26 @@ uv run python manage.py test
 ## Environment Variables
 
 For production, configure via `.env`:
+
+**Django:**
 - `SECRET_KEY` - Django secret key
 - `DEBUG` - Set to False
 - `ALLOWED_HOSTS` - Comma-separated hostnames
-- `DATABASE_URL` - PostgreSQL connection string (optional)
+
+**Database:**
+- `DATABASE_URL` - PostgreSQL/PostGIS connection string
+- `DB_ENGINE` - `django.contrib.gis.db.backends.postgis` for production
+
+**GIS Libraries (if not auto-detected):**
+- `GDAL_LIBRARY_PATH` - Path to GDAL library (e.g., `/usr/lib/libgdal.so`)
+- `SPATIALITE_LIBRARY_PATH` - Path to SpatiaLite module
+
+**Geocoding:**
+- `OPENCAGE_API_KEY` - OpenCage geocoding API key (2,500 free/day)
+
+**Routing (OSRM):**
+- `OSRM_URL` - OSRM server URL (e.g., `http://localhost:5000`)
+
+**Cache/Task Queue:**
+- `REDIS_URL` - Redis connection for caching and Celery broker
+- `CELERY_BROKER_URL` - Celery broker (defaults to REDIS_URL)

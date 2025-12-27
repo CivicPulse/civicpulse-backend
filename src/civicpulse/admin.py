@@ -1,15 +1,19 @@
-from django.contrib import admin
+from django.contrib import admin, messages
+from django.utils.html import format_html
 
 from .models import (
     Address,
     Candidate,
     ContactAttempt,
     ContactEffort,
+    District,
     EffortAssignment,
     Election,
     ElectionDate,
     ElectionVoter,
     Email,
+    GeocodingError,
+    GeocodingJob,
     ImportJob,
     Office,
     Person,
@@ -181,12 +185,14 @@ class ElectionAdmin(admin.ModelAdmin):
         "status",
         "election_day",
         "candidate_count",
+        "geocoding_status",
     ]
     list_filter = ["election_type", "status", "year", "office__level", "office__state"]
     search_fields = ["office__name", "office__city", "description"]
     readonly_fields = ["created_at", "updated_at"]
     raw_id_fields = ["office", "parent_election"]
     inlines = [CandidateInline, ElectionDateInline]
+    actions = ["trigger_geocoding"]
     fieldsets = [
         (
             None,
@@ -212,6 +218,61 @@ class ElectionAdmin(admin.ModelAdmin):
     @admin.display(description="Candidates")
     def candidate_count(self, obj):
         return obj.candidates.count()
+
+    @admin.display(description="Geocoding")
+    def geocoding_status(self, obj):
+        """Show geocoding job status for this election."""
+        voters_total = obj.election_voters.count()
+        voters_geocoded = obj.election_voters.filter(location__isnull=False).count()
+
+        if voters_total == 0:
+            return format_html('<span style="color: gray;">No voters</span>')
+
+        percentage = round((voters_geocoded / voters_total) * 100)
+
+        if percentage == 100:
+            color = "green"
+        elif percentage >= 50:
+            color = "orange"
+        else:
+            color = "red"
+
+        return format_html(
+            '<span style="color: {};">{}/{} ({}%)</span>',
+            color,
+            voters_geocoded,
+            voters_total,
+            percentage,
+        )
+
+    @admin.action(description="Trigger geocoding for selected elections")
+    def trigger_geocoding(self, request, queryset):
+        """Queue geocoding tasks for voters in selected elections."""
+        from .tasks import geocode_election_voters
+
+        count = 0
+        for election in queryset:
+            # Check if there are voters needing geocoding
+            needs_geocoding = election.election_voters.filter(
+                location__isnull=True
+            ).count()
+
+            if needs_geocoding > 0:
+                geocode_election_voters.delay(str(election.pk))
+                count += 1
+
+        if count > 0:
+            self.message_user(
+                request,
+                f"Geocoding queued for {count} election(s). Check Geocoding Jobs for progress.",
+                messages.SUCCESS,
+            )
+        else:
+            self.message_user(
+                request,
+                "No elections with voters needing geocoding.",
+                messages.WARNING,
+            )
 
 
 @admin.register(Candidate)
@@ -469,3 +530,151 @@ class ImportJobAdmin(admin.ModelAdmin):
     @admin.display(description="Progress")
     def progress_display(self, obj):
         return f"{obj.processed_rows}/{obj.total_rows} ({obj.progress_percentage}%)"
+
+
+# =============================================================================
+# Geocoding Admin
+# =============================================================================
+
+
+class GeocodingErrorInline(admin.TabularInline):
+    model = GeocodingError
+    extra = 0
+    readonly_fields = ["address_text", "model_type", "model_id", "error_message", "retry_count", "created_at"]
+    can_delete = False
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(GeocodingJob)
+class GeocodingJobAdmin(admin.ModelAdmin):
+    list_display = [
+        "id",
+        "election",
+        "status",
+        "progress_display",
+        "success_rate",
+        "created_by",
+        "created_at",
+    ]
+    list_filter = ["status", "election", "created_at"]
+    search_fields = ["election__office__name", "task_id"]
+    readonly_fields = [
+        "task_id",
+        "total_addresses",
+        "processed_addresses",
+        "success_count",
+        "failure_count",
+        "created_at",
+        "started_at",
+        "completed_at",
+    ]
+    raw_id_fields = ["election", "created_by"]
+    inlines = [GeocodingErrorInline]
+    actions = ["retry_failed_addresses"]
+    fieldsets = [
+        (None, {"fields": ["election", "status"]}),
+        (
+            "Progress",
+            {
+                "fields": [
+                    "total_addresses",
+                    "processed_addresses",
+                    "success_count",
+                    "failure_count",
+                ]
+            },
+        ),
+        (
+            "Task Info",
+            {
+                "fields": ["task_id"],
+                "classes": ["collapse"],
+            },
+        ),
+        (
+            "Timestamps",
+            {
+                "fields": ["created_by", "created_at", "started_at", "completed_at"],
+                "classes": ["collapse"],
+            },
+        ),
+    ]
+
+    @admin.display(description="Progress")
+    def progress_display(self, obj):
+        if obj.total_addresses == 0:
+            return "0/0 (0%)"
+        percentage = round((obj.processed_addresses / obj.total_addresses) * 100)
+        return f"{obj.processed_addresses}/{obj.total_addresses} ({percentage}%)"
+
+    @admin.display(description="Success Rate")
+    def success_rate(self, obj):
+        if obj.processed_addresses == 0:
+            return "-"
+        rate = round((obj.success_count / obj.processed_addresses) * 100)
+
+        if rate >= 90:
+            color = "green"
+        elif rate >= 70:
+            color = "orange"
+        else:
+            color = "red"
+
+        return format_html(
+            '<span style="color: {};">{}%</span>',
+            color,
+            rate,
+        )
+
+    @admin.action(description="Retry failed addresses")
+    def retry_failed_addresses(self, request, queryset):
+        """Re-queue geocoding for failed addresses."""
+        from .tasks import geocode_single_address
+
+        count = 0
+        for job in queryset:
+            for error in job.errors.all():
+                geocode_single_address.delay(
+                    error.model_type,
+                    str(error.model_id),
+                    error.address_text,
+                    str(job.pk),
+                )
+                error.retry_count += 1
+                error.save(update_fields=["retry_count"])
+                count += 1
+
+        self.message_user(
+            request,
+            f"Queued {count} address(es) for retry.",
+            messages.SUCCESS,
+        )
+
+
+@admin.register(District)
+class DistrictAdmin(admin.ModelAdmin):
+    list_display = [
+        "name",
+        "district_type",
+        "identifier",
+        "state",
+        "county",
+        "effective_date",
+    ]
+    list_filter = ["district_type", "state"]
+    search_fields = ["name", "identifier", "county"]
+    readonly_fields = ["created_at", "updated_at"]
+    fieldsets = [
+        (None, {"fields": ["name", "district_type", "identifier"]}),
+        ("Location", {"fields": ["state", "county"]}),
+        (
+            "Boundary",
+            {
+                "fields": ["boundary", "source", "effective_date"],
+                "classes": ["collapse"],
+            },
+        ),
+        ("Metadata", {"fields": ["created_at", "updated_at"], "classes": ["collapse"]}),
+    ]
