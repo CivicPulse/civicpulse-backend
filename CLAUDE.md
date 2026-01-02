@@ -6,6 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 CivicPulse is a Django-based contact management, election tracking, and campaign orchestration platform designed for civic organizations and nonprofits. It provides voter contact data management, election and candidate tracking, campaign creation, and HTMX-powered multi-channel outreach workflows (phone banking, texting, and door knocking) with concurrent user support using database row-level locking.
 
+
 **Tech Stack:**
 - Backend: Django 6.0+, Python 3.13+, GeoDjango
 - Frontend: Tailwind CSS 4.1+, Flowbite components, HTMX 2.0.4, Leaflet.js
@@ -13,6 +14,10 @@ CivicPulse is a Django-based contact management, election tracking, and campaign
 - Task Queue: Celery with Redis
 - CSS Compilation: django-compressor
 - Dependency Management: uv (Python), npm (Node)
+
+## User Notes
+
+- Consider any needed chnages to user or developer documentation when modifying functionality.
 
 ## Development Commands
 
@@ -322,7 +327,7 @@ Flexible additional dates for an election (debates, forums, etc.).
 ### Candidate (`civicpulse/models.py:339-377`)
 Links a Person to an Election as a candidate.
 
-- `person` (ForeignKey → Person, CASCADE)
+- `person` (ForeignKey → Person, **SET_NULL**, nullable) - Preserves candidate record if person deleted
 - `election` (ForeignKey → Election, CASCADE)
 - `party_affiliation` (CharField)
 - `is_incumbent` (BooleanField)
@@ -330,6 +335,8 @@ Links a Person to an Election as a candidate.
 - `campaign_website` (URLField)
 - `campaign_slogan` (CharField)
 - `unique_together = ["person", "election"]`
+
+**Design note:** `on_delete=SET_NULL` ensures candidate history is preserved even if the linked Person record is deleted. Views handle `person=None` gracefully.
 
 **Related models:**
 - `campaigns` → Campaign (ForeignKey)
@@ -365,10 +372,11 @@ Represents a specific voter outreach effort (e.g., "October GOTV Phone Bank"). I
 - `created_by` (ForeignKey → User)
 
 ### ContactAttempt (`civicpulse/models.py:443-510`)
-Logs each contact attempt within a campaign.
+Logs each contact attempt within a campaign. Supports **dual-target polymorphism** matching EffortAssignment.
 
 - `effort` (ForeignKey → ContactEffort)
-- `person` (ForeignKey → Person)
+- `person` (ForeignKey → Person, **nullable**) - For Person-based contacts
+- `election_voter` (ForeignKey → ElectionVoter, **nullable**) - For ElectionVoter-based contacts
 - `contact_type`: "call", "text", or "door_knock"
 - `outcome` choices:
   - **Phone/Text outcomes:**
@@ -387,18 +395,31 @@ Logs each contact attempt within a campaign.
     - `refused_door` - Refused to Answer Door (terminal)
     - `no_access` - No Access/Gated (retry eligible)
 - `notes`, `callback_time`, `phone_number_used`
-- `address_visited` (ForeignKey → Address, optional) - For door knock attempts
+- `address_visited` (ForeignKey → Address, optional) - For Person door knock attempts
+- `voter_address_visited` (ForeignKey → VoterAddress, optional) - For ElectionVoter door knock attempts
 
 **Terminal outcomes:** `TERMINAL_OUTCOMES = [spoke_with, will_vote, refused, wrong_number, spoke_at_door, refused_door]`
 
 ### EffortAssignment (`civicpulse/models.py`)
-Pre-assigns persons to campaigns with locking support.
+Pre-assigns contact targets to drives with locking support. Supports **dual-target polymorphism** - can reference either a Person or an ElectionVoter.
 
 - `effort` (ForeignKey → ContactEffort)
-- `person` (ForeignKey → Person)
+- `person` (ForeignKey → Person, **nullable**) - For non-election drives
+- `election_voter` (ForeignKey → ElectionVoter, **nullable**) - For election-based drives
 - `status`: pending → in_progress → completed
-- `locked_by` / `locked_at`: Prevents concurrent callers from getting same person
-- `unique_together = ["effort", "person"]`
+- `locked_by` / `locked_at`: Prevents concurrent callers from getting same target
+
+**Dual-Target System:**
+- Election-based drives (`ContactEffort.election` is set) → assignments use `election_voter`
+- Non-election drives → assignments use `person`
+- **Constraint:** At least one target must be set (`assignment_must_have_target` CheckConstraint)
+- Use `assignment.target` property to get the target regardless of type
+- Use `assignment.target_name` property to get the display name
+
+**Constraints:**
+- `unique_person_assignment` - Unique person per effort (when person is set)
+- `unique_election_voter_assignment` - Unique election voter per effort (when election_voter is set)
+- `assignment_must_have_target` - CheckConstraint ensuring person OR election_voter is set
 
 ### District (`civicpulse/models.py`) - GIS Model
 Represents voting precincts, congressional districts, etc. with geographic boundaries.
@@ -571,6 +592,21 @@ Core lock acquisition logic for concurrent users.
 Efficiently fetches person with all contact-relevant data.
 - Uses select_related + prefetch_related
 - Prefetches last 5 attempts for this effort
+
+### `get_assignment_target_with_details(assignment, effort)`
+Fetches the assignment target (Person or ElectionVoter) with all contact-relevant data.
+- Handles dual-target polymorphism (Person vs ElectionVoter)
+- Returns `(target, target_type)` tuple where `target_type` is `"person"` or `"election_voter"`
+- Returns `(None, None)` if target doesn't exist (graceful handling of orphaned records)
+- Used by `calling_next`, `calling_log`, `knocking_next`, `knocking_log`
+
+```python
+target, target_type = get_assignment_target_with_details(assignment, campaign)
+if not target:
+    # Handle missing target gracefully
+    pass
+# target_type is "person" or "election_voter"
+```
 
 ### `get_session_stats(effort)` (lines 723-737)
 Calculates campaign progress stats.
@@ -827,11 +863,22 @@ Important indexes for performance:
 
 ## Testing
 
-Tests are located in `civicpulse/tests.py` (not yet implemented).
+Tests are located in `civicpulse/tests.py`.
 
+**Test Classes:**
+- `AssignmentAddViewTests` - Tests for bulk assignment (Person vs ElectionVoter)
+- `CandidateDetailTests` - Tests for candidate view with null/missing person
+- `CallingSessionTests` - Tests for phone banking with dual-target support
+- `KnockingSessionTests` - Tests for door knocking with dual-target support
+- `AssignmentListTests` - Tests for assignment list display
+- `GetAssignmentTargetHelperTests` - Tests for helper function
+
+**Running tests:**
 ```bash
 uv run python manage.py test
 ```
+
+**Note:** Tests require PostgreSQL/PostGIS to run. SpatiaLite in-memory databases have a known trigger issue (`ISO_metadata_reference_row_id_value_insert`) that prevents test database creation. For local development, use PostgreSQL for testing or skip tests until a PostGIS environment is available.
 
 ## Environment Variables
 

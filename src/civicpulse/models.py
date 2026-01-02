@@ -382,7 +382,7 @@ class Candidate(models.Model):
     )
     person = models.ForeignKey(
         Person,
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name="candidacies",
@@ -711,6 +711,11 @@ class EffortAssignment(models.Model):
                 fields=["effort", "election_voter"],
                 condition=models.Q(election_voter__isnull=False),
                 name="unique_election_voter_assignment",
+            ),
+            # Ensure at least one target is set (person OR election_voter)
+            models.CheckConstraint(
+                check=~models.Q(person__isnull=True, election_voter__isnull=True),
+                name="assignment_must_have_target",
             ),
         ]
 

@@ -64,6 +64,7 @@
 
             <div>
                 <h3 class="font-semibold text-gray-900 mb-3">Contact Information</h3>
+                {% if person %}
                 <dl class="space-y-2 text-sm">
                     {% for phone in person.phone_numbers.all %}
                     <div class="flex items-center gap-2">
@@ -84,6 +85,9 @@
                     </div>
                     {% endfor %}
                 </dl>
+                {% else %}
+                <p class="text-gray-500 text-sm">No linked person record</p>
+                {% endif %}
             </div>
         </div>
     </div>

@@ -567,9 +567,15 @@ def candidate_detail(request, pk):
         ),
     )
 
-    person = Person.objects.prefetch_related(
-        "phone_numbers", "emails", "addresses"
-    ).get(pk=candidate.person_id)
+    # Handle null or missing person gracefully
+    person = None
+    if candidate.person_id:
+        try:
+            person = Person.objects.prefetch_related(
+                "phone_numbers", "emails", "addresses"
+            ).get(pk=candidate.person_id)
+        except Person.DoesNotExist:
+            pass  # Person was deleted, candidate remains orphaned
 
     return render(
         request,
@@ -695,7 +701,7 @@ def assignment_list(request, pk):
 
     status_filter = request.GET.get("status", "")
     assignments = EffortAssignment.objects.filter(effort=campaign).select_related(
-        "person", "locked_by"
+        "person", "election_voter", "locked_by"
     )
 
     if status_filter:
@@ -903,6 +909,55 @@ def get_person_with_details(person_id, effort):
     )
 
 
+def get_assignment_target_with_details(assignment, effort):
+    """
+    Fetch the assignment target (Person or ElectionVoter) with related data.
+
+    Returns (target, target_type) tuple where:
+    - target: The Person or ElectionVoter instance with prefetched data
+    - target_type: 'person' or 'election_voter' string
+
+    Returns (None, None) if the assignment has no valid target.
+    """
+    if assignment.election_voter_id:
+        try:
+            target = ElectionVoter.objects.prefetch_related(
+                "phone_numbers",
+                "addresses",
+                Prefetch(
+                    "contact_attempts",
+                    queryset=ContactAttempt.objects.filter(effort=effort).order_by(
+                        "-created_at"
+                    )[:5],
+                    to_attr="effort_attempts",
+                ),
+            ).get(pk=assignment.election_voter_id)
+            return target, "election_voter"
+        except ElectionVoter.DoesNotExist:
+            pass
+    elif assignment.person_id:
+        try:
+            target = (
+                Person.objects.select_related("voter_record")
+                .prefetch_related(
+                    "phone_numbers",
+                    "addresses",
+                    Prefetch(
+                        "contact_attempts",
+                        queryset=ContactAttempt.objects.filter(effort=effort).order_by(
+                            "-created_at"
+                        )[:5],
+                        to_attr="effort_attempts",
+                    ),
+                )
+                .get(pk=assignment.person_id)
+            )
+            return target, "person"
+        except Person.DoesNotExist:
+            pass
+    return None, None
+
+
 def get_session_stats(effort):
     """Get progress stats for calling session."""
     stats = EffortAssignment.objects.filter(effort=effort).aggregate(
@@ -1064,14 +1119,23 @@ def calling_next(request, pk):
             {"campaign": campaign, "stats": stats},
         )
 
-    person = get_person_with_details(assignment.person_id, campaign)
+    # Get target (Person or ElectionVoter)
+    target, target_type = get_assignment_target_with_details(assignment, campaign)
+    if not target:
+        # Invalid assignment (target deleted) - skip and get next
+        assignment.status = EffortAssignment.Status.COMPLETED
+        assignment.locked_by = None
+        assignment.locked_at = None
+        assignment.save(update_fields=["status", "locked_by", "locked_at"])
+        return calling_next(request, pk)
+
     form = ContactAttemptForm()
     stats = get_session_stats(campaign)
 
-    # Get primary phone
-    primary_phone = person.phone_numbers.filter(is_primary=True).first()
+    # Get primary phone (works for both Person and ElectionVoter)
+    primary_phone = target.phone_numbers.filter(is_primary=True).first()
     if not primary_phone:
-        primary_phone = person.phone_numbers.first()
+        primary_phone = target.phone_numbers.first()
 
     return render(
         request,
@@ -1079,7 +1143,9 @@ def calling_next(request, pk):
         {
             "campaign": campaign,
             "assignment": assignment,
-            "person": person,
+            "target": target,
+            "target_type": target_type,
+            "person": target,  # Backward compatibility for template
             "primary_phone": primary_phone,
             "form": form,
             "stats": stats,
@@ -1102,8 +1168,14 @@ def calling_log(request, pk):
         if form.is_valid():
             attempt = form.save(commit=False)
             attempt.effort = campaign
-            attempt.person = assignment.person
             attempt.contacted_by = request.user
+            # Set the correct target FK based on assignment type
+            if assignment.election_voter_id:
+                attempt.election_voter = assignment.election_voter
+                attempt.person = None
+            else:
+                attempt.person = assignment.person
+                attempt.election_voter = None
             attempt.save()
 
             # Check if terminal outcome
@@ -1222,35 +1294,43 @@ def knocking_next(request, pk):
             {"campaign": campaign, "stats": stats},
         )
 
-    person = get_person_with_details(assignment.person_id, campaign)
+    # Get target (Person or ElectionVoter)
+    target, target_type = get_assignment_target_with_details(assignment, campaign)
+    if not target:
+        # Invalid assignment (target deleted) - skip and get next
+        assignment.status = EffortAssignment.Status.COMPLETED
+        assignment.locked_by = None
+        assignment.locked_at = None
+        assignment.save(update_fields=["status", "locked_by", "locked_at"])
+        return knocking_next(request, pk)
+
     from .forms import DoorKnockAttemptForm
 
     form = DoorKnockAttemptForm()
     stats = get_session_stats(campaign)
 
-    # Get primary home address
-    primary_address = person.addresses.filter(type="home").first()
+    # Get primary home address (works for both Person and ElectionVoter)
+    primary_address = target.addresses.filter(type="home").first()
     if not primary_address:
-        primary_address = person.addresses.first()
+        primary_address = target.addresses.first()
 
     # Calculate distance if we have coordinates
     distance = None
     user_lat = request.session.get("knocker_lat")
     user_lon = request.session.get("knocker_lon")
-    if (
-        user_lat
-        and user_lon
-        and hasattr(person, "voter_record")
-        and person.voter_record
-        and person.voter_record.latitude
-        and person.voter_record.longitude
-    ):
-        distance = haversine_distance(
-            user_lat,
-            user_lon,
-            person.voter_record.latitude,
-            person.voter_record.longitude,
-        )
+
+    # Check for coordinates - Person has voter_record, ElectionVoter has direct lat/lon
+    target_lat = None
+    target_lon = None
+    if target_type == "person" and hasattr(target, "voter_record") and target.voter_record:
+        target_lat = target.voter_record.latitude
+        target_lon = target.voter_record.longitude
+    elif target_type == "election_voter":
+        target_lat = target.latitude
+        target_lon = target.longitude
+
+    if user_lat and user_lon and target_lat and target_lon:
+        distance = haversine_distance(user_lat, user_lon, target_lat, target_lon)
 
     return render(
         request,
@@ -1258,7 +1338,9 @@ def knocking_next(request, pk):
         {
             "campaign": campaign,
             "assignment": assignment,
-            "person": person,
+            "target": target,
+            "target_type": target_type,
+            "person": target,  # Backward compatibility
             "primary_address": primary_address,
             "form": form,
             "stats": stats,
@@ -1284,9 +1366,25 @@ def knocking_log(request, pk):
         if form.is_valid():
             attempt = form.save(commit=False)
             attempt.effort = campaign
-            attempt.person = assignment.person
             attempt.contacted_by = request.user
             attempt.contact_type = ContactAttempt.ContactType.DOOR_KNOCK
+            # Set the correct target FK based on assignment type
+            if assignment.election_voter_id:
+                attempt.election_voter = assignment.election_voter
+                attempt.person = None
+                # Set voter_address_visited if address was visited
+                voter_address = assignment.election_voter.addresses.filter(type="home").first()
+                if not voter_address:
+                    voter_address = assignment.election_voter.addresses.first()
+                attempt.voter_address_visited = voter_address
+            else:
+                attempt.person = assignment.person
+                attempt.election_voter = None
+                # Set address_visited if address was visited
+                address = assignment.person.addresses.filter(type="home").first()
+                if not address:
+                    address = assignment.person.addresses.first()
+                attempt.address_visited = address
             attempt.save()
 
             # Check if terminal outcome
