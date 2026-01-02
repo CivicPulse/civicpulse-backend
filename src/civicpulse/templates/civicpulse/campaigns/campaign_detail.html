@@ -2,6 +2,17 @@
 
 {% block content %}
 <div class="px-4 max-w-4xl mx-auto">
+    {# Breadcrumb #}
+    <nav class="mb-4 text-sm">
+        <a href="{% url 'civicpulse:campaign_list' %}" class="text-green-700 hover:underline">Drives</a>
+        {% if campaign.campaign %}
+        <span class="text-gray-500 mx-2">/</span>
+        <a href="{% url 'civicpulse:org_campaign_detail' pk=campaign.campaign.pk %}" class="text-green-700 hover:underline">{{ campaign.campaign.name }}</a>
+        {% endif %}
+        <span class="text-gray-500 mx-2">/</span>
+        <span class="text-gray-600">{{ campaign.name }}</span>
+    </nav>
+
     <!-- Header -->
     <div class="flex justify-between items-start mb-6">
         <div>

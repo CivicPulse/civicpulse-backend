@@ -422,8 +422,63 @@ class Candidate(models.Model):
         return f"{self.display_name} - {self.election}"
 
 
+class Campaign(models.Model):
+    """
+    Represents the organization/effort to elect a candidate or advance an issue.
+    Groups multiple Drives (ContactEfforts) under one umbrella.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(
+        max_length=200, help_text="e.g., 'Smith for Mayor 2024'"
+    )
+    description = models.TextField(blank=True)
+
+    # Links (both optional - allows candidate campaigns AND issue-based campaigns)
+    candidate = models.ForeignKey(
+        Candidate,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="campaigns",
+        help_text="The candidate this campaign supports (optional for issue-based campaigns)",
+    )
+    election = models.ForeignKey(
+        Election,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="campaigns",
+        help_text="The election this campaign is associated with (optional)",
+    )
+
+    # Status
+    is_active = models.BooleanField(default=True)
+
+    # Metadata
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="campaigns",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return self.name
+
+
 class ContactEffort(models.Model):
-    """A contact outreach campaign or effort."""
+    """
+    A voter contact drive (outreach effort).
+
+    In the UI, this is called a "Drive" to distinguish it from the parent
+    Campaign (the organization working to elect a candidate).
+    """
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=200)
@@ -449,6 +504,16 @@ class ContactEffort(models.Model):
         blank=True,
         related_name="contact_efforts",
         help_text="Candidate this effort supports",
+    )
+
+    # Parent campaign (optional for backward compatibility)
+    campaign = models.ForeignKey(
+        "Campaign",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="drives",
+        help_text="Parent campaign this drive belongs to",
     )
 
     # Flag to indicate this effort uses ElectionVoter records

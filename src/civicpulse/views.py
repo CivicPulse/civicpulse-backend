@@ -16,12 +16,14 @@ from .forms import (
     CampaignForm,
     CandidateForm,
     ContactAttemptForm,
+    DriveForm,
     ElectionDateForm,
     ElectionForm,
     OfficeForm,
     VoterImportForm,
 )
 from .models import (
+    Campaign,
     Candidate,
     ContactAttempt,
     ContactEffort,
@@ -68,16 +70,16 @@ def campaign_list(request):
 
 @login_required
 def campaign_create(request):
-    """Create a new campaign."""
+    """Create a new drive (voter contact effort)."""
     if request.method == "POST":
-        form = CampaignForm(request.POST)
+        form = DriveForm(request.POST)
         if form.is_valid():
             campaign = form.save(commit=False)
             campaign.created_by = request.user
             campaign.save()
             return redirect("civicpulse:campaign_detail", pk=campaign.pk)
     else:
-        form = CampaignForm()
+        form = DriveForm()
 
     return render(
         request,
@@ -117,16 +119,16 @@ def campaign_detail(request, pk):
 
 @login_required
 def campaign_edit(request, pk):
-    """Edit an existing campaign."""
+    """Edit an existing drive (voter contact effort)."""
     campaign = get_object_or_404(ContactEffort, pk=pk)
 
     if request.method == "POST":
-        form = CampaignForm(request.POST, instance=campaign)
+        form = DriveForm(request.POST, instance=campaign)
         if form.is_valid():
             form.save()
             return redirect("civicpulse:campaign_detail", pk=campaign.pk)
     else:
-        form = CampaignForm(instance=campaign)
+        form = DriveForm(instance=campaign)
 
     return render(
         request,
@@ -147,6 +149,106 @@ def campaign_delete(request, pk):
     return render(
         request,
         "civicpulse/campaigns/campaign_confirm_delete.html",
+        {"campaign": campaign},
+    )
+
+
+# =============================================================================
+# Organization Campaign CRUD Views
+# =============================================================================
+
+
+@login_required
+def org_campaign_list(request):
+    """List all organization campaigns with drive counts."""
+    campaigns = Campaign.objects.annotate(
+        drive_count=Count("drives"),
+        active_drives=Count("drives", filter=Q(drives__is_active=True)),
+    ).order_by("-created_at")
+
+    return render(
+        request,
+        "civicpulse/org_campaigns/campaign_list.html",
+        {"campaigns": campaigns},
+    )
+
+
+@login_required
+def org_campaign_create(request):
+    """Create a new organization campaign."""
+    if request.method == "POST":
+        form = CampaignForm(request.POST)
+        if form.is_valid():
+            campaign = form.save(commit=False)
+            campaign.created_by = request.user
+            campaign.save()
+            return redirect("civicpulse:org_campaign_detail", pk=campaign.pk)
+    else:
+        form = CampaignForm()
+
+    return render(
+        request,
+        "civicpulse/org_campaigns/campaign_form.html",
+        {"form": form, "is_create": True},
+    )
+
+
+@login_required
+def org_campaign_detail(request, pk):
+    """View organization campaign details with its drives."""
+    campaign = get_object_or_404(Campaign, pk=pk)
+
+    # Get drives with stats
+    drives = campaign.drives.annotate(
+        total_assignments=Count("assignments"),
+        pending_count=Count(
+            "assignments", filter=Q(assignments__status=EffortAssignment.Status.PENDING)
+        ),
+        completed_count=Count(
+            "assignments",
+            filter=Q(assignments__status=EffortAssignment.Status.COMPLETED),
+        ),
+    ).order_by("-created_at")
+
+    return render(
+        request,
+        "civicpulse/org_campaigns/campaign_detail.html",
+        {"campaign": campaign, "drives": drives},
+    )
+
+
+@login_required
+def org_campaign_edit(request, pk):
+    """Edit an existing organization campaign."""
+    campaign = get_object_or_404(Campaign, pk=pk)
+
+    if request.method == "POST":
+        form = CampaignForm(request.POST, instance=campaign)
+        if form.is_valid():
+            form.save()
+            return redirect("civicpulse:org_campaign_detail", pk=campaign.pk)
+    else:
+        form = CampaignForm(instance=campaign)
+
+    return render(
+        request,
+        "civicpulse/org_campaigns/campaign_form.html",
+        {"form": form, "campaign": campaign, "is_create": False},
+    )
+
+
+@login_required
+def org_campaign_delete(request, pk):
+    """Delete an organization campaign with confirmation."""
+    campaign = get_object_or_404(Campaign, pk=pk)
+
+    if request.method == "POST":
+        campaign.delete()
+        return redirect("civicpulse:org_campaign_list")
+
+    return render(
+        request,
+        "civicpulse/org_campaigns/campaign_confirm_delete.html",
         {"campaign": campaign},
     )
 

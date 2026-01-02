@@ -16,19 +16,20 @@ CivicPulse is a comprehensive multi-tenant CRM/CMS platform designed specificall
 - **Voter records** with party affiliation, voting history, and likelihood scores
 - **CSV import** for bulk voter data loading
 
-### Contact Campaigns
-Create and manage multi-channel outreach campaigns:
-- **Campaign creation** with custom scripts and talking points
+### Campaigns & Drives
+Organize voter outreach with a clear hierarchy:
+- **Campaigns** - The organization working to elect a candidate (e.g., "Smith for Mayor 2024")
+- **Drives** - Individual voter contact efforts within a campaign (e.g., "October Phone Bank")
 - **Bulk assignment** of persons filtered by party, voting likelihood, or phone availability
 - **HTMX-powered interfaces** for smooth, single-page workflows
-- **Concurrent user support** with row-level locking (multiple users on same campaign)
+- **Concurrent user support** with row-level locking (multiple users on same drive)
 - **Progress tracking** with real-time stats and completion percentage
 
-#### Phone Banking
+#### Phone Banking (Drives)
 - Click-to-call phone numbers with one-click dialing
 - **Outcomes**: Spoke With, Will Vote, No Answer, Left Voicemail, Busy, Callback, Wrong Number, Refused
 
-#### Door Knocking (Canvassing)
+#### Door Knocking (Drives)
 - **GPS-based location** to show nearby addresses sorted by walking distance
 - **Interactive route map** with optimized walking path via Leaflet.js
 - **OSRM route optimization** for efficient door-to-door canvassing
@@ -50,7 +51,7 @@ Track elections and candidates for civic engagement:
 - **Election tracking** - General, Primary, Special, and Runoff elections with comprehensive date tracking
 - **Key dates** - Qualifying periods, registration deadlines, early voting, election day, certification
 - **Candidate management** - Link persons as candidates with party, incumbent status, and outcome tracking
-- **Campaign integration** - Associate contact campaigns with specific elections and candidates
+- **Campaign integration** - Associate campaigns and drives with specific elections and candidates
 
 ### Tech Stack
 - **Backend**: Django 6.0+, Python 3.13+, GeoDjango

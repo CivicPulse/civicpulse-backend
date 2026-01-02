@@ -2,15 +2,33 @@
 
 {% block content %}
 <div class="px-4 max-w-2xl mx-auto">
+    {# Breadcrumb #}
+    <nav class="mb-4 text-sm">
+        <a href="{% url 'civicpulse:campaign_list' %}" class="text-green-700 hover:underline">Drives</a>
+        {% if campaign.campaign %}
+        <span class="text-gray-500 mx-2">/</span>
+        <a href="{% url 'civicpulse:org_campaign_detail' pk=campaign.campaign.pk %}" class="text-green-700 hover:underline">{{ campaign.campaign.name }}</a>
+        {% endif %}
+        {% if campaign %}
+        <span class="text-gray-500 mx-2">/</span>
+        <a href="{% url 'civicpulse:campaign_detail' pk=campaign.pk %}" class="text-green-700 hover:underline">{{ campaign.name }}</a>
+        <span class="text-gray-500 mx-2">/</span>
+        <span class="text-gray-600">Edit</span>
+        {% else %}
+        <span class="text-gray-500 mx-2">/</span>
+        <span class="text-gray-600">New Drive</span>
+        {% endif %}
+    </nav>
+
     <h1 class="text-2xl font-bold text-gray-900 mb-6">
-        {% if is_create %}Create Campaign{% else %}Edit Campaign{% endif %}
+        {% if is_create %}Create Drive{% else %}Edit Drive{% endif %}
     </h1>
 
     <form method="post" class="bg-white rounded-lg shadow p-6">
         {% csrf_token %}
 
         <div class="mb-4">
-            <label for="id_name" class="block mb-2 text-sm font-medium text-gray-900">Campaign Name</label>
+            <label for="id_name" class="block mb-2 text-sm font-medium text-gray-900">Drive Name</label>
             {{ form.name }}
             {% if form.name.errors %}
             <p class="mt-1 text-sm text-red-600">{{ form.name.errors.0 }}</p>
@@ -33,13 +51,25 @@
                 {{ form.is_active }}
                 <span class="ml-2 text-sm font-medium text-gray-900">Active</span>
             </label>
-            <p class="mt-1 text-xs text-gray-500">Inactive campaigns won't appear in the calling queue.</p>
+            <p class="mt-1 text-xs text-gray-500">Inactive drives won't appear in the calling queue.</p>
+        </div>
+
+        <!-- Campaign (Organization) Association -->
+        <div class="border-t pt-6 mb-4">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">Campaign Association (Optional)</h3>
+            <p class="text-sm text-gray-500 mb-4">Link this drive to an organization campaign.</p>
+
+            <div class="mb-4">
+                <label for="id_campaign" class="block mb-2 text-sm font-medium text-gray-900">Campaign</label>
+                {{ form.campaign }}
+                <p class="mt-1 text-xs text-gray-500">The organization campaign this drive belongs to.</p>
+            </div>
         </div>
 
         <!-- Election Association -->
         <div class="border-t pt-6 mb-4">
             <h3 class="text-lg font-medium text-gray-900 mb-4">Election Association (Optional)</h3>
-            <p class="text-sm text-gray-500 mb-4">Link this campaign to a specific election and candidate to track voter commitments.</p>
+            <p class="text-sm text-gray-500 mb-4">Link this drive to a specific election and candidate to track voter commitments.</p>
 
             <div class="mb-4">
                 <label for="id_election" class="block mb-2 text-sm font-medium text-gray-900">Election</label>
@@ -67,7 +97,7 @@
 
         <div class="flex gap-3">
             <button type="submit" class="text-white bg-green-700 hover:bg-green-800 focus:ring-4 focus:ring-green-300 font-medium rounded-lg text-sm px-5 py-2.5">
-                {% if is_create %}Create Campaign{% else %}Save Changes{% endif %}
+                {% if is_create %}Create Drive{% else %}Save Changes{% endif %}
             </button>
             <a href="{% if is_create %}{% url 'civicpulse:campaign_list' %}{% else %}{% url 'civicpulse:campaign_detail' pk=campaign.pk %}{% endif %}" class="text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 font-medium rounded-lg text-sm px-5 py-2.5">
                 Cancel

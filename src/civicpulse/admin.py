@@ -3,6 +3,7 @@ from django.utils.html import format_html
 
 from .models import (
     Address,
+    Campaign,
     Candidate,
     ContactAttempt,
     ContactEffort,
@@ -300,6 +301,64 @@ class CandidateAdmin(admin.ModelAdmin):
     ]
 
 
+# Campaign admin (organization working to elect a candidate)
+
+
+class ContactEffortInline(admin.TabularInline):
+    """Inline for drives within a campaign."""
+
+    model = ContactEffort
+    extra = 0
+    fields = ["name", "is_active", "uses_election_voters", "created_at"]
+    readonly_fields = ["created_at"]
+    show_change_link = True
+
+
+@admin.register(Campaign)
+class CampaignAdmin(admin.ModelAdmin):
+    list_display = [
+        "name",
+        "is_active",
+        "candidate",
+        "election",
+        "drive_count",
+        "created_by",
+        "created_at",
+    ]
+    list_filter = ["is_active", "election__year", "created_at"]
+    search_fields = [
+        "name",
+        "description",
+        "candidate__person__first_name",
+        "candidate__person__last_name",
+        "election__office__name",
+    ]
+    readonly_fields = ["created_at", "updated_at"]
+    raw_id_fields = ["candidate", "election", "created_by"]
+    inlines = [ContactEffortInline]
+    fieldsets = [
+        (None, {"fields": ["name", "description", "is_active"]}),
+        (
+            "Associations",
+            {
+                "fields": ["candidate", "election"],
+                "description": "Link to a candidate and/or election (both optional)",
+            },
+        ),
+        (
+            "Metadata",
+            {
+                "fields": ["created_by", "created_at", "updated_at"],
+                "classes": ["collapse"],
+            },
+        ),
+    ]
+
+    @admin.display(description="Drives")
+    def drive_count(self, obj):
+        return obj.drives.count()
+
+
 class EffortAssignmentInline(admin.TabularInline):
     model = EffortAssignment
     extra = 0
@@ -312,25 +371,26 @@ class ContactEffortAdmin(admin.ModelAdmin):
     list_display = [
         "name",
         "is_active",
+        "campaign",
         "election",
         "candidate",
         "assignment_count",
         "created_by",
         "created_at",
     ]
-    list_filter = ["is_active", "election__year", "created_at"]
-    search_fields = ["name", "description", "election__office__name"]
+    list_filter = ["is_active", "campaign", "election__year", "created_at"]
+    search_fields = ["name", "description", "campaign__name", "election__office__name"]
     readonly_fields = ["created_at", "updated_at"]
-    raw_id_fields = ["election", "candidate"]
+    raw_id_fields = ["campaign", "election", "candidate"]
     inlines = [EffortAssignmentInline]
     fieldsets = [
         (None, {"fields": ["name", "description", "is_active"]}),
         ("Script", {"fields": ["script"]}),
         (
-            "Election Association",
+            "Campaign & Election",
             {
-                "fields": ["election", "candidate"],
-                "classes": ["collapse"],
+                "fields": ["campaign", "election", "candidate"],
+                "description": "Link to a parent campaign and/or election",
             },
         ),
         (

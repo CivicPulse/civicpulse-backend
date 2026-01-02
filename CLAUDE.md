@@ -131,9 +131,14 @@ civicpulse-backend/
 │       ├── index.html             # Home page
 │       ├── registration/
 │       │   └── login.html         # Login page
-│       ├── campaigns/
+│       ├── org_campaigns/         # Campaign (organization) templates
 │       │   ├── campaign_list.html
 │       │   ├── campaign_detail.html
+│       │   ├── campaign_form.html
+│       │   └── campaign_confirm_delete.html
+│       ├── campaigns/             # Drive (ContactEffort) templates
+│       │   ├── campaign_list.html         # Drive list
+│       │   ├── campaign_detail.html       # Drive detail
 │       │   ├── knocking_session.html      # Door knocking with route map
 │       │   ├── calling_session.html       # Phone banking interface
 │       │   └── partials/
@@ -193,6 +198,26 @@ civicpulse-backend/
 - Celery with Redis broker for async processing
 - Geocoding tasks with rate limiting and retry logic
 - Batch processing for bulk imports
+
+## Terminology
+
+| Term | Definition | Code Model |
+|------|------------|------------|
+| **Campaign** | Organization working to elect a candidate or advance an issue | `Campaign` |
+| **Drive** | Specific voter outreach effort (phone bank, canvass) | `ContactEffort` |
+| **Race** | An election for a specific office | `Election` |
+
+**Hierarchy:**
+```
+Campaign ("Smith for Mayor 2024")
+├── Drive 1 ("October Phone Bank")
+│   ├── Assignments
+│   └── Contact Attempts
+├── Drive 2 ("Weekend Canvass")
+│   └── ...
+└── Drive 3 ("Election Day GOTV")
+    └── ...
+```
 
 ## Data Models
 
@@ -307,13 +332,34 @@ Links a Person to an Election as a candidate.
 - `unique_together = ["person", "election"]`
 
 **Related models:**
+- `campaigns` → Campaign (ForeignKey)
 - `contact_efforts` → ContactEffort (ForeignKey)
 
-### ContactEffort (`civicpulse/models.py:380-420`)
-Represents an outreach campaign (e.g., "2024 GOTV Phone Bank").
+### Campaign (`civicpulse/models.py`)
+Represents the organization/effort to elect a candidate or advance an issue. Groups multiple Drives (ContactEfforts) under one umbrella.
+
+- `name` (CharField) - Campaign name (e.g., "Smith for Mayor 2024")
+- `description` (TextField)
+- `candidate` (ForeignKey → Candidate, optional) - Supported candidate
+- `election` (ForeignKey → Election, optional) - Associated election
+- `is_active` (BooleanField)
+- `created_by` (ForeignKey → User)
+- `created_at`, `updated_at` (DateTimeField)
+
+**Design notes:**
+- `candidate` is optional → allows issue-based campaigns (voter registration, ballot measures)
+- `election` is optional → allows non-election campaigns
+- Multiple campaigns per candidate allowed → separate primary vs general campaigns
+
+**Related models:**
+- `drives` → ContactEffort (ForeignKey via `campaign`)
+
+### ContactEffort (`civicpulse/models.py`) - "Drive"
+Represents a specific voter outreach effort (e.g., "October GOTV Phone Bank"). In the UI, this is called a "Drive".
 
 - `name`, `description`, `script` (caller talking points)
 - `is_active` (BooleanField)
+- `campaign` (ForeignKey → Campaign, SET_NULL, optional) - Parent campaign this drive belongs to
 - `election` (ForeignKey → Election, SET_NULL, optional) - Associated election
 - `candidate` (ForeignKey → Candidate, SET_NULL, optional) - Supported candidate
 - `created_by` (ForeignKey → User)
@@ -457,23 +503,31 @@ VoterRecord.objects.filter(location__within=district.boundary)
 /logout/                                 → Django auth logout
 /admin/                                  → Django admin
 
-/campaigns/                              → campaign_list
-/campaigns/create/                       → campaign_create
-/campaigns/<uuid:pk>/                    → campaign_detail
-/campaigns/<uuid:pk>/edit/               → campaign_edit
-/campaigns/<uuid:pk>/delete/             → campaign_delete
-/campaigns/<uuid:pk>/assignments/        → assignment_list
-/campaigns/<uuid:pk>/assignments/add/    → assignment_add
-/campaigns/<uuid:pk>/assignments/remove/ → assignment_remove (POST only)
-/campaigns/<uuid:pk>/call/               → calling_session
-/campaigns/<uuid:pk>/call/next/          → calling_next (HTMX)
-/campaigns/<uuid:pk>/call/log/           → calling_log (HTMX POST)
-/campaigns/<uuid:pk>/call/skip/          → calling_skip (HTMX POST)
-/campaigns/<uuid:pk>/knock/              → knocking_session
-/campaigns/<uuid:pk>/knock/location/     → knocking_set_location (HTMX POST)
-/campaigns/<uuid:pk>/knock/next/         → knocking_next (HTMX)
-/campaigns/<uuid:pk>/knock/log/          → knocking_log (HTMX POST)
-/campaigns/<uuid:pk>/knock/skip/         → knocking_skip (HTMX POST)
+# Campaign (Organization) CRUD
+/campaigns/                              → org_campaign_list
+/campaigns/create/                       → org_campaign_create
+/campaigns/<uuid:pk>/                    → org_campaign_detail
+/campaigns/<uuid:pk>/edit/               → org_campaign_edit
+/campaigns/<uuid:pk>/delete/             → org_campaign_delete
+
+# Drive (ContactEffort) CRUD
+/drives/                                 → campaign_list (drive list)
+/drives/create/                          → campaign_create (drive create)
+/drives/<uuid:pk>/                       → campaign_detail (drive detail)
+/drives/<uuid:pk>/edit/                  → campaign_edit (drive edit)
+/drives/<uuid:pk>/delete/                → campaign_delete (drive delete)
+/drives/<uuid:pk>/assignments/           → assignment_list
+/drives/<uuid:pk>/assignments/add/       → assignment_add
+/drives/<uuid:pk>/assignments/remove/    → assignment_remove (POST only)
+/drives/<uuid:pk>/call/                  → calling_session
+/drives/<uuid:pk>/call/next/             → calling_next (HTMX)
+/drives/<uuid:pk>/call/log/              → calling_log (HTMX POST)
+/drives/<uuid:pk>/call/skip/             → calling_skip (HTMX POST)
+/drives/<uuid:pk>/knock/                 → knocking_session
+/drives/<uuid:pk>/knock/location/        → knocking_set_location (HTMX POST)
+/drives/<uuid:pk>/knock/next/            → knocking_next (HTMX)
+/drives/<uuid:pk>/knock/log/             → knocking_log (HTMX POST)
+/drives/<uuid:pk>/knock/skip/            → knocking_skip (HTMX POST)
 
 /offices/                                → office_list
 /offices/create/                         → office_create
@@ -486,7 +540,7 @@ VoterRecord.objects.filter(location__within=district.boundary)
 /elections/<uuid:pk>/                    → election_detail
 /elections/<uuid:pk>/edit/               → election_edit
 /elections/<uuid:pk>/delete/             → election_delete
-/elections/<uuid:pk>/campaigns/          → election_campaigns
+/elections/<uuid:pk>/drives/             → election_campaigns (drives for election)
 /elections/<uuid:pk>/dates/add/          → election_date_add
 /elections/<uuid:pk>/dates/<uuid>/delete/→ election_date_delete
 /elections/<uuid:pk>/candidates/         → candidate_list
@@ -497,8 +551,8 @@ VoterRecord.objects.filter(location__within=district.boundary)
 /candidates/<uuid:pk>/delete/            → candidate_delete
 
 # GeoJSON API Endpoints
-/api/campaigns/<uuid:pk>/locations/      → api_campaign_locations (FeatureCollection)
-/api/campaigns/<uuid:pk>/route/          → api_campaign_route (optimized walking route)
+/api/drives/<uuid:pk>/locations/         → api_campaign_locations (FeatureCollection)
+/api/drives/<uuid:pk>/route/             → api_campaign_route (optimized walking route)
 /api/elections/<uuid:pk>/voter-distribution/ → api_election_voter_distribution
 /api/districts/                          → api_districts (boundary polygons)
 ```
@@ -598,7 +652,9 @@ with transaction.atomic():
 
 ## Forms (`civicpulse/forms.py`)
 
-- `CampaignForm` - Create/edit campaigns
+- `CampaignForm` - Create/edit campaigns (organization-level)
+- `DriveForm` - Create/edit drives (voter contact efforts, model: ContactEffort)
+- `ContactEffortForm` - Alias for DriveForm (backward compatibility)
 - `ContactAttemptForm` - Log phone call outcomes with radio buttons
 - `DoorKnockAttemptForm` - Log door knock outcomes (Not Home, Spoke at Door, Left Hanger, etc.)
 - `AssignmentFilterForm` - Filter persons for bulk assignment
@@ -613,20 +669,25 @@ with transaction.atomic():
 **Base template (`_base.html`):**
 - Tailwind CSS via compressor
 - CDN: Flowbite JS, HTMX 2.0.4
-- Green-50 background, navigation bar
+- Green-50 background, navigation bar with Campaigns, Drives, Elections, Offices
 
-**Calling interface (`campaigns/`):**
+**Campaign (Organization) interface (`org_campaigns/`):**
+- `campaign_list.html` - List all campaigns with drive counts
+- `campaign_detail.html` - Campaign detail with its drives
+- `campaign_form.html` - Create/edit campaign
+- `campaign_confirm_delete.html` - Delete confirmation
+
+**Drive interface (`campaigns/`):**
+- `campaign_list.html` - List all drives with progress
+- `campaign_detail.html` - Drive detail with stats and actions
+- `campaign_form.html` - Create/edit drive with campaign association
 - `calling_session.html` - Phone banking session page
-- `partials/_person_card.html` - Person display with phone + call outcome form
-- `partials/_session_complete.html` - Phone session completion message
-
-**Door knocking interface (`campaigns/`):**
 - `knocking_session.html` - Door knocking session page with GPS location picker
+- `partials/_person_card.html` - Person display with phone + call outcome form
 - `partials/_address_card.html` - Address display with map link + distance + knock outcome form
+- `partials/_session_complete.html` - Phone session completion message
 - `partials/_knocking_complete.html` - Knocking session completion message
-
-**Shared partials (`campaigns/partials/`):**
-- `_progress_bar.html` - Reusable progress bar (used by both interfaces)
+- `partials/_progress_bar.html` - Reusable progress bar (used by both interfaces)
 
 ## Management Commands
 
@@ -652,7 +713,8 @@ uv run python manage.py import_voters path/to/file.csv --dry-run # Validate only
 - `ElectionAdmin` with CandidateInline, ElectionDateInline, and geocoding status
   - `trigger_geocoding` action - Start geocoding job for election voters
 - `CandidateAdmin` with raw_id_fields for person/election
-- `ContactEffortAdmin` with assignment inline, election/candidate fields, and stats
+- `CampaignAdmin` with ContactEffortInline (drives), drive count display
+- `ContactEffortAdmin` with assignment inline, campaign/election/candidate fields, and stats
 - `ContactAttemptAdmin` with raw_id_fields for person lookup
 - `GeocodingJobAdmin` with progress display, success rate, and retry action
 - `DistrictAdmin` with boundary management

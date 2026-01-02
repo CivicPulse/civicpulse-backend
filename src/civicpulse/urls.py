@@ -7,46 +7,56 @@ app_name = "civicpulse"
 urlpatterns = [
     # Home
     path("", views.index, name="index"),
-    # Campaign CRUD
-    path("campaigns/", views.campaign_list, name="campaign_list"),
-    path("campaigns/create/", views.campaign_create, name="campaign_create"),
-    path("campaigns/<uuid:pk>/", views.campaign_detail, name="campaign_detail"),
-    path("campaigns/<uuid:pk>/edit/", views.campaign_edit, name="campaign_edit"),
-    path("campaigns/<uuid:pk>/delete/", views.campaign_delete, name="campaign_delete"),
+    # Campaign (Organization) CRUD - groups multiple drives
+    path("campaigns/", views.org_campaign_list, name="org_campaign_list"),
+    path("campaigns/create/", views.org_campaign_create, name="org_campaign_create"),
+    path("campaigns/<uuid:pk>/", views.org_campaign_detail, name="org_campaign_detail"),
+    path("campaigns/<uuid:pk>/edit/", views.org_campaign_edit, name="org_campaign_edit"),
+    path(
+        "campaigns/<uuid:pk>/delete/",
+        views.org_campaign_delete,
+        name="org_campaign_delete",
+    ),
+    # Drive (ContactEffort) CRUD - individual voter outreach efforts
+    path("drives/", views.campaign_list, name="campaign_list"),
+    path("drives/create/", views.campaign_create, name="campaign_create"),
+    path("drives/<uuid:pk>/", views.campaign_detail, name="campaign_detail"),
+    path("drives/<uuid:pk>/edit/", views.campaign_edit, name="campaign_edit"),
+    path("drives/<uuid:pk>/delete/", views.campaign_delete, name="campaign_delete"),
     # Assignment Management
     path(
-        "campaigns/<uuid:pk>/assignments/",
+        "drives/<uuid:pk>/assignments/",
         views.assignment_list,
         name="assignment_list",
     ),
     path(
-        "campaigns/<uuid:pk>/assignments/add/",
+        "drives/<uuid:pk>/assignments/add/",
         views.assignment_add,
         name="assignment_add",
     ),
     path(
-        "campaigns/<uuid:pk>/assignments/remove/",
+        "drives/<uuid:pk>/assignments/remove/",
         views.assignment_remove,
         name="assignment_remove",
     ),
     # Calling Workflow (HTMX)
-    path("campaigns/<uuid:pk>/call/", views.calling_session, name="calling_session"),
-    path("campaigns/<uuid:pk>/call/next/", views.calling_next, name="calling_next"),
-    path("campaigns/<uuid:pk>/call/log/", views.calling_log, name="calling_log"),
-    path("campaigns/<uuid:pk>/call/skip/", views.calling_skip, name="calling_skip"),
+    path("drives/<uuid:pk>/call/", views.calling_session, name="calling_session"),
+    path("drives/<uuid:pk>/call/next/", views.calling_next, name="calling_next"),
+    path("drives/<uuid:pk>/call/log/", views.calling_log, name="calling_log"),
+    path("drives/<uuid:pk>/call/skip/", views.calling_skip, name="calling_skip"),
     # Door Knocking Workflow (HTMX)
-    path("campaigns/<uuid:pk>/knock/", views.knocking_session, name="knocking_session"),
+    path("drives/<uuid:pk>/knock/", views.knocking_session, name="knocking_session"),
     path(
-        "campaigns/<uuid:pk>/knock/location/",
+        "drives/<uuid:pk>/knock/location/",
         views.knocking_set_location,
         name="knocking_set_location",
     ),
-    path("campaigns/<uuid:pk>/knock/next/", views.knocking_next, name="knocking_next"),
-    path("campaigns/<uuid:pk>/knock/log/", views.knocking_log, name="knocking_log"),
-    path("campaigns/<uuid:pk>/knock/skip/", views.knocking_skip, name="knocking_skip"),
+    path("drives/<uuid:pk>/knock/next/", views.knocking_next, name="knocking_next"),
+    path("drives/<uuid:pk>/knock/log/", views.knocking_log, name="knocking_log"),
+    path("drives/<uuid:pk>/knock/skip/", views.knocking_skip, name="knocking_skip"),
     # HTMX Helpers
     path(
-        "campaigns/candidates/",
+        "drives/candidates/",
         views.campaign_candidates,
         name="campaign_candidates",
     ),
@@ -63,7 +73,7 @@ urlpatterns = [
     path("elections/<uuid:pk>/edit/", views.election_edit, name="election_edit"),
     path("elections/<uuid:pk>/delete/", views.election_delete, name="election_delete"),
     path(
-        "elections/<uuid:pk>/campaigns/",
+        "elections/<uuid:pk>/drives/",
         views.election_campaigns,
         name="election_campaigns",
     ),
@@ -114,12 +124,12 @@ urlpatterns = [
     ),
     # GeoJSON API Endpoints
     path(
-        "api/campaigns/<uuid:pk>/locations/",
+        "api/drives/<uuid:pk>/locations/",
         views.api_campaign_locations,
         name="api_campaign_locations",
     ),
     path(
-        "api/campaigns/<uuid:pk>/route/",
+        "api/drives/<uuid:pk>/route/",
         views.api_campaign_route,
         name="api_campaign_route",
     ),

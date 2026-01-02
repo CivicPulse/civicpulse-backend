@@ -1,6 +1,7 @@
 from django import forms
 
 from .models import (
+    Campaign,
     Candidate,
     ContactAttempt,
     ContactEffort,
@@ -10,54 +11,115 @@ from .models import (
 )
 
 
+# Tailwind CSS classes for form styling
+TAILWIND_INPUT = "bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-green-500 focus:border-green-500 block w-full p-2.5"
+TAILWIND_CHECKBOX = "w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500"
+
+
 class CampaignForm(forms.ModelForm):
-    """Form for creating and editing contact campaigns."""
+    """Form for creating and editing campaigns (organization working to elect a candidate)."""
 
     class Meta:
-        model = ContactEffort
-        fields = ["name", "description", "script", "is_active", "election", "candidate"]
+        model = Campaign
+        fields = ["name", "description", "is_active", "candidate", "election"]
         widgets = {
             "name": forms.TextInput(
                 attrs={
-                    "class": "bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-green-500 focus:border-green-500 block w-full p-2.5",
-                    "placeholder": "Campaign name",
+                    "class": TAILWIND_INPUT,
+                    "placeholder": "e.g., Smith for Mayor 2024",
                 }
             ),
             "description": forms.Textarea(
                 attrs={
-                    "class": "bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-green-500 focus:border-green-500 block w-full p-2.5",
+                    "class": TAILWIND_INPUT,
                     "rows": 3,
                     "placeholder": "Brief description of this campaign...",
                 }
             ),
-            "script": forms.Textarea(
-                attrs={
-                    "class": "bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-green-500 focus:border-green-500 block w-full p-2.5",
-                    "rows": 8,
-                    "placeholder": "Script or talking points for callers...",
-                }
-            ),
             "is_active": forms.CheckboxInput(
                 attrs={
-                    "class": "w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500",
-                }
-            ),
-            "election": forms.Select(
-                attrs={
-                    "class": "bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-green-500 focus:border-green-500 block w-full p-2.5",
+                    "class": TAILWIND_CHECKBOX,
                 }
             ),
             "candidate": forms.Select(
                 attrs={
-                    "class": "bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-green-500 focus:border-green-500 block w-full p-2.5",
+                    "class": TAILWIND_INPUT,
+                }
+            ),
+            "election": forms.Select(
+                attrs={
+                    "class": TAILWIND_INPUT,
                 }
             ),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields["candidate"].required = False
+        self.fields["election"].required = False
+        self.fields["election"].queryset = Election.objects.select_related(
+            "office"
+        ).order_by("-year", "-election_day")
+        self.fields["candidate"].queryset = Candidate.objects.select_related(
+            "person", "election"
+        ).order_by("-election__year")
+
+
+class DriveForm(forms.ModelForm):
+    """Form for creating and editing drives (voter contact efforts)."""
+
+    class Meta:
+        model = ContactEffort
+        fields = ["name", "description", "script", "is_active", "campaign", "election", "candidate"]
+        widgets = {
+            "name": forms.TextInput(
+                attrs={
+                    "class": TAILWIND_INPUT,
+                    "placeholder": "Drive name",
+                }
+            ),
+            "description": forms.Textarea(
+                attrs={
+                    "class": TAILWIND_INPUT,
+                    "rows": 3,
+                    "placeholder": "Brief description of this drive...",
+                }
+            ),
+            "script": forms.Textarea(
+                attrs={
+                    "class": TAILWIND_INPUT,
+                    "rows": 8,
+                    "placeholder": "Script or talking points for callers...",
+                }
+            ),
+            "is_active": forms.CheckboxInput(
+                attrs={
+                    "class": TAILWIND_CHECKBOX,
+                }
+            ),
+            "campaign": forms.Select(
+                attrs={
+                    "class": TAILWIND_INPUT,
+                }
+            ),
+            "election": forms.Select(
+                attrs={
+                    "class": TAILWIND_INPUT,
+                }
+            ),
+            "candidate": forms.Select(
+                attrs={
+                    "class": TAILWIND_INPUT,
+                }
+            ),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["campaign"].required = False
         self.fields["election"].required = False
         self.fields["candidate"].required = False
+        self.fields["campaign"].queryset = Campaign.objects.order_by("-created_at")
         self.fields["election"].queryset = Election.objects.select_related(
             "office"
         ).order_by("-year", "-election_day")
@@ -76,6 +138,10 @@ class CampaignForm(forms.ModelForm):
                 self.fields["candidate"].queryset = Candidate.objects.none()
         else:
             self.fields["candidate"].queryset = Candidate.objects.none()
+
+
+# Keep old name as alias for backward compatibility
+ContactEffortForm = DriveForm
 
 
 class ContactAttemptForm(forms.ModelForm):
@@ -184,11 +250,7 @@ class AssignmentFilterForm(forms.Form):
 
 # Election-related forms
 
-TAILWIND_INPUT = "bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-green-500 focus:border-green-500 block w-full p-2.5"
 TAILWIND_SELECT = TAILWIND_INPUT
-TAILWIND_CHECKBOX = (
-    "w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500"
-)
 
 
 class OfficeForm(forms.ModelForm):
