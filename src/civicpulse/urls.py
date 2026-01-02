@@ -44,6 +44,7 @@ urlpatterns = [
     path("drives/<uuid:pk>/call/next/", views.calling_next, name="calling_next"),
     path("drives/<uuid:pk>/call/log/", views.calling_log, name="calling_log"),
     path("drives/<uuid:pk>/call/skip/", views.calling_skip, name="calling_skip"),
+    path("drives/<uuid:pk>/call/exit/", views.calling_exit, name="calling_exit"),
     # Door Knocking Workflow (HTMX)
     path("drives/<uuid:pk>/knock/", views.knocking_session, name="knocking_session"),
     path(
@@ -54,6 +55,7 @@ urlpatterns = [
     path("drives/<uuid:pk>/knock/next/", views.knocking_next, name="knocking_next"),
     path("drives/<uuid:pk>/knock/log/", views.knocking_log, name="knocking_log"),
     path("drives/<uuid:pk>/knock/skip/", views.knocking_skip, name="knocking_skip"),
+    path("drives/<uuid:pk>/knock/exit/", views.knocking_exit, name="knocking_exit"),
     # HTMX Helpers
     path(
         "drives/candidates/",

@@ -1210,6 +1210,24 @@ def calling_skip(request, pk):
     return calling_next(request, pk)
 
 
+@login_required
+def calling_exit(request, pk):
+    """Exit calling session, releasing current person back to pool."""
+    campaign = get_object_or_404(ContactEffort, pk=pk)
+
+    if request.method == "POST":
+        assignment_id = request.POST.get("assignment_id")
+        EffortAssignment.objects.filter(
+            pk=assignment_id, effort=campaign, locked_by=request.user
+        ).update(
+            status=EffortAssignment.Status.PENDING,
+            locked_by=None,
+            locked_at=None,
+        )
+
+    return redirect("civicpulse:campaign_detail", pk=pk)
+
+
 # =============================================================================
 # Door Knocking Workflow Views (HTMX)
 # =============================================================================
@@ -1417,6 +1435,24 @@ def knocking_skip(request, pk):
         )
 
     return knocking_next(request, pk)
+
+
+@login_required
+def knocking_exit(request, pk):
+    """Exit knocking session, releasing current person back to pool."""
+    campaign = get_object_or_404(ContactEffort, pk=pk)
+
+    if request.method == "POST":
+        assignment_id = request.POST.get("assignment_id")
+        EffortAssignment.objects.filter(
+            pk=assignment_id, effort=campaign, locked_by=request.user
+        ).update(
+            status=EffortAssignment.Status.PENDING,
+            locked_by=None,
+            locked_at=None,
+        )
+
+    return redirect("civicpulse:campaign_detail", pk=pk)
 
 
 # =============================================================================
