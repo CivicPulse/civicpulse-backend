@@ -220,10 +220,13 @@ def org_campaign_detail(request, pk):
         ),
     ).order_by("-created_at")
 
+    # Get checking accounts for this campaign
+    checking_accounts = campaign.checking_accounts.all()
+
     return render(
         request,
         "civicpulse/org_campaigns/campaign_detail.html",
-        {"campaign": campaign, "drives": drives},
+        {"campaign": campaign, "drives": drives, "checking_accounts": checking_accounts},
     )
 
 
