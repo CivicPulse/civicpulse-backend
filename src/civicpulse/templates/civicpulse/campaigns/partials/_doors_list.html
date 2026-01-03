@@ -1,6 +1,6 @@
 {% load civicpulse_tags %}
 <!-- 5 Closest Doors List -->
-<div class="space-y-4">
+<div class="space-y-3">
     <!-- Map showing all 5 doors -->
     <div class="bg-white rounded-lg shadow overflow-hidden">
         <div class="p-3 border-b flex justify-between items-center">
@@ -27,7 +27,7 @@
          hx-vals='{"assignment_id": "{{ door.assignment.pk }}", "csrfmiddlewaretoken": "{{ csrf_token }}"}'
          hx-target="#person-container"
          hx-swap="innerHTML">
-        <div class="p-4">
+        <div class="p-3">
             <!-- Header with number badge and name -->
             <div class="flex items-start gap-3">
                 <div class="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
@@ -63,7 +63,7 @@
 
                     <!-- Address -->
                     {% if door.primary_address %}
-                    <div class="text-sm text-gray-600 mt-2">
+                    <div class="text-sm text-gray-600 mt-1">
                         <div class="font-medium">{{ door.primary_address.street_address }}</div>
                         <div>{{ door.primary_address.city }}, {{ door.primary_address.state }} {{ door.primary_address.zip_code }}</div>
                     </div>
@@ -71,19 +71,19 @@
 
                     <!-- Distance -->
                     {% if door.distance %}
-                    <div class="text-xs text-green-700 mt-2 flex items-center gap-1">
-                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div class="text-xs text-green-700 mt-1 flex items-center gap-1">
+                        <svg class="w-3 h-3 flex-shrink-0" width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
                         </svg>
-                        ~{{ door.distance|floatformat:2 }} mi away
+                        <span>~{{ door.distance|floatformat:2 }} mi</span>
                     </div>
                     {% endif %}
 
                     <!-- Voting History -->
                     {% if door.target_type == "election_voter" or door.target.voter_record %}
-                    <div class="mt-3">
-                        <div class="text-xs text-gray-500 mb-1">Voting History</div>
-                        <div class="flex gap-3 text-xs">
+                    <div class="mt-2">
+                        <div class="text-xs text-gray-500 mb-0.5">Voting History</div>
+                        <div class="flex gap-2 text-xs">
                             <div class="flex items-center gap-1">
                                 <span class="text-gray-500">2024:</span>
                                 {% if door.target_type == "election_voter" %}
