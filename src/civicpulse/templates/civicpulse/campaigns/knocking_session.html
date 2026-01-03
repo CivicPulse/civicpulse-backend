@@ -97,7 +97,7 @@
     <!-- Person Card Container (HTMX target) -->
     <div id="person-container"
          {% if has_location %}
-         hx-get="{% url 'civicpulse:knocking_next' pk=campaign.pk %}"
+         hx-get="{% url 'civicpulse:knocking_list' pk=campaign.pk %}"
          hx-trigger="load"
          hx-swap="innerHTML"
          {% endif %}>
@@ -172,7 +172,7 @@ function setLocationAndLoad(lat, lon) {
 
 function skipLocation() {
     document.getElementById('location-picker').classList.add('hidden');
-    htmx.ajax('GET', "{% url 'civicpulse:knocking_next' pk=campaign.pk %}", '#person-container');
+    htmx.ajax('GET', "{% url 'civicpulse:knocking_list' pk=campaign.pk %}", '#person-container');
 }
 
 function updateLocation() {

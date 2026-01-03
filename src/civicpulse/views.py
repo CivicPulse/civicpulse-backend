@@ -1082,6 +1082,247 @@ def get_next_assignment_by_distance(effort, user, user_lat, user_lon):
     return assignment
 
 
+def get_nearest_assignments(effort, user_lat, user_lon, limit=5):
+    """Get the N nearest pending assignments sorted by distance.
+
+    Unlike get_next_assignment_by_distance(), this does NOT lock assignments.
+    They remain available for other users until explicitly selected.
+
+    Handles both Person-based and ElectionVoter-based assignments depending
+    on whether the effort has an associated election.
+
+    Returns a list of dicts with keys:
+    - assignment: The EffortAssignment instance
+    - target: The Person or ElectionVoter instance
+    - target_type: 'person' or 'election_voter'
+    - distance: Distance in miles from user location
+    - primary_address: The home/primary address
+    - previous_attempts: List of ContactAttempt instances for this effort
+    """
+    # Release stale locks (>10 min)
+    stale_threshold = timezone.now() - timedelta(minutes=10)
+    EffortAssignment.objects.filter(
+        effort=effort,
+        status=EffortAssignment.Status.IN_PROGRESS,
+        locked_at__lt=stale_threshold,
+    ).update(
+        status=EffortAssignment.Status.PENDING,
+        locked_by=None,
+        locked_at=None,
+    )
+
+    user_location = Point(float(user_lon), float(user_lat), srid=4326)
+    results = []
+
+    # Determine if this is an election-based or person-based effort
+    if effort.election_id:
+        # ElectionVoter-based assignments
+        # Try with GeoDjango PointField first
+        assignments = list(
+            EffortAssignment.objects.filter(
+                effort=effort,
+                status=EffortAssignment.Status.PENDING,
+                election_voter__location__isnull=False,
+            )
+            .annotate(distance=Distance("election_voter__location", user_location))
+            .order_by("distance")
+            .select_related("election_voter")
+            .prefetch_related(
+                "election_voter__addresses",
+                "election_voter__phone_numbers",
+            )[:limit]
+        )
+
+        for assignment in assignments:
+            ev = assignment.election_voter
+            # Get distance in miles
+            dist_miles = (
+                assignment.distance.mi if hasattr(assignment, "distance") else None
+            )
+
+            # Get primary address
+            primary_address = ev.addresses.filter(type="home").first()
+            if not primary_address:
+                primary_address = ev.addresses.first()
+
+            # Get previous attempts
+            previous_attempts = list(
+                ContactAttempt.objects.filter(
+                    effort=effort, election_voter=ev
+                ).order_by("-created_at")[:5]
+            )
+
+            results.append(
+                {
+                    "assignment": assignment,
+                    "target": ev,
+                    "target_type": "election_voter",
+                    "distance": dist_miles,
+                    "primary_address": primary_address,
+                    "previous_attempts": previous_attempts,
+                }
+            )
+
+        # If we don't have enough, try fallback to lat/lon fields
+        if len(results) < limit:
+            existing_ids = [r["assignment"].pk for r in results]
+            fallback_assignments = list(
+                EffortAssignment.objects.filter(
+                    effort=effort,
+                    status=EffortAssignment.Status.PENDING,
+                    election_voter__latitude__isnull=False,
+                    election_voter__longitude__isnull=False,
+                )
+                .exclude(pk__in=existing_ids)
+                .select_related("election_voter")
+                .prefetch_related(
+                    "election_voter__addresses",
+                    "election_voter__phone_numbers",
+                )[: (limit - len(results)) * 2]
+            )
+
+            fallback_with_distance = []
+            for assignment in fallback_assignments:
+                ev = assignment.election_voter
+                dist_miles = haversine_distance(
+                    user_lat, user_lon, float(ev.latitude), float(ev.longitude)
+                )
+                fallback_with_distance.append((dist_miles, assignment, ev))
+
+            fallback_with_distance.sort(key=lambda x: x[0])
+
+            for dist_miles, assignment, ev in fallback_with_distance[
+                : limit - len(results)
+            ]:
+                primary_address = ev.addresses.filter(type="home").first()
+                if not primary_address:
+                    primary_address = ev.addresses.first()
+
+                previous_attempts = list(
+                    ContactAttempt.objects.filter(
+                        effort=effort, election_voter=ev
+                    ).order_by("-created_at")[:5]
+                )
+
+                results.append(
+                    {
+                        "assignment": assignment,
+                        "target": ev,
+                        "target_type": "election_voter",
+                        "distance": dist_miles,
+                        "primary_address": primary_address,
+                        "previous_attempts": previous_attempts,
+                    }
+                )
+
+    else:
+        # Person-based assignments
+        # Try with GeoDjango PointField first
+        assignments = list(
+            EffortAssignment.objects.filter(
+                effort=effort,
+                status=EffortAssignment.Status.PENDING,
+                person__voter_record__location__isnull=False,
+            )
+            .annotate(
+                distance=Distance("person__voter_record__location", user_location)
+            )
+            .order_by("distance")
+            .select_related("person__voter_record")
+            .prefetch_related(
+                "person__addresses",
+                "person__phone_numbers",
+            )[:limit]
+        )
+
+        for assignment in assignments:
+            person = assignment.person
+            dist_miles = (
+                assignment.distance.mi if hasattr(assignment, "distance") else None
+            )
+
+            primary_address = person.addresses.filter(type="home").first()
+            if not primary_address:
+                primary_address = person.addresses.first()
+
+            previous_attempts = list(
+                ContactAttempt.objects.filter(effort=effort, person=person).order_by(
+                    "-created_at"
+                )[:5]
+            )
+
+            results.append(
+                {
+                    "assignment": assignment,
+                    "target": person,
+                    "target_type": "person",
+                    "distance": dist_miles,
+                    "primary_address": primary_address,
+                    "previous_attempts": previous_attempts,
+                }
+            )
+
+        # Fallback to lat/lon fields if needed
+        if len(results) < limit:
+            existing_ids = [r["assignment"].pk for r in results]
+            fallback_assignments = list(
+                EffortAssignment.objects.filter(
+                    effort=effort,
+                    status=EffortAssignment.Status.PENDING,
+                    person__voter_record__latitude__isnull=False,
+                    person__voter_record__longitude__isnull=False,
+                )
+                .exclude(pk__in=existing_ids)
+                .select_related("person__voter_record")
+                .prefetch_related(
+                    "person__addresses",
+                    "person__phone_numbers",
+                )[: (limit - len(results)) * 2]
+            )
+
+            fallback_with_distance = []
+            for assignment in fallback_assignments:
+                vr = assignment.person.voter_record
+                dist_miles = haversine_distance(
+                    user_lat, user_lon, float(vr.latitude), float(vr.longitude)
+                )
+                fallback_with_distance.append((dist_miles, assignment))
+
+            fallback_with_distance.sort(key=lambda x: x[0])
+
+            for dist_miles, assignment in fallback_with_distance[
+                : limit - len(results)
+            ]:
+                person = assignment.person
+                primary_address = person.addresses.filter(type="home").first()
+                if not primary_address:
+                    primary_address = person.addresses.first()
+
+                previous_attempts = list(
+                    ContactAttempt.objects.filter(
+                        effort=effort, person=person
+                    ).order_by("-created_at")[:5]
+                )
+
+                results.append(
+                    {
+                        "assignment": assignment,
+                        "target": person,
+                        "target_type": "person",
+                        "distance": dist_miles,
+                        "primary_address": primary_address,
+                        "previous_attempts": previous_attempts,
+                    }
+                )
+
+    # Sort final results by distance
+    results.sort(
+        key=lambda x: x["distance"] if x["distance"] is not None else float("inf")
+    )
+
+    return results[:limit]
+
+
 @login_required
 def calling_session(request, pk):
     """Main calling session page."""
@@ -1258,6 +1499,180 @@ def knocking_session(request, pk):
 
 
 @login_required
+def knocking_list(request, pk):
+    """Show list of 5 closest doors to knock on (HTMX partial)."""
+    import json
+
+    campaign = get_object_or_404(ContactEffort, pk=pk)
+
+    user_lat = request.session.get("knocker_lat")
+    user_lon = request.session.get("knocker_lon")
+
+    if not user_lat or not user_lon:
+        # No location - fall back to knocking_next which can handle this
+        return knocking_next(request, pk)
+
+    # Get 5 nearest pending assignments
+    doors = get_nearest_assignments(campaign, user_lat, user_lon, limit=5)
+
+    if not doors:
+        stats = get_session_stats(campaign)
+        return render(
+            request,
+            "civicpulse/campaigns/partials/_knocking_complete.html",
+            {"campaign": campaign, "stats": stats},
+        )
+
+    # Add order numbers for map pins
+    for i, door in enumerate(doors, start=1):
+        door["order"] = i
+
+    # Build GeoJSON for map markers
+    map_features = []
+    for door in doors:
+        target = door["target"]
+        target_type = door["target_type"]
+        addr = door["primary_address"]
+
+        # Get coordinates
+        if target_type == "election_voter":
+            lat = float(target.latitude) if target.latitude else None
+            lon = float(target.longitude) if target.longitude else None
+        else:
+            vr = getattr(target, "voter_record", None)
+            lat = float(vr.latitude) if vr and vr.latitude else None
+            lon = float(vr.longitude) if vr and vr.longitude else None
+
+        if lat and lon:
+            map_features.append(
+                {
+                    "lat": lat,
+                    "lon": lon,
+                    "order": door["order"],
+                    "name": target.full_name,
+                    "address": (
+                        f"{addr.street_address}, {addr.city}" if addr else "Unknown"
+                    ),
+                }
+            )
+
+    stats = get_session_stats(campaign)
+
+    return render(
+        request,
+        "civicpulse/campaigns/partials/_doors_list.html",
+        {
+            "campaign": campaign,
+            "doors": doors,
+            "stats": stats,
+            "user_lat": user_lat,
+            "user_lon": user_lon,
+            "doors_json": json.dumps(map_features),
+        },
+    )
+
+
+@login_required
+def knocking_select(request, pk):
+    """Lock a specific assignment and show its address card (HTMX)."""
+    campaign = get_object_or_404(ContactEffort, pk=pk)
+
+    if request.method != "POST":
+        return knocking_list(request, pk)
+
+    assignment_id = request.POST.get("assignment_id")
+    if not assignment_id:
+        return knocking_list(request, pk)
+
+    # Try to lock the assignment atomically
+    with transaction.atomic():
+        assignment = (
+            EffortAssignment.objects.select_for_update(skip_locked=True)
+            .filter(
+                pk=assignment_id,
+                effort=campaign,
+                status=EffortAssignment.Status.PENDING,
+            )
+            .first()
+        )
+
+        if not assignment:
+            # Assignment is either locked by another user, doesn't exist, or already completed
+            return render(
+                request,
+                "civicpulse/campaigns/partials/_door_taken.html",
+                {
+                    "campaign": campaign,
+                    "message": "This address was just claimed by another volunteer. Please select another.",
+                },
+            )
+
+        # Lock the assignment
+        assignment.status = EffortAssignment.Status.IN_PROGRESS
+        assignment.locked_by = request.user
+        assignment.locked_at = timezone.now()
+        assignment.save(update_fields=["status", "locked_by", "locked_at"])
+
+    # Get target details
+    target, target_type = get_assignment_target_with_details(assignment, campaign)
+    if not target:
+        # Target was deleted - mark complete and return to list
+        assignment.status = EffortAssignment.Status.COMPLETED
+        assignment.locked_by = None
+        assignment.locked_at = None
+        assignment.save(update_fields=["status", "locked_by", "locked_at"])
+        return knocking_list(request, pk)
+
+    from .forms import DoorKnockAttemptForm
+
+    form = DoorKnockAttemptForm()
+    stats = get_session_stats(campaign)
+
+    # Get primary address
+    primary_address = target.addresses.filter(type="home").first()
+    if not primary_address:
+        primary_address = target.addresses.first()
+
+    # Calculate distance
+    distance = None
+    user_lat = request.session.get("knocker_lat")
+    user_lon = request.session.get("knocker_lon")
+
+    target_lat = None
+    target_lon = None
+    if (
+        target_type == "person"
+        and hasattr(target, "voter_record")
+        and target.voter_record
+    ):
+        target_lat = target.voter_record.latitude
+        target_lon = target.voter_record.longitude
+    elif target_type == "election_voter":
+        target_lat = target.latitude
+        target_lon = target.longitude
+
+    if user_lat and user_lon and target_lat and target_lon:
+        distance = haversine_distance(user_lat, user_lon, target_lat, target_lon)
+
+    return render(
+        request,
+        "civicpulse/campaigns/partials/_address_card.html",
+        {
+            "campaign": campaign,
+            "assignment": assignment,
+            "target": target,
+            "target_type": target_type,
+            "person": target,  # Backward compatibility
+            "primary_address": primary_address,
+            "form": form,
+            "stats": stats,
+            "distance": distance,
+            "show_back_to_list": True,  # Flag to show back button
+        },
+    )
+
+
+@login_required
 def knocking_set_location(request, pk):
     """Set user's current location for door knocking (HTMX)."""
     # Verify campaign exists
@@ -1275,8 +1690,8 @@ def knocking_set_location(request, pk):
             except ValueError:
                 pass
 
-    # Return the next person card
-    return knocking_next(request, pk)
+    # Return the doors list
+    return knocking_list(request, pk)
 
 
 @login_required
@@ -1340,7 +1755,11 @@ def knocking_next(request, pk):
     # Check for coordinates - Person has voter_record, ElectionVoter has direct lat/lon
     target_lat = None
     target_lon = None
-    if target_type == "person" and hasattr(target, "voter_record") and target.voter_record:
+    if (
+        target_type == "person"
+        and hasattr(target, "voter_record")
+        and target.voter_record
+    ):
         target_lat = target.voter_record.latitude
         target_lon = target.voter_record.longitude
     elif target_type == "election_voter":
@@ -1391,7 +1810,9 @@ def knocking_log(request, pk):
                 attempt.election_voter = assignment.election_voter
                 attempt.person = None
                 # Set voter_address_visited if address was visited
-                voter_address = assignment.election_voter.addresses.filter(type="home").first()
+                voter_address = assignment.election_voter.addresses.filter(
+                    type="home"
+                ).first()
                 if not voter_address:
                     voter_address = assignment.election_voter.addresses.first()
                 attempt.voter_address_visited = voter_address
@@ -1415,8 +1836,8 @@ def knocking_log(request, pk):
             assignment.locked_at = None
             assignment.save()
 
-    # Get next person
-    return knocking_next(request, pk)
+    # Return to doors list
+    return knocking_list(request, pk)
 
 
 @login_required
@@ -1434,7 +1855,8 @@ def knocking_skip(request, pk):
             locked_at=None,
         )
 
-    return knocking_next(request, pk)
+    # Return to doors list
+    return knocking_list(request, pk)
 
 
 @login_required

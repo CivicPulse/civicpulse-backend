@@ -11,7 +11,9 @@ urlpatterns = [
     path("campaigns/", views.org_campaign_list, name="org_campaign_list"),
     path("campaigns/create/", views.org_campaign_create, name="org_campaign_create"),
     path("campaigns/<uuid:pk>/", views.org_campaign_detail, name="org_campaign_detail"),
-    path("campaigns/<uuid:pk>/edit/", views.org_campaign_edit, name="org_campaign_edit"),
+    path(
+        "campaigns/<uuid:pk>/edit/", views.org_campaign_edit, name="org_campaign_edit"
+    ),
     path(
         "campaigns/<uuid:pk>/delete/",
         views.org_campaign_delete,
@@ -51,6 +53,12 @@ urlpatterns = [
         "drives/<uuid:pk>/knock/location/",
         views.knocking_set_location,
         name="knocking_set_location",
+    ),
+    path("drives/<uuid:pk>/knock/list/", views.knocking_list, name="knocking_list"),
+    path(
+        "drives/<uuid:pk>/knock/select/",
+        views.knocking_select,
+        name="knocking_select",
     ),
     path("drives/<uuid:pk>/knock/next/", views.knocking_next, name="knocking_next"),
     path("drives/<uuid:pk>/knock/log/", views.knocking_log, name="knocking_log"),

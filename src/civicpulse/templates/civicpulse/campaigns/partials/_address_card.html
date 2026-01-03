@@ -1,5 +1,21 @@
 <!-- Address Card for Door Knocking -->
 <div class="bg-white rounded-lg shadow p-6">
+    <!-- Back to List Button (shown when coming from list view) -->
+    {% if show_back_to_list %}
+    <div class="mb-4">
+        <button type="button"
+                hx-get="{% url 'civicpulse:knocking_list' pk=campaign.pk %}"
+                hx-target="#person-container"
+                hx-swap="innerHTML"
+                class="text-gray-600 hover:text-gray-800 text-sm flex items-center gap-1">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+            </svg>
+            Back to Door List
+        </button>
+    </div>
+    {% endif %}
+
     <!-- Header -->
     <div class="mb-6">
         <h2 class="text-2xl font-bold text-gray-900">{{ target.full_name }}</h2>
