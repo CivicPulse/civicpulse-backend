@@ -8,11 +8,11 @@
 
     <div class="flex justify-between items-center mb-6">
         <div>
-            <h1 class="text-2xl font-bold text-gray-900">Contact Campaigns</h1>
+            <h1 class="text-2xl font-bold text-gray-900">Drives</h1>
             <p class="text-gray-600">{{ election.office.name }} - {{ election.get_election_type_display }} {{ election.year }}</p>
         </div>
         <a href="{% url 'civicpulse:campaign_create' %}?election={{ election.pk }}" class="text-white bg-green-700 hover:bg-green-800 focus:ring-4 focus:ring-green-300 font-medium rounded-lg text-sm px-5 py-2.5">
-            + New Campaign
+            + New Drive
         </a>
     </div>
 
@@ -68,8 +68,8 @@
     </div>
     {% else %}
     <div class="text-center py-12">
-        <p class="text-gray-500 mb-4">No contact campaigns for this election yet</p>
-        <a href="{% url 'civicpulse:campaign_create' %}?election={{ election.pk }}" class="text-green-700 hover:underline">Create the first campaign</a>
+        <p class="text-gray-500 mb-4">No drives for this election yet</p>
+        <a href="{% url 'civicpulse:campaign_create' %}?election={{ election.pk }}" class="text-green-700 hover:underline">Create the first drive</a>
     </div>
     {% endif %}
 </div>

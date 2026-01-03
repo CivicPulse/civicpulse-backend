@@ -95,8 +95,8 @@
         </div>
     </div>
 
-    <!-- Contact Campaigns for this Candidate -->
-    <h2 class="text-xl font-bold text-gray-900 mb-4">Contact Campaigns</h2>
+    <!-- Drives for this Candidate -->
+    <h2 class="text-xl font-bold text-gray-900 mb-4">Drives</h2>
 
     {% if efforts %}
     <div class="grid gap-4 md:grid-cols-2">
@@ -111,14 +111,14 @@
             <div class="flex justify-between text-sm text-gray-500 mb-3">
                 <span>{{ effort.completed_count }}/{{ effort.total_assignments }} completed</span>
             </div>
-            <a href="{% url 'civicpulse:campaign_detail' pk=effort.pk %}" class="text-green-700 hover:underline text-sm">View campaign &rarr;</a>
+            <a href="{% url 'civicpulse:campaign_detail' pk=effort.pk %}" class="text-green-700 hover:underline text-sm">View drive &rarr;</a>
         </div>
         {% endfor %}
     </div>
     {% else %}
     <div class="bg-white rounded-lg shadow p-6 text-center">
-        <p class="text-gray-500 mb-4">No contact campaigns for this candidate yet</p>
-        <a href="{% url 'civicpulse:campaign_create' %}?candidate={{ candidate.pk }}" class="text-green-700 hover:underline">Create a campaign</a>
+        <p class="text-gray-500 mb-4">No drives for this candidate yet</p>
+        <a href="{% url 'civicpulse:campaign_create' %}?candidate={{ candidate.pk }}" class="text-green-700 hover:underline">Create a drive</a>
     </div>
     {% endif %}
 </div>

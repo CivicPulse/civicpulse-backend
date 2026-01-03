@@ -174,11 +174,11 @@
     </div>
     {% endif %}
 
-    <!-- Contact Campaigns -->
+    <!-- Drives -->
     <div class="flex justify-between items-center mb-4">
-        <h2 class="text-xl font-bold text-gray-900">Contact Campaigns</h2>
+        <h2 class="text-xl font-bold text-gray-900">Drives</h2>
         <a href="{% url 'civicpulse:campaign_create' %}?election={{ election.pk }}" class="text-white bg-green-700 hover:bg-green-800 font-medium rounded-lg text-sm px-4 py-2">
-            + New Campaign
+            + New Drive
         </a>
     </div>
 
@@ -195,14 +195,14 @@
             <div class="flex justify-between text-sm text-gray-500 mb-3">
                 <span>{{ effort.completed_count }}/{{ effort.total_assignments }} completed</span>
             </div>
-            <a href="{% url 'civicpulse:campaign_detail' pk=effort.pk %}" class="text-green-700 hover:underline text-sm">View campaign &rarr;</a>
+            <a href="{% url 'civicpulse:campaign_detail' pk=effort.pk %}" class="text-green-700 hover:underline text-sm">View drive &rarr;</a>
         </div>
         {% endfor %}
     </div>
     {% else %}
     <div class="bg-white rounded-lg shadow p-6 text-center">
-        <p class="text-gray-500 mb-4">No contact campaigns for this election yet</p>
-        <a href="{% url 'civicpulse:campaign_create' %}?election={{ election.pk }}" class="text-green-700 hover:underline">Create a campaign</a>
+        <p class="text-gray-500 mb-4">No drives for this election yet</p>
+        <a href="{% url 'civicpulse:campaign_create' %}?election={{ election.pk }}" class="text-green-700 hover:underline">Create a drive</a>
     </div>
     {% endif %}
 </div>

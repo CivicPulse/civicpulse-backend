@@ -1,9 +1,13 @@
 # Git worktree directories
 .worktree
+.worktrees
+
+
 
 node_modules
 static/CACHE
 *.csv
+
 
 
 # SQLite databases
@@ -150,7 +154,7 @@ ipython_config.py
 __pypackages__/
 
 # Celery stuff
-celerybeat-schedule
+celerybeat-schedul*
 celerybeat.pid
 
 # SageMath parsed files
