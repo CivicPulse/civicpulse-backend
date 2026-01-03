@@ -34,6 +34,12 @@
                 {{ office.state }}
             </div>
 
+            {% if office.organization %}
+            <p class="text-sm text-gray-500 mb-2">
+                <a href="{% url 'civicpulse:organization_detail' pk=office.organization.pk %}" class="text-green-700 hover:underline">{{ office.organization.name }}</a>
+            </p>
+            {% endif %}
+
             {% if office.term_length_years %}
             <p class="text-sm text-gray-500 mb-2">{{ office.term_length_years }}-year term</p>
             {% endif %}

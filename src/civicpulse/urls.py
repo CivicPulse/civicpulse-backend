@@ -76,6 +76,16 @@ urlpatterns = [
     path("offices/<uuid:pk>/", views.office_detail, name="office_detail"),
     path("offices/<uuid:pk>/edit/", views.office_edit, name="office_edit"),
     path("offices/<uuid:pk>/delete/", views.office_delete, name="office_delete"),
+    # Organization CRUD
+    path("organizations/", views.organization_list, name="organization_list"),
+    path("organizations/create/", views.organization_create, name="organization_create"),
+    path("organizations/<uuid:pk>/", views.organization_detail, name="organization_detail"),
+    path("organizations/<uuid:pk>/edit/", views.organization_edit, name="organization_edit"),
+    path(
+        "organizations/<uuid:pk>/delete/",
+        views.organization_delete,
+        name="organization_delete",
+    ),
     # Election CRUD
     path("elections/", views.election_list, name="election_list"),
     path("elections/create/", views.election_create, name="election_create"),

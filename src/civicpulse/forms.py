@@ -10,6 +10,7 @@ from .models import (
     Election,
     ElectionDate,
     Office,
+    Organization,
 )
 
 
@@ -305,6 +306,7 @@ class OfficeForm(forms.ModelForm):
         fields = [
             "name",
             "level",
+            "organization",
             "city",
             "county",
             "state",
@@ -319,6 +321,7 @@ class OfficeForm(forms.ModelForm):
                 }
             ),
             "level": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "organization": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "city": forms.TextInput(
                 attrs={
                     "class": TAILWIND_INPUT,
@@ -351,6 +354,63 @@ class OfficeForm(forms.ModelForm):
                     "class": TAILWIND_INPUT,
                     "rows": 3,
                     "placeholder": "Description of this office...",
+                }
+            ),
+        }
+
+
+class OrganizationForm(forms.ModelForm):
+    """Form for creating and editing organizations (governing bodies)."""
+
+    class Meta:
+        model = Organization
+        fields = [
+            "name",
+            "organization_type",
+            "city",
+            "county",
+            "state",
+            "description",
+            "website",
+        ]
+        widgets = {
+            "name": forms.TextInput(
+                attrs={
+                    "class": TAILWIND_INPUT,
+                    "placeholder": "e.g., Cobb County School Board",
+                }
+            ),
+            "organization_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "city": forms.TextInput(
+                attrs={
+                    "class": TAILWIND_INPUT,
+                    "placeholder": "City name",
+                }
+            ),
+            "county": forms.TextInput(
+                attrs={
+                    "class": TAILWIND_INPUT,
+                    "placeholder": "County name",
+                }
+            ),
+            "state": forms.TextInput(
+                attrs={
+                    "class": TAILWIND_INPUT,
+                    "placeholder": "GA",
+                    "maxlength": "2",
+                }
+            ),
+            "description": forms.Textarea(
+                attrs={
+                    "class": TAILWIND_INPUT,
+                    "rows": 3,
+                    "placeholder": "Description of this organization...",
+                }
+            ),
+            "website": forms.URLInput(
+                attrs={
+                    "class": TAILWIND_INPUT,
+                    "placeholder": "https://example.com",
                 }
             ),
         }
@@ -454,247 +514,45 @@ class CandidateForm(forms.ModelForm):
                 }
             ),
             "person": forms.Select(attrs={"class": TAILWIND_SELECT}),
-            "party_affiliation": forms.TextInput(
+            "party_affiliation": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "is_incumbent": forms.CheckboxInput(
                 attrs={
-                    "class": TAILWIND_INPUT,
-                    "placeholder": "e.g., Democratic, Republican",
+                    "class": TAILWIND_CHECKBOX,
                 }
             ),
-            "is_incumbent": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
             "status": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "campaign_website": forms.URLInput(
                 attrs={
                     "class": TAILWIND_INPUT,
-                    "placeholder": "https://example.com",
+                    "placeholder": "https://candidate-website.com",
                 }
             ),
             "campaign_slogan": forms.TextInput(
                 attrs={
                     "class": TAILWIND_INPUT,
-                    "placeholder": "Campaign slogan...",
+                    "placeholder": "Campaign slogan",
                 }
             ),
         }
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fields["name"].required = False
-        self.fields["person"].required = False
-
-    def clean(self):
-        cleaned_data = super().clean()
-        name = cleaned_data.get("name")
-        person = cleaned_data.get("person")
-
-        # Require at least one of name or person
-        if not name and not person:
-            raise forms.ValidationError(
-                "Please provide either a name or select a person record."
-            )
-        return cleaned_data
 
 
 class ElectionDateForm(forms.ModelForm):
-    """Form for adding additional election dates."""
+    """Form for creating and editing election dates."""
 
     class Meta:
         model = ElectionDate
-        fields = ["date_type", "date", "description", "location"]
-        widgets = {
-            "date_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
-            "date": forms.DateInput(attrs={"class": TAILWIND_INPUT, "type": "date"}),
-            "description": forms.TextInput(
-                attrs={
-                    "class": TAILWIND_INPUT,
-                    "placeholder": "Description of this date...",
-                }
-            ),
-            "location": forms.TextInput(
-                attrs={
-                    "class": TAILWIND_INPUT,
-                    "placeholder": "Location (optional)",
-                }
-            ),
-        }
-
-
-class DoorKnockAttemptForm(forms.ModelForm):
-    """Form for logging door knock outcomes."""
-
-    # Door-knock specific outcomes
-    DOOR_KNOCK_OUTCOMES = [
-        ("not_home", "Not Home"),
-        ("left_door_hanger", "Left Door Hanger"),
-        ("spoke_at_door", "Spoke at Door"),
-        ("will_vote", "Will Vote for Candidate"),
-        ("refused_door", "Refused to Answer Door"),
-        ("no_access", "No Access (Gated/Locked)"),
-    ]
-
-    outcome = forms.ChoiceField(
-        choices=DOOR_KNOCK_OUTCOMES,
-        widget=forms.RadioSelect(attrs={"class": "hidden peer"}),
-    )
-
-    class Meta:
-        model = ContactAttempt
-        fields = ["outcome", "notes", "address_visited"]
-        widgets = {
-            "notes": forms.Textarea(
-                attrs={
-                    "class": TAILWIND_INPUT,
-                    "rows": 2,
-                    "placeholder": "Conversation notes (optional)...",
-                }
-            ),
-            "address_visited": forms.HiddenInput(),
-        }
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fields["notes"].required = False
-        self.fields["address_visited"].required = False
-
-
-class VoterImportForm(forms.Form):
-    """Form for uploading voter CSV files to an election."""
-
-    csv_file = forms.FileField(
-        widget=forms.FileInput(
-            attrs={
-                "class": TAILWIND_INPUT,
-                "accept": ".csv,text/csv",
-            }
-        ),
-        help_text="CSV file with voter data (max 100MB)",
-    )
-
-    def clean_csv_file(self):
-        file = self.cleaned_data["csv_file"]
-
-        # Validate file extension
-        if not file.name.endswith(".csv"):
-            raise forms.ValidationError("File must be a CSV file")
-
-        # Validate file size (100MB max)
-        if file.size > 104857600:
-            raise forms.ValidationError("File size must be under 100MB")
-
-        # Validate CSV structure (quick header check)
-        try:
-            content = file.read(2048).decode("utf-8")
-            file.seek(0)  # Reset for later reading
-
-            if "Voter ID" not in content:
-                raise forms.ValidationError("CSV must contain 'Voter ID' column")
-        except UnicodeDecodeError:
-            raise forms.ValidationError("File must be UTF-8 encoded")
-
-        return file
-
-
-class CheckingAccountForm(forms.ModelForm):
-    """Form for creating and editing campaign checking accounts."""
-
-    class Meta:
-        model = CheckingAccount
         fields = [
-            "institution_name",
-            "account_number_last4",
-            "account_nickname",
-            "opened_date",
-            "closed_date",
-            "is_active",
+            "election",
+            "date_type",
+            "date",
         ]
         widgets = {
-            "institution_name": forms.TextInput(
-                attrs={
-                    "class": TAILWIND_INPUT,
-                    "placeholder": "Bank or credit union name",
-                }
-            ),
-            "account_number_last4": forms.TextInput(
-                attrs={
-                    "class": TAILWIND_INPUT,
-                    "placeholder": "1234",
-                    "maxlength": "4",
-                    "pattern": "[0-9]{4}",
-                }
-            ),
-            "account_nickname": forms.TextInput(
-                attrs={
-                    "class": TAILWIND_INPUT,
-                    "placeholder": "Campaign Checking (optional)",
-                }
-            ),
-            "opened_date": forms.DateInput(
+            "election": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "date_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "date": forms.DateInput(
                 attrs={
                     "class": TAILWIND_INPUT,
                     "type": "date",
-                }
-            ),
-            "closed_date": forms.DateInput(
-                attrs={
-                    "class": TAILWIND_INPUT,
-                    "type": "date",
-                }
-            ),
-            "is_active": forms.CheckboxInput(
-                attrs={
-                    "class": TAILWIND_CHECKBOX,
                 }
             ),
         }
-
-    def clean_account_number_last4(self):
-        """Validate that last 4 digits are numeric."""
-        last4 = self.cleaned_data.get("account_number_last4", "")
-        if not last4.isdigit():
-            raise forms.ValidationError("Must be exactly 4 digits")
-        if len(last4) != 4:
-            raise forms.ValidationError("Must be exactly 4 digits")
-        return last4
-
-    def clean(self):
-        """Validate date logic."""
-        cleaned_data = super().clean()
-        opened = cleaned_data.get("opened_date")
-        closed = cleaned_data.get("closed_date")
-
-        if opened and closed and closed < opened:
-            raise forms.ValidationError(
-                "Closed date cannot be before opened date"
-            )
-
-        return cleaned_data
-
-
-class TransactionImportForm(forms.Form):
-    """Form for uploading bank transaction CSV files."""
-
-    csv_file = forms.FileField(
-        widget=forms.FileInput(
-            attrs={
-                "class": "block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 focus:outline-none",
-                "accept": ".csv",
-            }
-        ),
-        help_text="Upload a CSV file from your bank statement",
-    )
-
-    def clean_csv_file(self):
-        """Validate CSV file."""
-        file = self.cleaned_data.get("csv_file")
-
-        if not file:
-            raise forms.ValidationError("No file uploaded")
-
-        # Check file extension
-        if not file.name.lower().endswith('.csv'):
-            raise forms.ValidationError("File must be a CSV (.csv extension)")
-
-        # Check file size (10MB limit)
-        if file.size > 10 * 1024 * 1024:
-            raise forms.ValidationError("File size must be under 10MB")
-
-        return file

@@ -1,0 +1,38 @@
+{% extends "civicpulse/base.html" %}
+
+{% block content %}
+<div class="px-4 max-w-lg mx-auto">
+    <div class="bg-white rounded-lg shadow p-6">
+        <h1 class="text-2xl font-bold text-gray-900 mb-4">Delete Organization</h1>
+
+        <p class="text-gray-600 mb-4">
+            Are you sure you want to delete <strong>{{ organization.name }}</strong>?
+        </p>
+
+        {% if organization.offices.exists %}
+        <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
+            <p class="text-amber-800 text-sm">
+                <strong>Note:</strong> This organization has {{ organization.offices.count }} associated office{{ organization.offices.count|pluralize }}.
+                The offices will not be deleted, but they will no longer be linked to this organization.
+            </p>
+        </div>
+        {% else %}
+        <p class="text-gray-500 text-sm mb-6">
+            This organization has no associated offices.
+        </p>
+        {% endif %}
+
+        <form method="post">
+            {% csrf_token %}
+            <div class="flex gap-4">
+                <button type="submit" class="text-white bg-red-600 hover:bg-red-700 focus:ring-4 focus:ring-red-300 font-medium rounded-lg text-sm px-5 py-2.5">
+                    Yes, Delete
+                </button>
+                <a href="{% url 'civicpulse:organization_detail' pk=organization.pk %}" class="text-gray-600 border border-gray-300 hover:bg-gray-50 font-medium rounded-lg text-sm px-5 py-2.5">
+                    Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

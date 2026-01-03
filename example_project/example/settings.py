@@ -299,3 +299,52 @@ CIVICPULSE_STRIPE = {
     "SYNC_BATCH_SIZE": 100,  # Charges per API call
     "SYNC_INTERVAL_HOURS": 6,  # Celery beat schedule
 }
+
+
+# =============================================================================
+# Development Logging Configuration
+# =============================================================================
+# Verbose file logging for AI-assisted debugging. Only active when DEBUG=True.
+# Log files rotate every 4 hours to prevent unbounded growth.
+# See: https://docs.python.org/3/library/logging.handlers.html#timedrotatingfilehandler
+
+if DEBUG:
+    LOGGING = {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {
+            "verbose": {
+                "format": "[{asctime}] [{levelname}] [{name}:{funcName}:{lineno}] {message}",
+                "style": "{",
+                "datefmt": "%Y-%m-%d %H:%M:%S",
+            },
+        },
+        "handlers": {
+            "console": {
+                "level": "DEBUG",
+                "class": "logging.StreamHandler",
+                "formatter": "verbose",
+            },
+            "web_file": {
+                "level": "DEBUG",
+                "class": "logging.handlers.TimedRotatingFileHandler",
+                "filename": BASE_DIR / "civicpulse-web.dev.log",
+                "when": "H",
+                "interval": 4,
+                "formatter": "verbose",
+                "encoding": "utf-8",
+            },
+        },
+        "loggers": {
+            "django": {
+                "handlers": ["console", "web_file"],
+                "level": "DEBUG",
+                "propagate": True,
+            },
+            "civicpulse": {
+                "handlers": ["console", "web_file"],
+                "level": "DEBUG",
+                "propagate": True,
+            },
+        },
+    }

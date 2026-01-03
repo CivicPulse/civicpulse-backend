@@ -1,15 +1,15 @@
 {
   "active": true,
-  "spec": "004-checking-account-tracking",
+  "spec": "010-a-office-seat-is-usually-part-of-a-bigger-organiza",
   "state": "building",
   "subtasks": {
-    "completed": 10,
-    "total": 14,
+    "completed": 23,
+    "total": 24,
     "in_progress": 1,
     "failed": 0
   },
   "phase": {
-    "current": "Templates",
+    "current": "Integration Verification",
     "id": null,
     "total": 3
   },
@@ -18,8 +18,8 @@
     "max": 1
   },
   "session": {
-    "number": 9,
-    "started_at": "2026-01-03T12:32:13.314164"
+    "number": 25,
+    "started_at": "2026-01-03T13:14:03.224931"
   },
-  "last_update": "2026-01-03T12:52:42.354945"
+  "last_update": "2026-01-03T13:58:58.450351"
 }

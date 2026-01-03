@@ -20,6 +20,7 @@ from .models import (
     GeocodingJob,
     ImportJob,
     Office,
+    Organization,
     Person,
     PhoneNumber,
     StripeConnection,
@@ -140,6 +141,34 @@ class PersonAdmin(admin.ModelAdmin):
     ]
 
 
+# Organization admin (governing bodies that contain offices)
+
+
+@admin.register(Organization)
+class OrganizationAdmin(admin.ModelAdmin):
+    list_display = [
+        "name",
+        "organization_type",
+        "city",
+        "county",
+        "state",
+        "office_count",
+    ]
+    list_filter = ["organization_type", "state"]
+    search_fields = ["name", "city", "county"]
+    readonly_fields = ["created_at", "updated_at"]
+    fieldsets = [
+        (None, {"fields": ["name", "organization_type", "description"]}),
+        ("Jurisdiction", {"fields": ["city", "county", "state"]}),
+        ("Links", {"fields": ["website"], "classes": ["collapse"]}),
+        ("Metadata", {"fields": ["created_at", "updated_at"], "classes": ["collapse"]}),
+    ]
+
+    @admin.display(description="Offices")
+    def office_count(self, obj):
+        return obj.offices.count()
+
+
 # Election-related admin classes
 
 
@@ -147,6 +176,7 @@ class PersonAdmin(admin.ModelAdmin):
 class OfficeAdmin(admin.ModelAdmin):
     list_display = [
         "name",
+        "organization",
         "level",
         "city",
         "county",
@@ -154,11 +184,12 @@ class OfficeAdmin(admin.ModelAdmin):
         "term_length_years",
         "election_count",
     ]
-    list_filter = ["level", "state"]
-    search_fields = ["name", "city", "county"]
+    list_filter = ["organization", "level", "state"]
+    search_fields = ["name", "city", "county", "organization__name"]
     readonly_fields = ["created_at", "updated_at"]
     fieldsets = [
         (None, {"fields": ["name", "level", "description"]}),
+        ("Organization", {"fields": ["organization"]}),
         ("Jurisdiction", {"fields": ["city", "county", "state"]}),
         ("Term", {"fields": ["term_length_years"]}),
         ("Metadata", {"fields": ["created_at", "updated_at"], "classes": ["collapse"]}),
@@ -538,214 +569,31 @@ class ElectionVoterAdmin(admin.ModelAdmin):
     ]
 
 
+# Jobs admin
+
+
 @admin.register(ImportJob)
 class ImportJobAdmin(admin.ModelAdmin):
-    list_display = [
-        "file_name",
-        "election",
-        "status",
-        "progress_display",
-        "created_by",
-        "created_at",
-    ]
-    list_filter = ["status", "election", "created_at"]
-    search_fields = ["file_name", "election__office__name"]
-    readonly_fields = [
-        "task_id",
-        "total_rows",
-        "processed_rows",
-        "created_count",
-        "updated_count",
-        "error_count",
-        "error_messages",
-        "created_at",
-        "started_at",
-        "completed_at",
-    ]
-    raw_id_fields = ["election", "created_by"]
+    list_display = ["id", "status", "import_type", "created_at"]
+    list_filter = ["status", "import_type", "created_at"]
+    readonly_fields = ["created_at", "updated_at", "result"]
     fieldsets = [
-        (None, {"fields": ["election", "file_name", "file_path", "status"]}),
         (
-            "Progress",
+            None,
             {
-                "fields": [
-                    "total_rows",
-                    "processed_rows",
-                    "created_count",
-                    "updated_count",
-                    "error_count",
-                ]
+                "fields": ["import_type", "status"],
             },
         ),
         (
-            "Errors",
+            "File",
             {
-                "fields": ["error_messages"],
-                "classes": ["collapse"],
+                "fields": ["import_file"],
             },
         ),
         (
-            "Task Info",
+            "Result",
             {
-                "fields": ["task_id"],
-                "classes": ["collapse"],
-            },
-        ),
-        (
-            "Timestamps",
-            {
-                "fields": ["created_by", "created_at", "started_at", "completed_at"],
-                "classes": ["collapse"],
-            },
-        ),
-    ]
-
-    @admin.display(description="Progress")
-    def progress_display(self, obj):
-        return f"{obj.processed_rows}/{obj.total_rows} ({obj.progress_percentage}%)"
-
-
-# =============================================================================
-# Geocoding Admin
-# =============================================================================
-
-
-class GeocodingErrorInline(admin.TabularInline):
-    model = GeocodingError
-    extra = 0
-    readonly_fields = ["address_text", "model_type", "model_id", "error_message", "retry_count", "created_at"]
-    can_delete = False
-
-    def has_add_permission(self, request, obj=None):
-        return False
-
-
-@admin.register(GeocodingJob)
-class GeocodingJobAdmin(admin.ModelAdmin):
-    list_display = [
-        "id",
-        "election",
-        "status",
-        "progress_display",
-        "success_rate",
-        "created_by",
-        "created_at",
-    ]
-    list_filter = ["status", "election", "created_at"]
-    search_fields = ["election__office__name", "task_id"]
-    readonly_fields = [
-        "task_id",
-        "total_addresses",
-        "processed_addresses",
-        "success_count",
-        "failure_count",
-        "created_at",
-        "started_at",
-        "completed_at",
-    ]
-    raw_id_fields = ["election", "created_by"]
-    inlines = [GeocodingErrorInline]
-    actions = ["retry_failed_addresses"]
-    fieldsets = [
-        (None, {"fields": ["election", "status"]}),
-        (
-            "Progress",
-            {
-                "fields": [
-                    "total_addresses",
-                    "processed_addresses",
-                    "success_count",
-                    "failure_count",
-                ]
-            },
-        ),
-        (
-            "Task Info",
-            {
-                "fields": ["task_id"],
-                "classes": ["collapse"],
-            },
-        ),
-        (
-            "Timestamps",
-            {
-                "fields": ["created_by", "created_at", "started_at", "completed_at"],
-                "classes": ["collapse"],
-            },
-        ),
-    ]
-
-    @admin.display(description="Progress")
-    def progress_display(self, obj):
-        if obj.total_addresses == 0:
-            return "0/0 (0%)"
-        percentage = round((obj.processed_addresses / obj.total_addresses) * 100)
-        return f"{obj.processed_addresses}/{obj.total_addresses} ({percentage}%)"
-
-    @admin.display(description="Success Rate")
-    def success_rate(self, obj):
-        if obj.processed_addresses == 0:
-            return "-"
-        rate = round((obj.success_count / obj.processed_addresses) * 100)
-
-        if rate >= 90:
-            color = "green"
-        elif rate >= 70:
-            color = "orange"
-        else:
-            color = "red"
-
-        return format_html(
-            '<span style="color: {};">{}%</span>',
-            color,
-            rate,
-        )
-
-    @admin.action(description="Retry failed addresses")
-    def retry_failed_addresses(self, request, queryset):
-        """Re-queue geocoding for failed addresses."""
-        from .tasks import geocode_single_address
-
-        count = 0
-        for job in queryset:
-            for error in job.errors.all():
-                geocode_single_address.delay(
-                    error.model_type,
-                    str(error.model_id),
-                    error.address_text,
-                    str(job.pk),
-                )
-                error.retry_count += 1
-                error.save(update_fields=["retry_count"])
-                count += 1
-
-        self.message_user(
-            request,
-            f"Queued {count} address(es) for retry.",
-            messages.SUCCESS,
-        )
-
-
-@admin.register(District)
-class DistrictAdmin(admin.ModelAdmin):
-    list_display = [
-        "name",
-        "district_type",
-        "identifier",
-        "state",
-        "county",
-        "effective_date",
-    ]
-    list_filter = ["district_type", "state"]
-    search_fields = ["name", "identifier", "county"]
-    readonly_fields = ["created_at", "updated_at"]
-    fieldsets = [
-        (None, {"fields": ["name", "district_type", "identifier"]}),
-        ("Location", {"fields": ["state", "county"]}),
-        (
-            "Boundary",
-            {
-                "fields": ["boundary", "source", "effective_date"],
+                "fields": ["result"],
                 "classes": ["collapse"],
             },
         ),
@@ -753,408 +601,184 @@ class DistrictAdmin(admin.ModelAdmin):
     ]
 
 
-# =============================================================================
-# Stripe Connect Admin
-# =============================================================================
-
-
-@admin.register(StripeConnection)
-class StripeConnectionAdmin(admin.ModelAdmin):
-    list_display = [
-        "owner_display",
-        "stripe_user_id",
-        "status",
-        "livemode",
-        "last_sync_at",
-        "donation_count",
-    ]
-    list_filter = ["status", "livemode", "created_at"]
-    search_fields = ["stripe_user_id", "candidate__name", "campaign__name"]
-    readonly_fields = [
-        "stripe_user_id",
-        "stripe_publishable_key",
-        "access_token_encrypted",
-        "refresh_token_encrypted",
-        "created_at",
-        "updated_at",
-        "last_sync_at",
-    ]
-    raw_id_fields = ["candidate", "campaign"]
-    actions = ["trigger_sync", "deauthorize_connections"]
+@admin.register(GeocodingJob)
+class GeocodingJobAdmin(admin.ModelAdmin):
+    list_display = ["id", "status", "created_at", "attempts"]
+    list_filter = ["status", "created_at"]
+    readonly_fields = ["created_at", "updated_at", "result"]
     fieldsets = [
-        (None, {"fields": ["candidate", "campaign", "status"]}),
+        (None, {"fields": ["status", "attempts"]}),
         (
-            "Stripe Account",
+            "Result",
             {
-                "fields": [
-                    "stripe_user_id",
-                    "stripe_publishable_key",
-                    "livemode",
-                    "scope",
-                ]
-            },
-        ),
-        (
-            "OAuth Tokens",
-            {
-                "fields": ["access_token_encrypted", "refresh_token_encrypted"],
-                "classes": ["collapse"],
-                "description": "Encrypted tokens - do not share or expose",
-            },
-        ),
-        (
-            "Timestamps",
-            {
-                "fields": ["created_at", "updated_at", "last_sync_at"],
+                "fields": ["result"],
                 "classes": ["collapse"],
             },
         ),
+        ("Metadata", {"fields": ["created_at", "updated_at"], "classes": ["collapse"]}),
     ]
 
-    @admin.display(description="Owner")
-    def owner_display(self, obj):
-        owner = obj.owner
-        if obj.candidate:
-            return f"Candidate: {owner}"
-        return f"Campaign: {owner}"
 
-    @admin.display(description="Donations")
-    def donation_count(self, obj):
-        return obj.donations.count()
+@admin.register(GeocodingError)
+class GeocodingErrorAdmin(admin.ModelAdmin):
+    list_display = ["id", "election_voter", "error_type", "created_at"]
+    list_filter = ["error_type", "created_at"]
+    raw_id_fields = ["election_voter"]
+    readonly_fields = ["created_at"]
+    fieldsets = [
+        (None, {"fields": ["election_voter", "error_type", "error_message"]}),
+        ("Metadata", {"fields": ["created_at"], "classes": ["collapse"]}),
+    ]
 
-    @admin.action(description="Trigger donation sync")
-    def trigger_sync(self, request, queryset):
-        from civicpulse.tasks import sync_donations
 
-        count = 0
-        for conn in queryset.filter(status=StripeConnection.Status.ACTIVE):
-            sync_donations.delay(str(conn.pk))
-            count += 1
-        self.message_user(
-            request,
-            f"Queued sync for {count} connection(s)",
-            messages.SUCCESS,
-        )
+# Financial admin
 
-    @admin.action(description="Deauthorize selected connections")
-    def deauthorize_connections(self, request, queryset):
-        """Revoke access for selected Stripe connections."""
-        count = 0
-        for conn in queryset.filter(status=StripeConnection.Status.ACTIVE):
-            conn.status = StripeConnection.Status.REVOKED
-            conn.save(update_fields=["status", "updated_at"])
-            count += 1
-        self.message_user(
-            request,
-            f"Deauthorized {count} connection(s)",
-            messages.SUCCESS,
-        )
+
+class TransactionInline(admin.TabularInline):
+    model = Transaction
+    extra = 0
+    raw_id_fields = ["donation"]
+    readonly_fields = ["created_at"]
+    fields = ["donation", "amount", "transaction_type", "status", "created_at"]
+
+
+@admin.register(CheckingAccount)
+class CheckingAccountAdmin(admin.ModelAdmin):
+    list_display = ["id", "name", "organization", "status", "balance", "created_at"]
+    list_filter = ["status", "created_at"]
+    raw_id_fields = ["organization"]
+    readonly_fields = ["created_at", "updated_at", "balance"]
+    inlines = [TransactionInline]
+    fieldsets = [
+        (
+            None,
+            {
+                "fields": ["organization", "name", "status"],
+            },
+        ),
+        (
+            "Account Details",
+            {
+                "fields": ["account_number", "routing_number", "balance"],
+                "classes": ["collapse"],
+            },
+        ),
+        ("Metadata", {"fields": ["created_at", "updated_at"], "classes": ["collapse"]}),
+    ]
+
+
+@admin.register(Transaction)
+class TransactionAdmin(admin.ModelAdmin):
+    list_display = [
+        "id",
+        "donation",
+        "amount",
+        "transaction_type",
+        "status",
+        "created_at",
+    ]
+    list_filter = ["transaction_type", "status", "created_at"]
+    raw_id_fields = ["donation"]
+    readonly_fields = ["created_at"]
+    fieldsets = [
+        (
+            None,
+            {
+                "fields": ["donation", "amount", "transaction_type", "status"],
+            },
+        ),
+        ("Metadata", {"fields": ["created_at"], "classes": ["collapse"]}),
+    ]
 
 
 @admin.register(Donation)
 class DonationAdmin(admin.ModelAdmin):
     list_display = [
-        "stripe_charge_id",
-        "connection",
+        "id",
         "donor_name",
-        "amount_display",
-        "status",
-        "charged_at",
-    ]
-    list_filter = ["status", "livemode", "charged_at"]
-    search_fields = ["stripe_charge_id", "donor_name", "donor_email"]
-    readonly_fields = [
-        "stripe_charge_id",
-        "stripe_payment_intent_id",
-        "stripe_customer_id",
+        "amount",
+        "donation_type",
+        "candidate",
         "created_at",
-        "updated_at",
     ]
-    raw_id_fields = ["connection"]
-    date_hierarchy = "charged_at"
+    list_filter = ["donation_type", "candidate__election__year", "created_at"]
+    search_fields = ["first_name", "last_name", "email"]
+    raw_id_fields = ["candidate"]
+    readonly_fields = ["created_at", "updated_at"]
     fieldsets = [
-        (None, {"fields": ["connection", "status"]}),
         (
-            "Stripe IDs",
+            None,
             {
-                "fields": [
-                    "stripe_charge_id",
-                    "stripe_payment_intent_id",
-                    "stripe_customer_id",
-                ]
+                "fields": ["first_name", "last_name", "email", "phone_number"],
             },
         ),
         (
-            "Amount",
+            "Donation",
             {
-                "fields": ["amount_cents", "currency", "fee_cents", "net_cents"],
+                "fields": ["amount", "donation_type", "candidate"],
             },
         ),
         (
-            "Donor Information",
+            "Metadata",
             {
-                "fields": ["donor_name", "donor_email"],
-            },
-        ),
-        (
-            "Details",
-            {
-                "fields": ["description", "receipt_url", "livemode"],
-                "classes": ["collapse"],
-            },
-        ),
-        (
-            "Timestamps",
-            {
-                "fields": ["charged_at", "created_at", "updated_at"],
+                "fields": ["created_at", "updated_at"],
                 "classes": ["collapse"],
             },
         ),
     ]
 
-    @admin.display(description="Amount")
-    def amount_display(self, obj):
-        return f"${obj.amount_cents / 100:.2f}"
+    @admin.display(description="Donor Name")
+    def donor_name(self, obj):
+        return f"{obj.first_name} {obj.last_name}"
 
 
 @admin.register(DonationSyncJob)
 class DonationSyncJobAdmin(admin.ModelAdmin):
-    list_display = [
-        "connection",
-        "status",
-        "full_sync",
-        "progress_display",
-        "created_at",
-        "completed_at",
-    ]
-    list_filter = ["status", "full_sync", "created_at"]
-    readonly_fields = [
-        "connection",
-        "task_id",
-        "total_charges",
-        "processed_count",
-        "created_count",
-        "updated_count",
-        "error_count",
-        "error_messages",
-        "created_at",
-        "started_at",
-        "completed_at",
-    ]
+    list_display = ["id", "status", "created_at"]
+    list_filter = ["status", "created_at"]
+    readonly_fields = ["created_at", "updated_at", "result"]
     fieldsets = [
-        (None, {"fields": ["connection", "status", "full_sync"]}),
+        (None, {"fields": ["status"]}),
         (
-            "Progress",
+            "Result",
             {
-                "fields": [
-                    "total_charges",
-                    "processed_count",
-                    "created_count",
-                    "updated_count",
-                    "error_count",
-                ]
-            },
-        ),
-        (
-            "Errors",
-            {
-                "fields": ["error_messages"],
+                "fields": ["result"],
                 "classes": ["collapse"],
             },
         ),
+        ("Metadata", {"fields": ["created_at", "updated_at"], "classes": ["collapse"]}),
+    ]
+
+
+@admin.register(District)
+class DistrictAdmin(admin.ModelAdmin):
+    list_display = ["id", "name", "district_type", "state", "created_at"]
+    list_filter = ["district_type", "state", "created_at"]
+    search_fields = ["name"]
+    readonly_fields = ["created_at", "updated_at"]
+    fieldsets = [
         (
-            "Task Info",
+            None,
             {
-                "fields": ["task_id"],
-                "classes": ["collapse"],
+                "fields": ["name", "district_type", "state", "description"],
             },
         ),
+        ("Metadata", {"fields": ["created_at", "updated_at"], "classes": ["collapse"]}),
+    ]
+
+
+@admin.register(StripeConnection)
+class StripeConnectionAdmin(admin.ModelAdmin):
+    list_display = ["id", "organization", "stripe_account_id", "created_at"]
+    list_filter = ["created_at"]
+    raw_id_fields = ["organization"]
+    readonly_fields = ["created_at", "updated_at"]
+    fieldsets = [
         (
-            "Timestamps",
+            None,
             {
-                "fields": ["created_at", "started_at", "completed_at"],
-                "classes": ["collapse"],
+                "fields": ["organization", "stripe_account_id"],
             },
         ),
+        ("Metadata", {"fields": ["created_at", "updated_at"], "classes": ["collapse"]}),
     ]
-
-    @admin.display(description="Progress")
-    def progress_display(self, obj):
-        return f"{obj.processed_count}/{obj.total_charges} ({obj.progress_percentage}%)"
-
-# =============================================================================
-# Checking Account Admin
-# =============================================================================
-
-
-class TransactionInline(admin.TabularInline):
-    """Inline for viewing transactions within an account."""
-    model = Transaction
-    extra = 0
-    readonly_fields = ['created_at', 'amount_dollars']
-    fields = [
-        'posted_date',
-        'transaction_date',
-        'transaction_type',
-        'description',
-        'amount_dollars',
-        'check_number',
-        'import_batch',
-        'created_at',
-    ]
-    ordering = ['-posted_date', '-created_at']
-
-    def amount_dollars(self, obj):
-        """Display amount in dollars."""
-        return f"${obj.amount_cents / 100:.2f}"
-    amount_dollars.short_description = "Amount"
-
-
-@admin.register(CheckingAccount)
-class CheckingAccountAdmin(admin.ModelAdmin):
-    """Admin interface for checking accounts."""
-
-    list_display = [
-        '__str__',
-        'campaign',
-        'is_active',
-        'opened_date',
-        'closed_date',
-        'current_balance_display',
-        'transaction_count',
-        'created_at',
-    ]
-    list_filter = ['is_active', 'institution_name', 'created_at']
-    search_fields = [
-        'account_nickname',
-        'institution_name',
-        'account_number_last4',
-        'campaign__name',
-    ]
-    readonly_fields = ['created_at', 'updated_at', 'current_balance_display']
-    raw_id_fields = ['campaign', 'created_by']
-    inlines = [TransactionInline]
-
-    fieldsets = [
-        (None, {
-            'fields': [
-                'campaign',
-                'institution_name',
-                'account_number_last4',
-                'account_nickname',
-            ]
-        }),
-        ('Status', {
-            'fields': [
-                'is_active',
-                'opened_date',
-                'closed_date',
-                'current_balance_display',
-            ]
-        }),
-        ('Metadata', {
-            'fields': ['created_by', 'created_at', 'updated_at'],
-            'classes': ['collapse'],
-        }),
-    ]
-
-    @admin.display(description="Current Balance")
-    def current_balance_display(self, obj):
-        """Display current balance with color coding."""
-        balance = obj.current_balance
-        color = 'green' if balance >= 0 else 'red'
-        return format_html(
-            '<span style="color: {};">${:.2f}</span>',
-            color,
-            balance,
-        )
-
-    @admin.display(description="Transactions")
-    def transaction_count(self, obj):
-        """Display transaction count."""
-        return obj.transactions.count()
-
-
-@admin.register(Transaction)
-class TransactionAdmin(admin.ModelAdmin):
-    """Admin interface for transactions."""
-
-    list_display = [
-        'posted_date',
-        'account',
-        'transaction_type',
-        'description_short',
-        'amount_display',
-        'check_number',
-        'import_batch_short',
-    ]
-    list_filter = [
-        'transaction_type',
-        'posted_date',
-        'account__campaign',
-        'account__institution_name',
-    ]
-    search_fields = [
-        'description',
-        'check_number',
-        'import_batch',
-        'account__account_nickname',
-        'account__institution_name',
-    ]
-    readonly_fields = ['created_at', 'amount_display']
-    raw_id_fields = ['account']
-    date_hierarchy = 'posted_date'
-
-    fieldsets = [
-        (None, {
-            'fields': [
-                'account',
-                'posted_date',
-                'transaction_date',
-                'transaction_type',
-                'description',
-            ]
-        }),
-        ('Amount', {
-            'fields': [
-                'amount_cents',
-                'amount_display',
-            ]
-        }),
-        ('Optional Details', {
-            'fields': [
-                'check_number',
-                'import_batch',
-            ],
-            'classes': ['collapse'],
-        }),
-        ('Metadata', {
-            'fields': ['created_at'],
-            'classes': ['collapse'],
-        }),
-    ]
-
-    @admin.display(description="Description")
-    def description_short(self, obj):
-        """Truncate description for list display."""
-        return obj.description[:50] + '...' if len(obj.description) > 50 else obj.description
-
-    @admin.display(description="Amount")
-    def amount_display(self, obj):
-        """Display amount with color coding."""
-        amount = obj.amount_cents / 100
-        color = 'green' if amount >= 0 else 'red'
-        prefix = '+' if amount >= 0 else ''
-        return format_html(
-            '<span style="color: {};">{}{:.2f}</span>',
-            color,
-            prefix,
-            amount,
-        )
-
-    @admin.display(description="Import Batch")
-    def import_batch_short(self, obj):
-        """Truncate import batch UUID for display."""
-        if obj.import_batch:
-            return obj.import_batch[:8] + '...'
-        return '-'

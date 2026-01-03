@@ -1,0 +1,85 @@
+{% extends "civicpulse/base.html" %}
+
+{% block content %}
+<div class="px-4">
+    <div class="mb-6">
+        <a href="{% url 'civicpulse:organization_list' %}" class="text-green-700 hover:underline text-sm">&larr; Back to Organizations</a>
+    </div>
+
+    <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <div class="flex justify-between items-start mb-4">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900 mb-2">{{ organization.name }}</h1>
+                <span class="bg-blue-100 text-blue-800 text-sm font-medium px-2.5 py-0.5 rounded">{{ organization.get_organization_type_display }}</span>
+            </div>
+            <div class="flex gap-2">
+                <a href="{% url 'civicpulse:organization_edit' pk=organization.pk %}" class="text-gray-600 border border-gray-300 hover:bg-gray-50 font-medium rounded-lg text-sm px-4 py-2">
+                    Edit
+                </a>
+                <a href="{% url 'civicpulse:organization_delete' pk=organization.pk %}" class="text-red-600 border border-red-300 hover:bg-red-50 font-medium rounded-lg text-sm px-4 py-2">
+                    Delete
+                </a>
+            </div>
+        </div>
+
+        <div class="grid md:grid-cols-2 gap-4 text-sm">
+            <div>
+                <h3 class="font-medium text-gray-700 mb-2">Jurisdiction</h3>
+                <p class="text-gray-600">
+                    {% if organization.city %}{{ organization.city }}, {% endif %}
+                    {% if organization.county %}{{ organization.county }} County, {% endif %}
+                    {{ organization.state|default:"N/A" }}
+                </p>
+            </div>
+            {% if organization.website %}
+            <div>
+                <h3 class="font-medium text-gray-700 mb-2">Website</h3>
+                <p class="text-gray-600">
+                    <a href="{{ organization.website }}" target="_blank" rel="noopener noreferrer" class="text-green-700 hover:underline">{{ organization.website }}</a>
+                </p>
+            </div>
+            {% endif %}
+        </div>
+
+        {% if organization.description %}
+        <div class="mt-4">
+            <h3 class="font-medium text-gray-700 mb-2">Description</h3>
+            <p class="text-gray-600">{{ organization.description }}</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Offices for this Organization -->
+    <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-bold text-gray-900">Offices</h2>
+        <a href="{% url 'civicpulse:office_create' %}?organization={{ organization.pk }}" class="text-white bg-green-700 hover:bg-green-800 font-medium rounded-lg text-sm px-4 py-2">
+            + New Office
+        </a>
+    </div>
+
+    {% if offices %}
+    <div class="grid gap-4 md:grid-cols-2">
+        {% for office in offices %}
+        <div class="bg-white rounded-lg shadow p-4">
+            <div class="flex justify-between items-start mb-2">
+                <h3 class="font-semibold text-gray-900">{{ office.name }}</h3>
+                <span class="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-0.5 rounded">{{ office.get_level_display }}</span>
+            </div>
+            <p class="text-sm text-gray-500 mb-2">
+                {% if office.city %}{{ office.city }}, {% endif %}
+                {% if office.county %}{{ office.county }} County, {% endif %}
+                {{ office.state|default:"" }}
+            </p>
+            <p class="text-sm text-gray-500 mb-3">{{ office.election_count }} election{{ office.election_count|pluralize }}</p>
+            <a href="{% url 'civicpulse:office_detail' pk=office.pk %}" class="text-green-700 hover:underline text-sm">View details &rarr;</a>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="bg-white rounded-lg shadow p-6 text-center">
+        <p class="text-gray-500 mb-4">No offices for this organization yet</p>
+        <a href="{% url 'civicpulse:office_create' %}?organization={{ organization.pk }}" class="text-green-700 hover:underline">Create the first office</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

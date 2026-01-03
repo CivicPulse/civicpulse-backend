@@ -3,19 +3,19 @@
 {% block content %}
 <div class="px-4 max-w-2xl mx-auto">
     <div class="mb-6">
-        <a href="{% if is_create %}{% url 'civicpulse:office_list' %}{% else %}{% url 'civicpulse:office_detail' pk=office.pk %}{% endif %}" class="text-green-700 hover:underline text-sm">&larr; Back</a>
+        <a href="{% if is_create %}{% url 'civicpulse:organization_list' %}{% else %}{% url 'civicpulse:organization_detail' pk=organization.pk %}{% endif %}" class="text-green-700 hover:underline text-sm">&larr; Back</a>
     </div>
 
     <div class="bg-white rounded-lg shadow p-6">
         <h1 class="text-2xl font-bold text-gray-900 mb-6">
-            {% if is_create %}Create Office{% else %}Edit Office{% endif %}
+            {% if is_create %}Create Organization{% else %}Edit Organization{% endif %}
         </h1>
 
         <form method="post">
             {% csrf_token %}
 
             <div class="mb-4">
-                <label for="id_name" class="block mb-2 text-sm font-medium text-gray-900">Office Name</label>
+                <label for="id_name" class="block mb-2 text-sm font-medium text-gray-900">Organization Name</label>
                 {{ form.name }}
                 {% if form.name.errors %}
                 <p class="text-red-500 text-sm mt-1">{{ form.name.errors.0 }}</p>
@@ -23,13 +23,11 @@
             </div>
 
             <div class="mb-4">
-                <label for="id_level" class="block mb-2 text-sm font-medium text-gray-900">Level</label>
-                {{ form.level }}
-            </div>
-
-            <div class="mb-4">
-                <label for="id_organization" class="block mb-2 text-sm font-medium text-gray-900">Organization</label>
-                {{ form.organization }}
+                <label for="id_organization_type" class="block mb-2 text-sm font-medium text-gray-900">Type</label>
+                {{ form.organization_type }}
+                {% if form.organization_type.errors %}
+                <p class="text-red-500 text-sm mt-1">{{ form.organization_type.errors.0 }}</p>
+                {% endif %}
             </div>
 
             <div class="grid md:grid-cols-3 gap-4 mb-4">
@@ -48,20 +46,23 @@
             </div>
 
             <div class="mb-4">
-                <label for="id_term_length_years" class="block mb-2 text-sm font-medium text-gray-900">Term Length (years)</label>
-                {{ form.term_length_years }}
-            </div>
-
-            <div class="mb-6">
                 <label for="id_description" class="block mb-2 text-sm font-medium text-gray-900">Description</label>
                 {{ form.description }}
             </div>
 
+            <div class="mb-6">
+                <label for="id_website" class="block mb-2 text-sm font-medium text-gray-900">Website</label>
+                {{ form.website }}
+                {% if form.website.errors %}
+                <p class="text-red-500 text-sm mt-1">{{ form.website.errors.0 }}</p>
+                {% endif %}
+            </div>
+
             <div class="flex gap-4">
                 <button type="submit" class="text-white bg-green-700 hover:bg-green-800 focus:ring-4 focus:ring-green-300 font-medium rounded-lg text-sm px-5 py-2.5">
-                    {% if is_create %}Create Office{% else %}Save Changes{% endif %}
+                    {% if is_create %}Create Organization{% else %}Save Changes{% endif %}
                 </button>
-                <a href="{% if is_create %}{% url 'civicpulse:office_list' %}{% else %}{% url 'civicpulse:office_detail' pk=office.pk %}{% endif %}" class="text-gray-600 border border-gray-300 hover:bg-gray-50 font-medium rounded-lg text-sm px-5 py-2.5">
+                <a href="{% if is_create %}{% url 'civicpulse:organization_list' %}{% else %}{% url 'civicpulse:organization_detail' pk=organization.pk %}{% endif %}" class="text-gray-600 border border-gray-300 hover:bg-gray-50 font-medium rounded-lg text-sm px-5 py-2.5">
                     Cancel
                 </a>
             </div>
