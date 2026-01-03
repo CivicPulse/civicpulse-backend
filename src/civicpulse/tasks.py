@@ -922,3 +922,414 @@ def sync_all_active_connections():
     logger.info(f"Queued donation sync for {count} active Stripe connections")
 
     return {"queued": count}
+
+
+# =============================================================================
+# District Import Tasks (URL-based TIGER/Line shapefile import)
+# =============================================================================
+
+
+def _validate_census_url(url):
+    """
+    Validate URL is from census.gov domain.
+
+    Args:
+        url: URL string to validate
+
+    Returns:
+        True if valid census.gov URL, False otherwise
+    """
+    from urllib.parse import urlparse
+
+    parsed = urlparse(url)
+    return parsed.netloc.endswith(".census.gov") or parsed.netloc == "census.gov"
+
+
+def _download_tiger_zip(url, dest_path, job):
+    """
+    Download zip file with progress tracking.
+
+    Args:
+        url: URL to download
+        dest_path: Local file path to save zip
+        job: DistrictImportJob instance for progress updates
+
+    Returns:
+        Path to downloaded file
+
+    Raises:
+        requests.exceptions.RequestException: On download failure
+    """
+    import requests
+
+    response = requests.get(url, stream=True, timeout=60)
+    response.raise_for_status()
+
+    total_size = int(response.headers.get("content-length", 0))
+    downloaded = 0
+
+    with open(dest_path, "wb") as f:
+        for chunk in response.iter_content(chunk_size=8192):
+            f.write(chunk)
+            downloaded += len(chunk)
+
+            # Update job status every 1MB
+            if total_size > 0 and downloaded % (1024 * 1024) == 0:
+                job.refresh_from_db()
+
+    logger.info(f"Downloaded {downloaded} bytes from {url}")
+    return dest_path
+
+
+def _extract_tiger_zip(zip_path, extract_dir):
+    """
+    Extract zip and return path to .shp file.
+
+    Args:
+        zip_path: Path to zip file
+        extract_dir: Directory to extract to
+
+    Returns:
+        Path to .shp file
+
+    Raises:
+        ValueError: If no .shp file or multiple .shp files found
+    """
+    import zipfile
+    from pathlib import Path
+
+    with zipfile.ZipFile(zip_path, "r") as zip_ref:
+        zip_ref.extractall(extract_dir)
+
+    # Find .shp file
+    shp_files = list(Path(extract_dir).rglob("*.shp"))
+
+    if not shp_files:
+        raise ValueError("No .shp file found in zip archive")
+
+    if len(shp_files) > 1:
+        raise ValueError(
+            f"Multiple .shp files found: {[f.name for f in shp_files]}"
+        )
+
+    shp_path = shp_files[0]
+
+    # Validate companion files exist
+    required_extensions = [".shx", ".dbf", ".prj"]
+    for ext in required_extensions:
+        companion_file = shp_path.with_suffix(ext)
+        if not companion_file.exists():
+            raise ValueError(f"Missing required file: {companion_file.name}")
+
+    logger.info(f"Extracted shapefile: {shp_path}")
+    return str(shp_path)
+
+
+def _import_tiger_features(shp_path, job):
+    """
+    Import features from shapefile with progress tracking.
+
+    Reuses logic from import_tiger_shapefile management command.
+
+    Args:
+        shp_path: Path to .shp file
+        job: DistrictImportJob instance
+
+    Returns:
+        Tuple of (created_count, updated_count, skipped_count, error_count)
+    """
+    from django.contrib.gis.geos import GEOSGeometry, MultiPolygon
+    from django.db import transaction
+    from django.utils import timezone
+
+    from .models import District, DistrictImportError
+
+    try:
+        import geopandas as gpd
+    except ImportError as e:
+        raise ImportError(
+            "GeoPandas is required for shapefile import. "
+            "Install with: uv sync --extra geo"
+        ) from e
+
+    # Read and transform shapefile
+    logger.info(f"Reading shapefile: {shp_path}")
+    gdf = gpd.read_file(shp_path)
+
+    # Transform to EPSG:4326 if needed
+    if gdf.crs is None:
+        logger.warning("Shapefile has no CRS defined. Assuming EPSG:4326 (WGS84).")
+        gdf.set_crs("EPSG:4326", inplace=True)
+    elif gdf.crs != "EPSG:4326":
+        logger.info(f"Transforming CRS from {gdf.crs} to EPSG:4326...")
+        gdf = gdf.to_crs("EPSG:4326")
+
+    # Update total features
+    job.total_features = len(gdf)
+    job.save(update_fields=["total_features"])
+
+    logger.info(f"Processing {len(gdf)} features...")
+
+    created = 0
+    updated = 0
+    skipped = 0
+    error_count = 0
+
+    # Validate required fields exist
+    if job.identifier_field not in gdf.columns:
+        raise ValueError(
+            f"Identifier field '{job.identifier_field}' not found in shapefile. "
+            f"Available fields: {', '.join(gdf.columns)}"
+        )
+    if job.name_field not in gdf.columns:
+        raise ValueError(
+            f"Name field '{job.name_field}' not found in shapefile. "
+            f"Available fields: {', '.join(gdf.columns)}"
+        )
+
+    # Process features
+    for idx, row in gdf.iterrows():
+        try:
+            # Extract attributes
+            identifier = str(row[job.identifier_field]).strip()
+            name = str(row[job.name_field]).strip()
+            county = (
+                str(row[job.county_field]).strip()
+                if job.county_field and job.county_field in row
+                else None
+            )
+
+            # Determine state code (from job.state or extract from GEOID)
+            feature_state = job.state or identifier[:2]
+
+            # Convert geometry to MultiPolygon
+            geom_wkt = row.geometry.wkt
+            geom = GEOSGeometry(geom_wkt, srid=4326)
+
+            if geom.geom_type == "Polygon":
+                geom = MultiPolygon([geom], srid=4326)
+            elif geom.geom_type != "MultiPolygon":
+                raise ValueError(f"Unsupported geometry type: {geom.geom_type}")
+
+            # Database operation
+            with transaction.atomic():
+                defaults = {
+                    "name": name,
+                    "boundary": geom,
+                    "source": job.source,
+                }
+                if job.effective_date:
+                    defaults["effective_date"] = job.effective_date
+                if county:
+                    defaults["county"] = county
+
+                district, was_created = District.objects.update_or_create(
+                    district_type=job.district_type,
+                    state=feature_state,
+                    identifier=identifier,
+                    defaults=defaults,
+                )
+
+                if was_created:
+                    created += 1
+                else:
+                    if job.update_existing:
+                        updated += 1
+                    else:
+                        skipped += 1
+
+            # Update progress every 50 features
+            if (idx + 1) % 50 == 0:
+                job.processed_features = idx + 1
+                job.created_count = created
+                job.updated_count = updated
+                job.skipped_count = skipped
+                job.error_count = error_count
+                job.save(
+                    update_fields=[
+                        "processed_features",
+                        "created_count",
+                        "updated_count",
+                        "skipped_count",
+                        "error_count",
+                    ]
+                )
+                logger.info(
+                    f"Progress: {idx + 1}/{len(gdf)} features processed "
+                    f"(created: {created}, updated: {updated}, skipped: {skipped}, errors: {error_count})"
+                )
+
+        except Exception as e:
+            error_msg = f"{e}"
+            error_count += 1
+
+            # Create error record
+            DistrictImportError.objects.create(
+                job=job,
+                feature_index=idx,
+                feature_identifier=identifier if "identifier" in locals() else "",
+                feature_name=name if "name" in locals() else "",
+                error_message=error_msg,
+            )
+
+            logger.error(
+                f"Feature {idx + 1} ({name if 'name' in locals() else 'unknown'}): {error_msg}"
+            )
+
+            # Stop after 10 errors
+            if error_count >= 10:
+                logger.error(
+                    f"Too many errors ({error_count}), stopping import..."
+                )
+                break
+
+    # Final progress update
+    job.processed_features = min(idx + 1, len(gdf))
+    job.created_count = created
+    job.updated_count = updated
+    job.skipped_count = skipped
+    job.error_count = error_count
+    job.save(
+        update_fields=[
+            "processed_features",
+            "created_count",
+            "updated_count",
+            "skipped_count",
+            "error_count",
+        ]
+    )
+
+    logger.info(
+        f"Import complete: created={created}, updated={updated}, "
+        f"skipped={skipped}, errors={error_count}"
+    )
+
+    return created, updated, skipped, error_count
+
+
+@shared_task(
+    bind=True,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_backoff_max=300,
+    max_retries=3,
+)
+def download_and_import_tiger_shapefile(self, job_id):
+    """
+    Download TIGER/Line zip file and import shapefiles asynchronously.
+
+    This task:
+    1. Downloads zip file from census.gov URL
+    2. Extracts shapefile
+    3. Imports districts with progress tracking
+    4. Cleans up temporary files
+
+    Args:
+        job_id: UUID of DistrictImportJob
+
+    Returns:
+        Dict with import statistics
+    """
+    import tempfile
+    from pathlib import Path
+
+    from django.utils import timezone
+
+    from .models import DistrictImportError, DistrictImportJob
+
+    # Load job
+    try:
+        job = DistrictImportJob.objects.get(pk=job_id)
+    except DistrictImportJob.DoesNotExist:
+        logger.error(f"DistrictImportJob {job_id} not found")
+        return {"error": "Job not found"}
+
+    temp_dir = None
+
+    try:
+        # Validate URL
+        if not _validate_census_url(job.download_url):
+            raise ValueError(
+                f"Invalid URL: Must be from census.gov domain (got: {job.download_url})"
+            )
+
+        # Update status to DOWNLOADING
+        job.status = DistrictImportJob.Status.DOWNLOADING
+        job.started_at = timezone.now()
+        job.task_id = self.request.id
+        job.save(update_fields=["status", "started_at", "task_id"])
+        logger.info(f"Starting import job {job_id}: {job.download_url}")
+
+        # Create temp directory
+        temp_dir = tempfile.TemporaryDirectory(prefix=f"tiger_import_{job_id}_")
+        temp_path = Path(temp_dir.name)
+
+        # Download zip
+        zip_path = temp_path / "shapefile.zip"
+        logger.info(f"Downloading {job.download_url}...")
+        _download_tiger_zip(job.download_url, zip_path, job)
+
+        job.downloaded_file_path = str(zip_path)
+        job.save(update_fields=["downloaded_file_path"])
+
+        # Extract zip
+        logger.info(f"Extracting {zip_path}...")
+        extract_path = temp_path / "extracted"
+        extract_path.mkdir()
+        shp_path = _extract_tiger_zip(zip_path, extract_path)
+
+        # Update status to PROCESSING
+        job.status = DistrictImportJob.Status.PROCESSING
+        job.save(update_fields=["status"])
+
+        # Import features
+        logger.info(f"Importing features from {shp_path}...")
+        created, updated, skipped, error_count = _import_tiger_features(shp_path, job)
+
+        # Update status to COMPLETED
+        job.status = DistrictImportJob.Status.COMPLETED
+        job.completed_at = timezone.now()
+        job.save(update_fields=["status", "completed_at"])
+
+        logger.info(
+            f"Import job {job_id} completed successfully: "
+            f"created={created}, updated={updated}, skipped={skipped}, errors={error_count}"
+        )
+
+        return {
+            "created": created,
+            "updated": updated,
+            "skipped": skipped,
+            "errors": error_count,
+        }
+
+    except Exception as e:
+        # Log error and update job status
+        logger.error(f"Import job {job_id} failed: {e}", exc_info=True)
+
+        # Create error record for task-level errors
+        DistrictImportError.objects.create(
+            job=job,
+            feature_index=-1,
+            feature_identifier="",
+            feature_name="",
+            error_message=f"Task error: {e}",
+        )
+
+        job.status = DistrictImportJob.Status.FAILED
+        job.completed_at = timezone.now()
+        job.error_count += 1
+        job.save(update_fields=["status", "completed_at", "error_count"])
+
+        raise
+
+    finally:
+        # Cleanup temp directory
+        if temp_dir:
+            try:
+                temp_dir.cleanup()
+                logger.info(f"Cleaned up temp directory: {temp_dir.name}")
+            except Exception as cleanup_error:
+                logger.warning(
+                    f"Failed to cleanup temp directory: {cleanup_error}"
+                )

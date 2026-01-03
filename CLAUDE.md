@@ -843,6 +843,86 @@ When creating bulk assignments for a drive:
 
 **Note:** Geographic filtering requires voters to have geocoded locations (see Geocoding section).
 
+### URL-Based District Import (Django Admin)
+
+For convenient browser-based imports without downloading files locally, use the Django admin interface to import shapefiles directly from Census Bureau URLs.
+
+**Access:**
+1. Navigate to Django Admin → **District Import Jobs**
+2. Click **Add District Import Job**
+
+**Step-by-Step Workflow:**
+
+1. **Configure Import:**
+   - **Download URL**: Paste census.gov zip file URL (e.g., `https://www2.census.gov/geo/tiger/TIGER2024/COUNTY/tl_2024_us_county.zip`)
+   - **District Type**: Select type (County, Congressional, State House, etc.)
+   - **State**: Enter 2-letter code (e.g., GA) or leave blank to auto-detect from GEOID
+
+2. **Field Mapping** (optional - defaults work for most Census files):
+   - **Identifier Field**: Shapefile attribute for district ID (default: GEOID)
+   - **Name Field**: Shapefile attribute for district name (default: NAME)
+   - **County Field**: Optional county attribute
+
+3. **Metadata** (optional):
+   - **Effective Date**: When boundaries took effect (YYYY-MM-DD)
+   - **Source**: Data source description (default: "Census TIGER/Line")
+   - **Update Existing**: Check to update boundaries if districts already exist
+
+4. **Save** the job (status: Pending)
+
+5. **Trigger Import:**
+   - Select the job checkbox in the list view
+   - From "Actions" dropdown, choose **"Trigger import for selected jobs"**
+   - Click **Go**
+
+6. **Monitor Progress:**
+   - Refresh the job detail page to see status updates:
+     - Pending → Downloading → Processing → Completed/Failed
+   - Progress shows: "X/Y (Z%)" and success rate
+   - View errors inline if import encounters issues
+
+**Example Census URLs:**
+
+```
+# Counties (nationwide, ~20MB, 3,234 features)
+https://www2.census.gov/geo/tiger/TIGER2024/COUNTY/tl_2024_us_county.zip
+
+# Georgia State House Districts (~2MB, 180 features)
+https://www2.census.gov/geo/tiger/TIGER2024/SLDL/tl_2024_13_sldl.zip
+
+# Congressional Districts 118th Congress (~10MB, 436 features)
+https://www2.census.gov/geo/tiger/TIGER2024/CD/tl_2024_us_cd118.zip
+
+# Georgia State Senate Districts
+https://www2.census.gov/geo/tiger/TIGER2024/SLDU/tl_2024_13_sldu.zip
+
+# Voting Districts/Precincts (Georgia example)
+https://www2.census.gov/geo/tiger/TIGER2024/VTD/tl_2024_13_vtd20.zip
+```
+
+**Features:**
+- **Asynchronous Processing**: Imports run in background via Celery, no browser timeout
+- **Progress Tracking**: Real-time status updates in admin interface
+- **Error Handling**: Individual feature errors logged for review/retry
+- **Concurrent Import Prevention**: Can't start duplicate imports for same district type + state
+- **Automatic Cleanup**: Temporary files deleted after import
+- **Security**: Only accepts census.gov URLs
+- **CRS Transformation**: Automatically converts to EPSG:4326 (WGS84)
+
+**Troubleshooting:**
+
+| Issue | Solution |
+|-------|----------|
+| "URL must be from census.gov domain" | Only census.gov URLs accepted for security |
+| "An import job...is already pending" | Wait for existing import to complete or use CLI tool |
+| "No .shp file found in zip" | Verify zip contains shapefile components (.shp, .shx, .dbf, .prj) |
+| Import stuck in "Downloading" | Check Celery worker is running: `uv run celery -A example worker -l info` |
+| Feature errors logged | Review error inline in admin, check field mappings match shapefile attributes |
+
+**When to Use URL-Based vs. CLI Import:**
+- **URL-Based (Admin)**: Convenient for one-time imports, browser-based workflow, progress tracking
+- **CLI (`import_tiger_shapefile`)**: Automation scripts, custom field mapping, dry-run validation, verbose logging
+
 ## Admin Interface
 
 - `PersonAdmin` with TabularInline for phone/email/address and StackedInline for VoterRecord
@@ -855,6 +935,12 @@ When creating bulk assignments for a drive:
 - `ContactAttemptAdmin` with raw_id_fields for person lookup
 - `GeocodingJobAdmin` with progress display, success rate, and retry action
 - `DistrictAdmin` with boundary management
+- `DistrictImportJobAdmin` with URL validation, progress tracking, and async import trigger
+  - `trigger_import` action - Queue Celery tasks for selected pending jobs
+  - Inline display of import errors with feature details
+  - Color-coded success rate display (green ≥90%, orange ≥70%, red <70%)
+  - Concurrent import prevention for same district type + state
+- `DistrictImportErrorAdmin` for viewing individual import errors
 
 ## Services
 
