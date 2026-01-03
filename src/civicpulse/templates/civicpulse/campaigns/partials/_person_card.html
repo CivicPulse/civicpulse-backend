@@ -1,0 +1,248 @@
+<!-- Person/Voter Card -->
+<div class="bg-white rounded-lg shadow p-6">
+    <!-- Header -->
+    <div class="mb-6">
+        <h2 class="text-2xl font-bold text-gray-900">{{ target.full_name }}</h2>
+        <div class="flex flex-wrap gap-2 mt-2">
+            {% if target_type == "election_voter" %}
+                {# ElectionVoter has fields directly on the model #}
+                {% if target.registered_party %}
+                <span class="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded">{{ target.registered_party }}</span>
+                {% endif %}
+                {% if target.age %}
+                <span class="bg-gray-100 text-gray-800 text-xs font-medium px-2.5 py-0.5 rounded">Age {{ target.age }}</span>
+                {% endif %}
+                {% if target.likelihood_general %}
+                <span class="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded">{{ target.likelihood_general }} likelihood</span>
+                {% endif %}
+            {% else %}
+                {# Person has voter_record with these fields #}
+                {% if target.voter_record.registered_party %}
+                <span class="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded">{{ target.voter_record.registered_party }}</span>
+                {% endif %}
+                {% if target.voter_record.age %}
+                <span class="bg-gray-100 text-gray-800 text-xs font-medium px-2.5 py-0.5 rounded">Age {{ target.voter_record.age }}</span>
+                {% endif %}
+                {% if target.voter_record.likelihood_general %}
+                <span class="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded">{{ target.voter_record.likelihood_general }} likelihood</span>
+                {% endif %}
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Primary Phone - Click to Call -->
+    {% if primary_phone %}
+    <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+        <div class="text-sm text-gray-600 mb-1">Primary Phone ({{ primary_phone.get_type_display }})</div>
+        <a href="tel:{{ primary_phone.number }}" class="text-2xl font-bold text-green-700 hover:text-green-800">
+            {{ primary_phone.number }}
+        </a>
+    </div>
+    {% endif %}
+
+    <!-- All Phone Numbers -->
+    {% if target.phone_numbers.count > 1 %}
+    <div class="mb-6">
+        <h3 class="text-sm font-medium text-gray-700 mb-2">Other Phone Numbers</h3>
+        <div class="space-y-1">
+            {% for phone in target.phone_numbers.all %}
+            {% if phone != primary_phone %}
+            <div class="text-gray-600">
+                <a href="tel:{{ phone.number }}" class="text-green-700 hover:underline">{{ phone.number }}</a>
+                <span class="text-gray-400 text-sm">({{ phone.get_type_display }})</span>
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Address -->
+    {% with address=target.addresses.first %}
+    {% if address %}
+    <div class="mb-6">
+        <h3 class="text-sm font-medium text-gray-700 mb-1">Address</h3>
+        <div class="text-gray-600">
+            {{ address.street_address }}{% if address.street_address_2 %}, {{ address.street_address_2 }}{% endif %}<br>
+            {{ address.city }}, {{ address.state }} {{ address.zip_code }}
+        </div>
+    </div>
+    {% endif %}
+    {% endwith %}
+
+    <!-- Voting History (only for Person with voter_record, or ElectionVoter) -->
+    {% if target_type == "election_voter" or target.voter_record %}
+    <div class="mb-6">
+        <h3 class="text-sm font-medium text-gray-700 mb-2">Voting History</h3>
+        <div class="grid grid-cols-4 gap-2 text-center text-sm">
+            <div>
+                <div class="font-medium">2024</div>
+                <div class="flex justify-center gap-1 mt-1">
+                    {% if target_type == "election_voter" %}
+                        {% if target.voted_general_2024 %}<span class="bg-green-500 text-white text-xs px-1 rounded">G</span>{% else %}<span class="bg-gray-200 text-gray-500 text-xs px-1 rounded">G</span>{% endif %}
+                        {% if target.voted_primary_2024 %}<span class="bg-green-500 text-white text-xs px-1 rounded">P</span>{% else %}<span class="bg-gray-200 text-gray-500 text-xs px-1 rounded">P</span>{% endif %}
+                    {% else %}
+                        {% if target.voter_record.voted_general_2024 %}<span class="bg-green-500 text-white text-xs px-1 rounded">G</span>{% else %}<span class="bg-gray-200 text-gray-500 text-xs px-1 rounded">G</span>{% endif %}
+                        {% if target.voter_record.voted_primary_2024 %}<span class="bg-green-500 text-white text-xs px-1 rounded">P</span>{% else %}<span class="bg-gray-200 text-gray-500 text-xs px-1 rounded">P</span>{% endif %}
+                    {% endif %}
+                </div>
+            </div>
+            <div>
+                <div class="font-medium">2022</div>
+                <div class="flex justify-center gap-1 mt-1">
+                    {% if target_type == "election_voter" %}
+                        {% if target.voted_general_2022 %}<span class="bg-green-500 text-white text-xs px-1 rounded">G</span>{% else %}<span class="bg-gray-200 text-gray-500 text-xs px-1 rounded">G</span>{% endif %}
+                        {% if target.voted_primary_2022 %}<span class="bg-green-500 text-white text-xs px-1 rounded">P</span>{% else %}<span class="bg-gray-200 text-gray-500 text-xs px-1 rounded">P</span>{% endif %}
+                    {% else %}
+                        {% if target.voter_record.voted_general_2022 %}<span class="bg-green-500 text-white text-xs px-1 rounded">G</span>{% else %}<span class="bg-gray-200 text-gray-500 text-xs px-1 rounded">G</span>{% endif %}
+                        {% if target.voter_record.voted_primary_2022 %}<span class="bg-green-500 text-white text-xs px-1 rounded">P</span>{% else %}<span class="bg-gray-200 text-gray-500 text-xs px-1 rounded">P</span>{% endif %}
+                    {% endif %}
+                </div>
+            </div>
+            <div>
+                <div class="font-medium">2020</div>
+                <div class="flex justify-center gap-1 mt-1">
+                    {% if target_type == "election_voter" %}
+                        {% if target.voted_general_2020 %}<span class="bg-green-500 text-white text-xs px-1 rounded">G</span>{% else %}<span class="bg-gray-200 text-gray-500 text-xs px-1 rounded">G</span>{% endif %}
+                        {% if target.voted_primary_2020 %}<span class="bg-green-500 text-white text-xs px-1 rounded">P</span>{% else %}<span class="bg-gray-200 text-gray-500 text-xs px-1 rounded">P</span>{% endif %}
+                    {% else %}
+                        {% if target.voter_record.voted_general_2020 %}<span class="bg-green-500 text-white text-xs px-1 rounded">G</span>{% else %}<span class="bg-gray-200 text-gray-500 text-xs px-1 rounded">G</span>{% endif %}
+                        {% if target.voter_record.voted_primary_2020 %}<span class="bg-green-500 text-white text-xs px-1 rounded">P</span>{% else %}<span class="bg-gray-200 text-gray-500 text-xs px-1 rounded">P</span>{% endif %}
+                    {% endif %}
+                </div>
+            </div>
+            <div>
+                <div class="font-medium">2018</div>
+                <div class="flex justify-center gap-1 mt-1">
+                    {% if target_type == "election_voter" %}
+                        {% if target.voted_general_2018 %}<span class="bg-green-500 text-white text-xs px-1 rounded">G</span>{% else %}<span class="bg-gray-200 text-gray-500 text-xs px-1 rounded">G</span>{% endif %}
+                        {% if target.voted_primary_2018 %}<span class="bg-green-500 text-white text-xs px-1 rounded">P</span>{% else %}<span class="bg-gray-200 text-gray-500 text-xs px-1 rounded">P</span>{% endif %}
+                    {% else %}
+                        {% if target.voter_record.voted_general_2018 %}<span class="bg-green-500 text-white text-xs px-1 rounded">G</span>{% else %}<span class="bg-gray-200 text-gray-500 text-xs px-1 rounded">G</span>{% endif %}
+                        {% if target.voter_record.voted_primary_2018 %}<span class="bg-green-500 text-white text-xs px-1 rounded">P</span>{% else %}<span class="bg-gray-200 text-gray-500 text-xs px-1 rounded">P</span>{% endif %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Previous Attempts in this Campaign -->
+    {% if target.effort_attempts %}
+    <div class="mb-6">
+        <h3 class="text-sm font-medium text-gray-700 mb-2">Previous Attempts</h3>
+        <div class="space-y-2">
+            {% for attempt in target.effort_attempts %}
+            <div class="text-sm text-gray-600 bg-gray-50 rounded p-2">
+                <span class="font-medium">{{ attempt.get_outcome_display }}</span>
+                - {{ attempt.created_at|date:"M d, g:i A" }}
+                {% if attempt.notes %}<br><span class="text-gray-500">{{ attempt.notes|truncatewords:15 }}</span>{% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Outcome Form -->
+    <form hx-post="{% url 'civicpulse:calling_log' pk=campaign.pk %}"
+          hx-target="#person-container"
+          hx-swap="innerHTML"
+          class="border-t pt-6 mt-6">
+        {% csrf_token %}
+        <input type="hidden" name="assignment_id" value="{{ assignment.pk }}">
+        <input type="hidden" name="phone_number_used" value="{{ primary_phone.number|default:'' }}">
+        <input type="hidden" name="contact_type" value="call">
+
+        <h3 class="text-lg font-medium text-gray-900 mb-4">Log Outcome</h3>
+
+        <!-- Outcome Buttons -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+            <label class="cursor-pointer">
+                <input type="radio" name="outcome" value="spoke_with" class="peer hidden" required>
+                <div class="peer-checked:ring-2 peer-checked:ring-green-500 peer-checked:bg-green-50 bg-white border border-gray-200 rounded-lg p-3 text-center hover:bg-gray-50 transition">
+                    <div class="text-lg">&#x2705;</div>
+                    <div class="text-sm font-medium">Spoke With</div>
+                </div>
+            </label>
+            <label class="cursor-pointer">
+                <input type="radio" name="outcome" value="will_vote" class="peer hidden">
+                <div class="peer-checked:ring-2 peer-checked:ring-green-500 peer-checked:bg-green-50 bg-white border border-gray-200 rounded-lg p-3 text-center hover:bg-gray-50 transition">
+                    <div class="text-lg">&#x1F5F3;</div>
+                    <div class="text-sm font-medium">Will Vote</div>
+                </div>
+            </label>
+            <label class="cursor-pointer">
+                <input type="radio" name="outcome" value="no_answer" class="peer hidden">
+                <div class="peer-checked:ring-2 peer-checked:ring-yellow-500 peer-checked:bg-yellow-50 bg-white border border-gray-200 rounded-lg p-3 text-center hover:bg-gray-50 transition">
+                    <div class="text-lg">&#x1F4F5;</div>
+                    <div class="text-sm font-medium">No Answer</div>
+                </div>
+            </label>
+            <label class="cursor-pointer">
+                <input type="radio" name="outcome" value="left_voicemail" class="peer hidden">
+                <div class="peer-checked:ring-2 peer-checked:ring-yellow-500 peer-checked:bg-yellow-50 bg-white border border-gray-200 rounded-lg p-3 text-center hover:bg-gray-50 transition">
+                    <div class="text-lg">&#x1F4E8;</div>
+                    <div class="text-sm font-medium">Left Voicemail</div>
+                </div>
+            </label>
+            <label class="cursor-pointer">
+                <input type="radio" name="outcome" value="busy" class="peer hidden">
+                <div class="peer-checked:ring-2 peer-checked:ring-gray-500 peer-checked:bg-gray-50 bg-white border border-gray-200 rounded-lg p-3 text-center hover:bg-gray-50 transition">
+                    <div class="text-lg">&#x1F4DE;</div>
+                    <div class="text-sm font-medium">Busy</div>
+                </div>
+            </label>
+            <label class="cursor-pointer">
+                <input type="radio" name="outcome" value="callback_requested" class="peer hidden">
+                <div class="peer-checked:ring-2 peer-checked:ring-yellow-500 peer-checked:bg-yellow-50 bg-white border border-gray-200 rounded-lg p-3 text-center hover:bg-gray-50 transition">
+                    <div class="text-lg">&#x1F4C5;</div>
+                    <div class="text-sm font-medium">Callback</div>
+                </div>
+            </label>
+            <label class="cursor-pointer">
+                <input type="radio" name="outcome" value="wrong_number" class="peer hidden">
+                <div class="peer-checked:ring-2 peer-checked:ring-red-500 peer-checked:bg-red-50 bg-white border border-gray-200 rounded-lg p-3 text-center hover:bg-gray-50 transition">
+                    <div class="text-lg">&#x274C;</div>
+                    <div class="text-sm font-medium">Wrong Number</div>
+                </div>
+            </label>
+            <label class="cursor-pointer">
+                <input type="radio" name="outcome" value="refused" class="peer hidden">
+                <div class="peer-checked:ring-2 peer-checked:ring-red-500 peer-checked:bg-red-50 bg-white border border-gray-200 rounded-lg p-3 text-center hover:bg-gray-50 transition">
+                    <div class="text-lg">&#x1F6AB;</div>
+                    <div class="text-sm font-medium">Refused</div>
+                </div>
+            </label>
+        </div>
+
+        <!-- Notes -->
+        <div class="mb-4">
+            <label class="block mb-2 text-sm font-medium text-gray-700">Notes (optional)</label>
+            <textarea name="notes" rows="2" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-green-500 focus:border-green-500 block w-full p-2.5" placeholder="Conversation notes..."></textarea>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex gap-3">
+            <button type="submit" class="flex-1 text-white bg-green-700 hover:bg-green-800 font-medium rounded-lg text-sm px-5 py-2.5">
+                Log & Next
+            </button>
+            <button type="button"
+                    hx-post="{% url 'civicpulse:calling_skip' pk=campaign.pk %}"
+                    hx-target="#person-container"
+                    hx-swap="innerHTML"
+                    hx-vals='{"assignment_id": "{{ assignment.pk }}"}'
+                    class="text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 font-medium rounded-lg text-sm px-5 py-2.5">
+                Skip
+            </button>
+        </div>
+    </form>
+
+    <!-- Exit Session Button (separate form to avoid HTMX) -->
+    <form method="post" action="{% url 'civicpulse:calling_exit' pk=campaign.pk %}" class="mt-3">
+        {% csrf_token %}
+        <input type="hidden" name="assignment_id" value="{{ assignment.pk }}">
+        <button type="submit" class="w-full text-red-700 bg-white border border-red-300 hover:bg-red-50 font-medium rounded-lg text-sm px-5 py-2.5">
+            Exit Session
+        </button>
+    </form>
+</div>

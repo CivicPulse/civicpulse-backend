@@ -1,0 +1,10 @@
+<div class="flex justify-between text-sm text-gray-600 mb-1">
+    <span>Progress</span>
+    <span>{{ stats.completed }} of {{ stats.total }} ({{ stats.percentage }}%)</span>
+</div>
+<div class="w-full bg-gray-200 rounded-full h-2.5">
+    <div class="bg-green-600 h-2.5 rounded-full transition-all duration-300" style="width: {{ stats.percentage }}%"></div>
+</div>
+<div class="text-xs text-gray-500 mt-1">
+    {{ stats.remaining }} remaining
+</div>

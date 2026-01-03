@@ -1,0 +1,90 @@
+{% extends "civicpulse/base.html" %}
+
+{% block content %}
+<div class="px-4 max-w-2xl mx-auto">
+    <div class="mb-6">
+        <a href="{% if is_create %}{% url 'civicpulse:election_detail' pk=election.pk %}{% else %}{% url 'civicpulse:candidate_detail' pk=candidate.pk %}{% endif %}" class="text-green-700 hover:underline text-sm">&larr; Back</a>
+    </div>
+
+    <div class="bg-white rounded-lg shadow p-6">
+        <h1 class="text-2xl font-bold text-gray-900 mb-2">
+            {% if is_create %}Add Candidate{% else %}Edit Candidate{% endif %}
+        </h1>
+        <p class="text-gray-600 mb-6">{{ election.office.name }} - {{ election.get_election_type_display }} {{ election.year }}</p>
+
+        <form method="post">
+            {% csrf_token %}
+
+            {% if form.non_field_errors %}
+            <div class="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+                {{ form.non_field_errors.0 }}
+            </div>
+            {% endif %}
+
+            <!-- Candidate Identity -->
+            <div class="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <h3 class="text-sm font-medium text-gray-900 mb-3">Candidate Identity</h3>
+                <p class="text-xs text-gray-500 mb-4">Provide a name, link to a person record, or both.</p>
+
+                <div class="mb-4">
+                    <label for="id_name" class="block mb-2 text-sm font-medium text-gray-900">Name</label>
+                    {{ form.name }}
+                    {% if form.name.errors %}
+                    <p class="text-red-500 text-sm mt-1">{{ form.name.errors.0 }}</p>
+                    {% endif %}
+                    <p class="text-gray-500 text-xs mt-1">Enter the candidate's name directly</p>
+                </div>
+
+                <div class="relative flex items-center justify-center my-4">
+                    <div class="border-t border-gray-300 flex-grow"></div>
+                    <span class="px-3 text-gray-500 text-xs uppercase">or</span>
+                    <div class="border-t border-gray-300 flex-grow"></div>
+                </div>
+
+                <div class="mb-2">
+                    <label for="id_person" class="block mb-2 text-sm font-medium text-gray-900">Link to Person Record</label>
+                    {{ form.person }}
+                    {% if form.person.errors %}
+                    <p class="text-red-500 text-sm mt-1">{{ form.person.errors.0 }}</p>
+                    {% endif %}
+                    <p class="text-gray-500 text-xs mt-1">Link to an existing person in your database</p>
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <label for="id_party_affiliation" class="block mb-2 text-sm font-medium text-gray-900">Party Affiliation</label>
+                {{ form.party_affiliation }}
+            </div>
+
+            <div class="mb-4">
+                <label for="id_status" class="block mb-2 text-sm font-medium text-gray-900">Status</label>
+                {{ form.status }}
+            </div>
+
+            <div class="mb-4 flex items-center">
+                {{ form.is_incumbent }}
+                <label for="id_is_incumbent" class="ml-2 text-sm font-medium text-gray-900">Is Incumbent</label>
+            </div>
+
+            <div class="mb-4">
+                <label for="id_campaign_website" class="block mb-2 text-sm font-medium text-gray-900">Campaign Website</label>
+                {{ form.campaign_website }}
+            </div>
+
+            <div class="mb-6">
+                <label for="id_campaign_slogan" class="block mb-2 text-sm font-medium text-gray-900">Campaign Slogan</label>
+                {{ form.campaign_slogan }}
+            </div>
+
+            <div class="flex gap-4">
+                <button type="submit" class="text-white bg-green-700 hover:bg-green-800 focus:ring-4 focus:ring-green-300 font-medium rounded-lg text-sm px-5 py-2.5">
+                    {% if is_create %}Add Candidate{% else %}Save Changes{% endif %}
+                </button>
+                <a href="{% if is_create %}{% url 'civicpulse:election_detail' pk=election.pk %}{% else %}{% url 'civicpulse:candidate_detail' pk=candidate.pk %}{% endif %}" class="text-gray-600 border border-gray-300 hover:bg-gray-50 font-medium rounded-lg text-sm px-5 py-2.5">
+                    Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,12 +1,26 @@
 {
   "permissions": {
     "allow": [
-      "bash(git:*)",
+      "Bash(git:*)",
       "Bash(cp:*)",
-      "Bash(*pytest*)",
-      "Bash(gh:*)"
+      "Bash(python:pytest:*)",
+      "Bash(gh:*)",
+      "Bash(uv run python manage.py:*)",
+      "Bash(uv run black:*)",
+      "Bash(uv run ruff:*)",
+      "Bash(uv run djlint:*)",
+      "Bash(uv sync:*)",
+      "Bash(npm:*)",
+      "Bash(npx:*)",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__get-library-docs"
     ],
     "deny": [],
     "ask": []
+  },
+  "enabledPlugins": {
+    "frontend-design@claude-plugins-official": true,
+    "python-development@claude-code-workflows": true,
+    "pyright-lsp@claude-plugins-official": true
   }
 }

@@ -1,0 +1,76 @@
+{% extends "civicpulse/base.html" %}
+
+{% block content %}
+<div class="px-4">
+    <div class="mb-6">
+        <a href="{% url 'civicpulse:election_detail' pk=election.pk %}" class="text-green-700 hover:underline text-sm">&larr; Back to Election</a>
+    </div>
+
+    <div class="flex justify-between items-center mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">Contact Campaigns</h1>
+            <p class="text-gray-600">{{ election.office.name }} - {{ election.get_election_type_display }} {{ election.year }}</p>
+        </div>
+        <a href="{% url 'civicpulse:campaign_create' %}?election={{ election.pk }}" class="text-white bg-green-700 hover:bg-green-800 focus:ring-4 focus:ring-green-300 font-medium rounded-lg text-sm px-5 py-2.5">
+            + New Campaign
+        </a>
+    </div>
+
+    {% if efforts %}
+    <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {% for effort in efforts %}
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex justify-between items-start mb-3">
+                <h2 class="text-lg font-semibold text-gray-900">{{ effort.name }}</h2>
+                {% if effort.is_active %}
+                <span class="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded">Active</span>
+                {% else %}
+                <span class="bg-gray-100 text-gray-800 text-xs font-medium px-2.5 py-0.5 rounded">Inactive</span>
+                {% endif %}
+            </div>
+
+            {% if effort.candidate %}
+            <p class="text-sm text-gray-600 mb-2">Supporting: {{ effort.candidate.display_name }}</p>
+            {% endif %}
+
+            {% if effort.description %}
+            <p class="text-gray-600 text-sm mb-4">{{ effort.description|truncatewords:20 }}</p>
+            {% endif %}
+
+            <div class="mb-4">
+                <div class="flex justify-between text-sm text-gray-600 mb-1">
+                    <span>Progress</span>
+                    <span>{{ effort.completed_count }}/{{ effort.total_assignments }}</span>
+                </div>
+                {% if effort.total_assignments > 0 %}
+                <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div class="bg-green-600 h-2 rounded-full" style="width: {% widthratio effort.completed_count effort.total_assignments 100 %}%"></div>
+                </div>
+                {% else %}
+                <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div class="bg-gray-400 h-2 rounded-full" style="width: 0%"></div>
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="flex gap-2">
+                <a href="{% url 'civicpulse:campaign_detail' pk=effort.pk %}" class="flex-1 text-center text-green-700 border border-green-700 hover:bg-green-50 font-medium rounded-lg text-sm px-3 py-2">
+                    View
+                </a>
+                {% if effort.is_active and effort.total_assignments > effort.completed_count %}
+                <a href="{% url 'civicpulse:calling_session' pk=effort.pk %}" class="flex-1 text-center text-white bg-green-700 hover:bg-green-800 font-medium rounded-lg text-sm px-3 py-2">
+                    Start Calling
+                </a>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-12">
+        <p class="text-gray-500 mb-4">No contact campaigns for this election yet</p>
+        <a href="{% url 'civicpulse:campaign_create' %}?election={{ election.pk }}" class="text-green-700 hover:underline">Create the first campaign</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

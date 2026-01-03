@@ -1,0 +1,86 @@
+{% extends "civicpulse/base.html" %}
+
+{% block content %}
+<div class="px-4">
+    <div class="max-w-2xl mx-auto">
+        {# Breadcrumb #}
+        <nav class="mb-4 text-sm">
+            {% if owner_type == "candidate" %}
+            <a href="{% url 'civicpulse:election_detail' pk=owner.election.pk %}" class="text-green-700 hover:underline">Election</a>
+            <span class="text-gray-500 mx-2">/</span>
+            <a href="{% url 'civicpulse:candidate_detail' pk=owner.pk %}" class="text-green-700 hover:underline">{{ owner.display_name }}</a>
+            {% elif owner_type == "campaign" %}
+            <a href="{% url 'civicpulse:org_campaign_list' %}" class="text-green-700 hover:underline">Campaigns</a>
+            <span class="text-gray-500 mx-2">/</span>
+            <a href="{% url 'civicpulse:org_campaign_detail' pk=owner.pk %}" class="text-green-700 hover:underline">{{ owner.name }}</a>
+            {% endif %}
+            <span class="text-gray-500 mx-2">/</span>
+            <span class="text-gray-600">Disconnect Stripe</span>
+        </nav>
+
+        {# Warning Card #}
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-start gap-3 mb-4">
+                <div class="flex-shrink-0">
+                    <svg class="w-8 h-8 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold text-gray-900 mb-2">Disconnect Stripe Account</h1>
+                    <p class="text-gray-600 mb-4">
+                        You are about to disconnect the Stripe account for
+                        <strong>{% if owner_type == "candidate" %}{{ owner.display_name }}{% else %}{{ owner.name }}{% endif %}</strong>.
+                    </p>
+                </div>
+            </div>
+
+            <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
+                <h3 class="font-semibold text-amber-900 mb-2">What will happen:</h3>
+                <ul class="list-disc list-inside space-y-1 text-sm text-amber-800">
+                    <li>The Stripe connection will be removed from CivicPulse</li>
+                    <li>Historical donation data will remain accessible</li>
+                    <li>No new donations can be accepted until reconnected</li>
+                    <li>The Stripe account itself will not be deleted</li>
+                    <li>You can reconnect the same or a different Stripe account at any time</li>
+                </ul>
+            </div>
+
+            {% if connection %}
+            <div class="bg-gray-50 rounded-lg p-4 mb-6">
+                <h3 class="font-semibold text-gray-900 mb-2">Current Connection</h3>
+                <dl class="space-y-2 text-sm">
+                    <div class="flex">
+                        <dt class="font-medium text-gray-700 w-32">Account ID:</dt>
+                        <dd class="font-mono text-gray-900">{{ connection.stripe_account_id }}</dd>
+                    </div>
+                    <div class="flex">
+                        <dt class="font-medium text-gray-700 w-32">Connected:</dt>
+                        <dd class="text-gray-900">{{ connection.created_at|date:"F j, Y g:i A" }}</dd>
+                    </div>
+                    {% if connection.last_sync_at %}
+                    <div class="flex">
+                        <dt class="font-medium text-gray-700 w-32">Last Synced:</dt>
+                        <dd class="text-gray-900">{{ connection.last_sync_at|date:"F j, Y g:i A" }}</dd>
+                    </div>
+                    {% endif %}
+                </dl>
+            </div>
+            {% endif %}
+
+            {# Confirmation Form #}
+            <form method="post" class="flex gap-3 justify-end">
+                {% csrf_token %}
+                <a href="{% if owner_type == 'candidate' %}{% url 'civicpulse:candidate_detail' pk=owner.pk %}{% else %}{% url 'civicpulse:org_campaign_detail' pk=owner.pk %}{% endif %}"
+                   class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 px-4 rounded-lg">
+                    Cancel
+                </a>
+                <button type="submit"
+                        class="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg">
+                    Disconnect Stripe Account
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

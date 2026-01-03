@@ -1,0 +1,87 @@
+{% extends "civicpulse/base.html" %}
+
+{% block content %}
+<div class="px-4">
+    <div class="mb-6">
+        <a href="{% url 'civicpulse:office_list' %}" class="text-green-700 hover:underline text-sm">&larr; Back to Offices</a>
+    </div>
+
+    <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <div class="flex justify-between items-start mb-4">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900 mb-2">{{ office.name }}</h1>
+                <span class="bg-blue-100 text-blue-800 text-sm font-medium px-2.5 py-0.5 rounded">{{ office.get_level_display }}</span>
+            </div>
+            <div class="flex gap-2">
+                <a href="{% url 'civicpulse:office_edit' pk=office.pk %}" class="text-gray-600 border border-gray-300 hover:bg-gray-50 font-medium rounded-lg text-sm px-4 py-2">
+                    Edit
+                </a>
+                <a href="{% url 'civicpulse:office_delete' pk=office.pk %}" class="text-red-600 border border-red-300 hover:bg-red-50 font-medium rounded-lg text-sm px-4 py-2">
+                    Delete
+                </a>
+            </div>
+        </div>
+
+        <div class="grid md:grid-cols-2 gap-4 text-sm">
+            <div>
+                <h3 class="font-medium text-gray-700 mb-2">Jurisdiction</h3>
+                <p class="text-gray-600">
+                    {% if office.city %}{{ office.city }}, {% endif %}
+                    {% if office.county %}{{ office.county }} County, {% endif %}
+                    {{ office.state|default:"N/A" }}
+                </p>
+            </div>
+            {% if office.term_length_years %}
+            <div>
+                <h3 class="font-medium text-gray-700 mb-2">Term Length</h3>
+                <p class="text-gray-600">{{ office.term_length_years }} years</p>
+            </div>
+            {% endif %}
+        </div>
+
+        {% if office.description %}
+        <div class="mt-4">
+            <h3 class="font-medium text-gray-700 mb-2">Description</h3>
+            <p class="text-gray-600">{{ office.description }}</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Elections for this Office -->
+    <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-bold text-gray-900">Elections</h2>
+        <a href="{% url 'civicpulse:election_create' %}?office={{ office.pk }}" class="text-white bg-green-700 hover:bg-green-800 font-medium rounded-lg text-sm px-4 py-2">
+            + New Election
+        </a>
+    </div>
+
+    {% if elections %}
+    <div class="grid gap-4 md:grid-cols-2">
+        {% for election in elections %}
+        <div class="bg-white rounded-lg shadow p-4">
+            <div class="flex justify-between items-start mb-2">
+                <h3 class="font-semibold text-gray-900">{{ election.get_election_type_display }} {{ election.year }}</h3>
+                {% if election.status == 'active' %}
+                <span class="bg-green-100 text-green-800 text-xs font-medium px-2 py-0.5 rounded">Active</span>
+                {% elif election.status == 'upcoming' %}
+                <span class="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-0.5 rounded">Upcoming</span>
+                {% else %}
+                <span class="bg-gray-100 text-gray-800 text-xs font-medium px-2 py-0.5 rounded">{{ election.get_status_display }}</span>
+                {% endif %}
+            </div>
+            {% if election.election_day %}
+            <p class="text-sm text-gray-500 mb-2">{{ election.election_day|date:"M j, Y" }}</p>
+            {% endif %}
+            <p class="text-sm text-gray-500 mb-3">{{ election.candidate_count }} candidate{{ election.candidate_count|pluralize }}</p>
+            <a href="{% url 'civicpulse:election_detail' pk=election.pk %}" class="text-green-700 hover:underline text-sm">View details &rarr;</a>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="bg-white rounded-lg shadow p-6 text-center">
+        <p class="text-gray-500 mb-4">No elections for this office yet</p>
+        <a href="{% url 'civicpulse:election_create' %}?office={{ office.pk }}" class="text-green-700 hover:underline">Create the first election</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

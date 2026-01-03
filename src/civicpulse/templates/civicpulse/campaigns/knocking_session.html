@@ -1,0 +1,301 @@
+{% extends "civicpulse/base.html" %}
+{% load civicpulse_tags %}
+
+{% block leaflet_css %}
+<link rel="stylesheet" href="{% civicpulse_setting 'CDN_LEAFLET_CSS' %}">
+<style>
+    .leaflet-container { font-family: inherit; }
+    .route-map { border-radius: 0.5rem; }
+</style>
+{% endblock leaflet_css %}
+
+{% block content %}
+<div class="px-4 max-w-4xl mx-auto">
+    <!-- Header -->
+    <div class="bg-white rounded-lg shadow p-4 mb-4 sticky top-0 z-10">
+        <div class="flex justify-between items-center mb-3">
+            <div>
+                <h1 class="text-xl font-bold text-gray-900">{{ campaign.name }}</h1>
+                <span class="text-sm text-gray-500">Door Knocking Session</span>
+            </div>
+            <a href="{% url 'civicpulse:campaign_detail' pk=campaign.pk %}" class="text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 font-medium rounded-lg text-sm px-4 py-2">
+                Pause Session
+            </a>
+        </div>
+
+        <!-- Progress Bar -->
+        <div id="progress-container">
+            {% include "civicpulse/campaigns/partials/_progress_bar.html" %}
+        </div>
+    </div>
+
+    <!-- Location Picker (shown if no location set) -->
+    <div id="location-picker" class="bg-white rounded-lg shadow p-4 mb-4 {% if has_location %}hidden{% endif %}">
+        <h3 class="font-medium text-gray-900 mb-3">Set Your Location</h3>
+        <p class="text-sm text-gray-600 mb-4">We'll show you nearby addresses sorted by walking distance.</p>
+
+        <div id="location-status" class="mb-4">
+            <button type="button" onclick="getLocation()"
+                    class="text-white bg-green-700 hover:bg-green-800 font-medium rounded-lg text-sm px-5 py-2.5 flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                </svg>
+                Use GPS Location
+            </button>
+        </div>
+
+        <div id="location-error" class="hidden text-yellow-600 text-sm mb-3">
+            GPS unavailable. Please allow location access or start without GPS sorting.
+        </div>
+
+        <button type="button" onclick="skipLocation()"
+                class="text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 font-medium rounded-lg text-sm px-4 py-2">
+            Start Without Location
+        </button>
+    </div>
+
+    <!-- Current Location Display (shown if location is set) -->
+    {% if has_location %}
+    <div class="bg-green-50 border border-green-200 rounded-lg p-3 mb-4 flex justify-between items-center">
+        <div class="flex items-center gap-2 text-green-800">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+            </svg>
+            <span class="text-sm font-medium">Location set - showing nearby addresses</span>
+        </div>
+        <div class="flex items-center gap-3">
+            <button type="button" onclick="toggleMap()" id="map-toggle-btn" class="text-green-700 hover:text-green-800 text-sm font-medium flex items-center gap-1">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path>
+                </svg>
+                Show Map
+            </button>
+            <button type="button" onclick="updateLocation()" class="text-green-700 hover:text-green-800 text-sm font-medium">
+                Update Location
+            </button>
+        </div>
+    </div>
+
+    <!-- Interactive Route Map (collapsible) -->
+    <div id="map-container" class="hidden mb-4">
+        <div class="bg-white rounded-lg shadow overflow-hidden">
+            <div class="p-3 border-b flex justify-between items-center">
+                <h3 class="font-medium text-gray-900 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path>
+                    </svg>
+                    Walking Route
+                </h3>
+                <div id="route-info" class="text-sm text-gray-500"></div>
+            </div>
+            <div id="route-map" class="route-map" style="height: 350px;"></div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Person Card Container (HTMX target) -->
+    <div id="person-container"
+         {% if has_location %}
+         hx-get="{% url 'civicpulse:knocking_list' pk=campaign.pk %}"
+         hx-trigger="load"
+         hx-swap="innerHTML"
+         {% endif %}>
+        {% if not has_location %}
+        <div class="bg-white rounded-lg shadow p-8 text-center text-gray-500">
+            Set your location above to see nearby addresses.
+        </div>
+        {% else %}
+        <div class="text-center py-12">
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-green-700 mx-auto"></div>
+            <p class="text-gray-500 mt-4">Finding nearby addresses...</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Script Panel (Collapsible) -->
+    {% if campaign.script %}
+    <details class="bg-white rounded-lg shadow mt-4">
+        <summary class="p-4 cursor-pointer font-medium text-gray-900 hover:bg-gray-50">
+            Script / Talking Points
+        </summary>
+        <div class="p-4 pt-0 border-t text-gray-700 whitespace-pre-wrap">{{ campaign.script }}</div>
+    </details>
+    {% endif %}
+</div>
+
+<script>
+function getLocation() {
+    const statusEl = document.getElementById('location-status');
+    const errorEl = document.getElementById('location-error');
+
+    statusEl.innerHTML = '<div class="flex items-center gap-2 text-gray-600"><div class="animate-spin rounded-full h-5 w-5 border-b-2 border-green-700"></div>Getting location...</div>';
+
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const lat = position.coords.latitude;
+                const lon = position.coords.longitude;
+                setLocationAndLoad(lat, lon);
+            },
+            (error) => {
+                errorEl.classList.remove('hidden');
+                statusEl.innerHTML = '<button type="button" onclick="getLocation()" class="text-white bg-green-700 hover:bg-green-800 font-medium rounded-lg text-sm px-5 py-2.5 flex items-center gap-2"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>Try Again</button>';
+            },
+            { enableHighAccuracy: true, timeout: 10000 }
+        );
+    } else {
+        errorEl.classList.remove('hidden');
+    }
+}
+
+function setLocationAndLoad(lat, lon) {
+    // Hide location picker
+    document.getElementById('location-picker').classList.add('hidden');
+
+    // Create form data
+    const formData = new FormData();
+    formData.append('latitude', lat);
+    formData.append('longitude', lon);
+    formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+
+    // Post location and load first person
+    fetch("{% url 'civicpulse:knocking_set_location' pk=campaign.pk %}", {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.text())
+    .then(html => {
+        document.getElementById('person-container').innerHTML = html;
+    });
+}
+
+function skipLocation() {
+    document.getElementById('location-picker').classList.add('hidden');
+    htmx.ajax('GET', "{% url 'civicpulse:knocking_list' pk=campaign.pk %}", '#person-container');
+}
+
+function updateLocation() {
+    document.getElementById('location-picker').classList.remove('hidden');
+    getLocation();
+}
+
+// Map variables
+let routeMap = null;
+let mapInitialized = false;
+let userLat = {{ user_lat|default:"null" }};
+let userLon = {{ user_lon|default:"null" }};
+
+function toggleMap() {
+    const container = document.getElementById('map-container');
+    const btn = document.getElementById('map-toggle-btn');
+
+    if (container.classList.contains('hidden')) {
+        container.classList.remove('hidden');
+        btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg> Hide Map';
+
+        if (!mapInitialized) {
+            initializeMap();
+        } else {
+            routeMap.invalidateSize();
+        }
+    } else {
+        container.classList.add('hidden');
+        btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path></svg> Show Map';
+    }
+}
+
+function initializeMap() {
+    if (!userLat || !userLon) return;
+
+    // Initialize Leaflet map
+    routeMap = L.map('route-map').setView([userLat, userLon], 15);
+
+    L.tileLayer('{% civicpulse_setting "MAP_TILE_URL" %}', {
+        attribution: '{% civicpulse_setting "MAP_TILE_ATTRIBUTION" %}',
+        maxZoom: 19
+    }).addTo(routeMap);
+
+    // Add user location marker
+    const userIcon = L.divIcon({
+        className: 'user-location-marker',
+        html: '<div class="w-4 h-4 bg-blue-500 rounded-full border-2 border-white shadow-lg"></div>',
+        iconSize: [16, 16],
+        iconAnchor: [8, 8]
+    });
+    L.marker([userLat, userLon], { icon: userIcon })
+        .addTo(routeMap)
+        .bindPopup('Your location');
+
+    // Load route data
+    loadRouteData();
+    mapInitialized = true;
+}
+
+function loadRouteData() {
+    if (!userLat || !userLon) return;
+
+    const routeUrl = "{% url 'civicpulse:api_campaign_route' pk=campaign.pk %}?lat=" + userLat + "&lon=" + userLon;
+
+    fetch(routeUrl)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                console.error('Route error:', data.error);
+                return;
+            }
+
+            // Update route info
+            if (data.properties) {
+                const info = document.getElementById('route-info');
+                info.innerHTML = `${data.properties.waypoint_count} stops &bull; ${data.properties.total_distance_miles} mi &bull; ~${Math.round(data.properties.total_duration_minutes)} min`;
+            }
+
+            // Add features to map
+            data.features.forEach((feature, index) => {
+                if (feature.geometry.type === 'LineString') {
+                    // Add route line
+                    const coords = feature.geometry.coordinates.map(c => [c[1], c[0]]);
+                    L.polyline(coords, {
+                        color: '#059669',
+                        weight: 4,
+                        opacity: 0.8
+                    }).addTo(routeMap);
+                } else if (feature.geometry.type === 'Point') {
+                    // Add waypoint marker
+                    const latlng = [feature.geometry.coordinates[1], feature.geometry.coordinates[0]];
+                    const order = feature.properties.order || index;
+
+                    const icon = L.divIcon({
+                        className: 'waypoint-marker',
+                        html: `<div class="w-6 h-6 bg-green-600 rounded-full border-2 border-white shadow-lg flex items-center justify-center text-white text-xs font-bold">${order}</div>`,
+                        iconSize: [24, 24],
+                        iconAnchor: [12, 12]
+                    });
+
+                    L.marker(latlng, { icon: icon })
+                        .addTo(routeMap)
+                        .bindPopup(`<strong>${feature.properties.name}</strong><br>${feature.properties.address || ''}`);
+                }
+            });
+
+            // Fit bounds to show all markers
+            if (data.features.length > 1) {
+                const bounds = L.latLngBounds();
+                bounds.extend([userLat, userLon]);
+                data.features.forEach(feature => {
+                    if (feature.geometry.type === 'Point') {
+                        bounds.extend([feature.geometry.coordinates[1], feature.geometry.coordinates[0]]);
+                    }
+                });
+                routeMap.fitBounds(bounds, { padding: [30, 30] });
+            }
+        })
+        .catch(error => console.error('Error loading route:', error));
+}
+</script>
+
+{% block leaflet_js %}
+<script src="{% civicpulse_setting 'CDN_LEAFLET_JS' %}"></script>
+{% endblock leaflet_js %}
+{% endblock %}

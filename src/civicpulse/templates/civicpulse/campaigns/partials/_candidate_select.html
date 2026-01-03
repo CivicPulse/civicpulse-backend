@@ -1,0 +1,13 @@
+<label for="id_candidate" class="block mb-2 text-sm font-medium text-gray-900">Candidate</label>
+<select name="candidate" id="id_candidate"
+        class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-green-500 focus:border-green-500 block w-full p-2.5">
+    <option value="">— No candidate —</option>
+    {% for candidate in candidates %}
+    <option value="{{ candidate.pk }}">{{ candidate.display_name }}{% if candidate.party_affiliation %} ({{ candidate.party_affiliation }}){% endif %}</option>
+    {% endfor %}
+</select>
+{% if candidates %}
+<p class="mt-1 text-xs text-gray-500">Select the candidate this campaign supports.</p>
+{% else %}
+<p class="mt-1 text-xs text-gray-500">No candidates found for this election.</p>
+{% endif %}

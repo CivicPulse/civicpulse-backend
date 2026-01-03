@@ -1,0 +1,44 @@
+{% extends "civicpulse/base.html" %}
+
+{% block content %}
+<div class="px-4 max-w-4xl mx-auto">
+    <!-- Header -->
+    <div class="bg-white rounded-lg shadow p-4 mb-4 sticky top-0 z-10">
+        <div class="flex justify-between items-center mb-3">
+            <div>
+                <h1 class="text-xl font-bold text-gray-900">{{ campaign.name }}</h1>
+                <span class="text-sm text-gray-500">Calling Session</span>
+            </div>
+            <a href="{% url 'civicpulse:campaign_detail' pk=campaign.pk %}" class="text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 font-medium rounded-lg text-sm px-4 py-2">
+                Pause Session
+            </a>
+        </div>
+
+        <!-- Progress Bar -->
+        <div id="progress-container">
+            {% include "civicpulse/campaigns/partials/_progress_bar.html" %}
+        </div>
+    </div>
+
+    <!-- Person Card Container (HTMX target) -->
+    <div id="person-container"
+         hx-get="{% url 'civicpulse:calling_next' pk=campaign.pk %}"
+         hx-trigger="load"
+         hx-swap="innerHTML">
+        <div class="text-center py-12">
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-green-700 mx-auto"></div>
+            <p class="text-gray-500 mt-4">Loading next contact...</p>
+        </div>
+    </div>
+
+    <!-- Script Panel (Collapsible) -->
+    {% if campaign.script %}
+    <details class="bg-white rounded-lg shadow mt-4">
+        <summary class="p-4 cursor-pointer font-medium text-gray-900 hover:bg-gray-50">
+            Script / Talking Points
+        </summary>
+        <div class="p-4 pt-0 border-t text-gray-700 whitespace-pre-wrap">{{ campaign.script }}</div>
+    </details>
+    {% endif %}
+</div>
+{% endblock %}

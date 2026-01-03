@@ -1,0 +1,230 @@
+{% load civicpulse_tags %}
+<!-- 5 Closest Doors List -->
+<div class="space-y-3">
+    <!-- Map showing all 5 doors -->
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+        <div class="p-3 border-b flex justify-between items-center">
+            <h3 class="font-medium text-gray-900 flex items-center gap-2">
+                <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+                </svg>
+                5 Closest Doors
+            </h3>
+            <button type="button" onclick="toggleDoorsMap()" id="doors-map-toggle-btn" class="text-green-700 hover:text-green-800 text-sm font-medium flex items-center gap-1">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path>
+                </svg>
+                Show Map
+            </button>
+        </div>
+        <div id="doors-list-map" class="hidden" style="height: 250px;"></div>
+    </div>
+
+    <!-- Door Cards -->
+    {% for door in doors %}
+    <div class="bg-white rounded-lg shadow overflow-hidden cursor-pointer hover:shadow-md transition border-l-4 border-green-500"
+         hx-post="{% url 'civicpulse:knocking_select' pk=campaign.pk %}"
+         hx-vals='{"assignment_id": "{{ door.assignment.pk }}", "csrfmiddlewaretoken": "{{ csrf_token }}"}'
+         hx-target="#person-container"
+         hx-swap="innerHTML">
+        <div class="p-3">
+            <!-- Header with number badge and name -->
+            <div class="flex items-start gap-3">
+                <div class="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                    {{ door.order }}
+                </div>
+                <div class="flex-1 min-w-0">
+                    <h3 class="font-bold text-gray-900 text-lg">{{ door.target.full_name }}</h3>
+
+                    <!-- Tags: party, age, likelihood -->
+                    <div class="flex flex-wrap gap-1 mt-1">
+                        {% if door.target_type == "election_voter" %}
+                            {% if door.target.registered_party %}
+                            <span class="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-0.5 rounded">{{ door.target.registered_party }}</span>
+                            {% endif %}
+                            {% if door.target.age %}
+                            <span class="bg-gray-100 text-gray-800 text-xs font-medium px-2 py-0.5 rounded">Age {{ door.target.age }}</span>
+                            {% endif %}
+                            {% if door.target.likelihood_general %}
+                            <span class="bg-green-100 text-green-800 text-xs font-medium px-2 py-0.5 rounded">{{ door.target.likelihood_general }}</span>
+                            {% endif %}
+                        {% else %}
+                            {% if door.target.voter_record.registered_party %}
+                            <span class="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-0.5 rounded">{{ door.target.voter_record.registered_party }}</span>
+                            {% endif %}
+                            {% if door.target.voter_record.age %}
+                            <span class="bg-gray-100 text-gray-800 text-xs font-medium px-2 py-0.5 rounded">Age {{ door.target.voter_record.age }}</span>
+                            {% endif %}
+                            {% if door.target.voter_record.likelihood_general %}
+                            <span class="bg-green-100 text-green-800 text-xs font-medium px-2 py-0.5 rounded">{{ door.target.voter_record.likelihood_general }}</span>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+
+                    <!-- Address -->
+                    {% if door.primary_address %}
+                    <div class="text-sm text-gray-600 mt-1">
+                        <div class="font-medium">{{ door.primary_address.street_address }}</div>
+                        <div>{{ door.primary_address.city }}, {{ door.primary_address.state }} {{ door.primary_address.zip_code }}</div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Distance -->
+                    {% if door.distance %}
+                    <div class="text-xs text-green-700 mt-1 flex items-center gap-1">
+                        <svg class="w-3 h-3 flex-shrink-0" width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                        </svg>
+                        <span>~{{ door.distance|floatformat:2 }} mi</span>
+                    </div>
+                    {% endif %}
+
+                    <!-- Voting History -->
+                    {% if door.target_type == "election_voter" or door.target.voter_record %}
+                    <div class="mt-2">
+                        <div class="text-xs text-gray-500 mb-0.5">Voting History</div>
+                        <div class="flex gap-2 text-xs">
+                            <div class="flex items-center gap-1">
+                                <span class="text-gray-500">2024:</span>
+                                {% if door.target_type == "election_voter" %}
+                                    {% if door.target.voted_general_2024 %}<span class="bg-green-500 text-white px-1 rounded">G</span>{% else %}<span class="bg-gray-200 text-gray-500 px-1 rounded">G</span>{% endif %}
+                                    {% if door.target.voted_primary_2024 %}<span class="bg-green-500 text-white px-1 rounded">P</span>{% else %}<span class="bg-gray-200 text-gray-500 px-1 rounded">P</span>{% endif %}
+                                {% else %}
+                                    {% if door.target.voter_record.voted_general_2024 %}<span class="bg-green-500 text-white px-1 rounded">G</span>{% else %}<span class="bg-gray-200 text-gray-500 px-1 rounded">G</span>{% endif %}
+                                    {% if door.target.voter_record.voted_primary_2024 %}<span class="bg-green-500 text-white px-1 rounded">P</span>{% else %}<span class="bg-gray-200 text-gray-500 px-1 rounded">P</span>{% endif %}
+                                {% endif %}
+                            </div>
+                            <div class="flex items-center gap-1">
+                                <span class="text-gray-500">2022:</span>
+                                {% if door.target_type == "election_voter" %}
+                                    {% if door.target.voted_general_2022 %}<span class="bg-green-500 text-white px-1 rounded">G</span>{% else %}<span class="bg-gray-200 text-gray-500 px-1 rounded">G</span>{% endif %}
+                                    {% if door.target.voted_primary_2022 %}<span class="bg-green-500 text-white px-1 rounded">P</span>{% else %}<span class="bg-gray-200 text-gray-500 px-1 rounded">P</span>{% endif %}
+                                {% else %}
+                                    {% if door.target.voter_record.voted_general_2022 %}<span class="bg-green-500 text-white px-1 rounded">G</span>{% else %}<span class="bg-gray-200 text-gray-500 px-1 rounded">G</span>{% endif %}
+                                    {% if door.target.voter_record.voted_primary_2022 %}<span class="bg-green-500 text-white px-1 rounded">P</span>{% else %}<span class="bg-gray-200 text-gray-500 px-1 rounded">P</span>{% endif %}
+                                {% endif %}
+                            </div>
+                            <div class="flex items-center gap-1">
+                                <span class="text-gray-500">2020:</span>
+                                {% if door.target_type == "election_voter" %}
+                                    {% if door.target.voted_general_2020 %}<span class="bg-green-500 text-white px-1 rounded">G</span>{% else %}<span class="bg-gray-200 text-gray-500 px-1 rounded">G</span>{% endif %}
+                                    {% if door.target.voted_primary_2020 %}<span class="bg-green-500 text-white px-1 rounded">P</span>{% else %}<span class="bg-gray-200 text-gray-500 px-1 rounded">P</span>{% endif %}
+                                {% else %}
+                                    {% if door.target.voter_record.voted_general_2020 %}<span class="bg-green-500 text-white px-1 rounded">G</span>{% else %}<span class="bg-gray-200 text-gray-500 px-1 rounded">G</span>{% endif %}
+                                    {% if door.target.voter_record.voted_primary_2020 %}<span class="bg-green-500 text-white px-1 rounded">P</span>{% else %}<span class="bg-gray-200 text-gray-500 px-1 rounded">P</span>{% endif %}
+                                {% endif %}
+                            </div>
+                            <div class="flex items-center gap-1">
+                                <span class="text-gray-500">2018:</span>
+                                {% if door.target_type == "election_voter" %}
+                                    {% if door.target.voted_general_2018 %}<span class="bg-green-500 text-white px-1 rounded">G</span>{% else %}<span class="bg-gray-200 text-gray-500 px-1 rounded">G</span>{% endif %}
+                                    {% if door.target.voted_primary_2018 %}<span class="bg-green-500 text-white px-1 rounded">P</span>{% else %}<span class="bg-gray-200 text-gray-500 px-1 rounded">P</span>{% endif %}
+                                {% else %}
+                                    {% if door.target.voter_record.voted_general_2018 %}<span class="bg-green-500 text-white px-1 rounded">G</span>{% else %}<span class="bg-gray-200 text-gray-500 px-1 rounded">G</span>{% endif %}
+                                    {% if door.target.voter_record.voted_primary_2018 %}<span class="bg-green-500 text-white px-1 rounded">P</span>{% else %}<span class="bg-gray-200 text-gray-500 px-1 rounded">P</span>{% endif %}
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Previous Attempts Indicator -->
+                    {% if door.previous_attempts %}
+                    <div class="mt-2 text-xs text-yellow-600 flex items-center gap-1">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        {{ door.previous_attempts|length }} previous attempt{{ door.previous_attempts|length|pluralize }}
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Arrow indicator -->
+                <div class="flex-shrink-0 text-gray-400">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                    </svg>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    {% include "civicpulse/campaigns/partials/_knocking_complete.html" %}
+    {% endfor %}
+</div>
+
+<!-- Map initialization script -->
+<script>
+let doorsListMap = null;
+let doorsListMapInitialized = false;
+const doorLocations = {{ doors_json|safe }};
+const userLocationList = [{{ user_lat }}, {{ user_lon }}];
+
+function toggleDoorsMap() {
+    const container = document.getElementById('doors-list-map');
+    const btn = document.getElementById('doors-map-toggle-btn');
+
+    if (container.classList.contains('hidden')) {
+        container.classList.remove('hidden');
+        btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg> Hide Map';
+
+        if (!doorsListMapInitialized) {
+            initializeDoorsListMap();
+        } else {
+            doorsListMap.invalidateSize();
+        }
+    } else {
+        container.classList.add('hidden');
+        btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path></svg> Show Map';
+    }
+}
+
+function initializeDoorsListMap() {
+    if (!userLocationList[0] || !userLocationList[1]) return;
+
+    // Initialize Leaflet map
+    doorsListMap = L.map('doors-list-map').setView(userLocationList, 15);
+
+    L.tileLayer('{% civicpulse_setting "MAP_TILE_URL" %}', {
+        attribution: '{% civicpulse_setting "MAP_TILE_ATTRIBUTION" %}',
+        maxZoom: 19
+    }).addTo(doorsListMap);
+
+    // Add user location marker (blue dot)
+    const userIcon = L.divIcon({
+        className: 'user-location-marker',
+        html: '<div class="w-4 h-4 bg-blue-500 rounded-full border-2 border-white shadow-lg"></div>',
+        iconSize: [16, 16],
+        iconAnchor: [8, 8]
+    });
+    L.marker(userLocationList, { icon: userIcon })
+        .addTo(doorsListMap)
+        .bindPopup('Your location');
+
+    // Add numbered door markers
+    const bounds = L.latLngBounds();
+    bounds.extend(userLocationList);
+
+    doorLocations.forEach((door) => {
+        const icon = L.divIcon({
+            className: 'door-marker',
+            html: '<div class="w-6 h-6 bg-green-600 rounded-full border-2 border-white shadow-lg flex items-center justify-center text-white text-xs font-bold">' + door.order + '</div>',
+            iconSize: [24, 24],
+            iconAnchor: [12, 12]
+        });
+
+        L.marker([door.lat, door.lon], { icon: icon })
+            .addTo(doorsListMap)
+            .bindPopup('<strong>' + door.name + '</strong><br>' + door.address);
+
+        bounds.extend([door.lat, door.lon]);
+    });
+
+    // Fit bounds to show all markers
+    if (doorLocations.length > 0) {
+        doorsListMap.fitBounds(bounds, { padding: [30, 30] });
+    }
+
+    doorsListMapInitialized = true;
+}
+</script>

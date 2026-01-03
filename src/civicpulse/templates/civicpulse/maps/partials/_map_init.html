@@ -1,0 +1,95 @@
+{% load civicpulse_tags %}
+{#
+  Leaflet map initialization script partial.
+
+  Usage:
+    {% include "civicpulse/maps/partials/_map_init.html" with map_id="campaign-map" %}
+
+  This provides the base map initialization. Caller should extend with their own markers/layers.
+
+  Variables:
+    map_id: ID of the map container (default: "map")
+    center_lat: Initial center latitude (default: from settings)
+    center_lon: Initial center longitude (default: from settings)
+    zoom: Initial zoom level (default: from settings)
+    geojson_url: Optional URL to load GeoJSON features from
+#}
+<script>
+(function() {
+    // Map configuration from Django settings
+    const MAP_CONFIG = {
+        tileUrl: '{% civicpulse_setting "MAP_TILE_URL" %}',
+        attribution: '{% civicpulse_setting "MAP_TILE_ATTRIBUTION" %}',
+        defaultCenter: {% civicpulse_setting "MAP_DEFAULT_CENTER" %},
+        defaultZoom: {% civicpulse_setting "MAP_DEFAULT_ZOOM" %}
+    };
+
+    // Initialize map
+    const mapId = '{{ map_id|default:"map" }}';
+    const centerLat = {{ center_lat|default:"null" }};
+    const centerLon = {{ center_lon|default:"null" }};
+    const zoom = {{ zoom|default:"null" }};
+
+    const map = L.map(mapId).setView(
+        centerLat && centerLon ? [centerLat, centerLon] : MAP_CONFIG.defaultCenter,
+        zoom || MAP_CONFIG.defaultZoom
+    );
+
+    // Add tile layer
+    L.tileLayer(MAP_CONFIG.tileUrl, {
+        attribution: MAP_CONFIG.attribution,
+        maxZoom: 19
+    }).addTo(map);
+
+    // Store map instance globally for access by other scripts
+    window['{{ map_id|default:"map" }}'] = map;
+
+    {% if geojson_url %}
+    // Load GeoJSON data
+    fetch('{{ geojson_url }}')
+        .then(response => response.json())
+        .then(data => {
+            if (data.features && data.features.length > 0) {
+                const geoJsonLayer = L.geoJSON(data, {
+                    onEachFeature: function(feature, layer) {
+                        if (feature.properties && feature.properties.name) {
+                            layer.bindPopup(feature.properties.name);
+                        }
+                    },
+                    pointToLayer: function(feature, latlng) {
+                        return L.circleMarker(latlng, {
+                            radius: 8,
+                            fillColor: getMarkerColor(feature.properties),
+                            color: '#fff',
+                            weight: 2,
+                            opacity: 1,
+                            fillOpacity: 0.8
+                        });
+                    }
+                }).addTo(map);
+
+                // Fit bounds to data
+                map.fitBounds(geoJsonLayer.getBounds(), { padding: [50, 50] });
+            }
+        })
+        .catch(error => console.error('Error loading GeoJSON:', error));
+
+    function getMarkerColor(properties) {
+        // Color by status or party
+        if (properties.status === 'completed') return '#10B981';  // green
+        if (properties.status === 'in_progress') return '#F59E0B';  // amber
+        if (properties.status === 'pending') return '#6B7280';  // gray
+
+        // Color by party
+        if (properties.party) {
+            const party = properties.party.toLowerCase();
+            if (party.includes('democrat')) return '#3B82F6';  // blue
+            if (party.includes('republican')) return '#EF4444';  // red
+            if (party.includes('independent')) return '#8B5CF6';  // purple
+        }
+
+        return '#6B7280';  // default gray
+    }
+    {% endif %}
+})();
+</script>

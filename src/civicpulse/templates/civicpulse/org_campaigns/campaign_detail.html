@@ -1,0 +1,127 @@
+{% extends "civicpulse/base.html" %}
+
+{% block content %}
+<div class="px-4">
+    {# Breadcrumb #}
+    <nav class="mb-4 text-sm">
+        <a href="{% url 'civicpulse:org_campaign_list' %}" class="text-green-700 hover:underline">Campaigns</a>
+        <span class="text-gray-500 mx-2">/</span>
+        <span class="text-gray-600">{{ campaign.name }}</span>
+    </nav>
+
+    {# Header #}
+    <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <div class="flex justify-between items-start mb-4">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">{{ campaign.name }}</h1>
+                {% if campaign.is_active %}
+                <span class="inline-block mt-2 bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded">Active</span>
+                {% else %}
+                <span class="inline-block mt-2 bg-gray-100 text-gray-800 text-xs font-medium px-2.5 py-0.5 rounded">Inactive</span>
+                {% endif %}
+            </div>
+            <div class="flex gap-2">
+                <a href="{% url 'civicpulse:org_campaign_edit' pk=campaign.pk %}" class="text-gray-600 border border-gray-300 hover:bg-gray-50 font-medium rounded-lg text-sm px-4 py-2">
+                    Edit
+                </a>
+                <a href="{% url 'civicpulse:org_campaign_delete' pk=campaign.pk %}" class="text-red-600 border border-red-300 hover:bg-red-50 font-medium rounded-lg text-sm px-4 py-2">
+                    Delete
+                </a>
+            </div>
+        </div>
+
+        {% if campaign.description %}
+        <p class="text-gray-600 mb-4">{{ campaign.description }}</p>
+        {% endif %}
+
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            {% if campaign.candidate %}
+            <div>
+                <span class="text-gray-500 block">Candidate</span>
+                <span class="font-medium">{{ campaign.candidate }}</span>
+            </div>
+            {% endif %}
+            {% if campaign.election %}
+            <div>
+                <span class="text-gray-500 block">Election</span>
+                <span class="font-medium">{{ campaign.election }}</span>
+            </div>
+            {% endif %}
+            <div>
+                <span class="text-gray-500 block">Created</span>
+                <span class="font-medium">{{ campaign.created_at|date:"M j, Y" }}</span>
+            </div>
+            {% if campaign.created_by %}
+            <div>
+                <span class="text-gray-500 block">Created by</span>
+                <span class="font-medium">{{ campaign.created_by.username }}</span>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    {# Stripe Connect Section #}
+    {% include "civicpulse/stripe/connect_button.html" with owner=campaign owner_type="campaign" %}
+
+    {# Drives Section #}
+    <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-semibold text-gray-900">Drives</h2>
+        <a href="{% url 'civicpulse:campaign_create' %}?campaign={{ campaign.pk }}" class="text-white bg-green-700 hover:bg-green-800 focus:ring-4 focus:ring-green-300 font-medium rounded-lg text-sm px-4 py-2">
+            + New Drive
+        </a>
+    </div>
+
+    {% if drives %}
+    <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {% for drive in drives %}
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex justify-between items-start mb-3">
+                <h3 class="text-lg font-semibold text-gray-900">{{ drive.name }}</h3>
+                {% if drive.is_active %}
+                <span class="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded">Active</span>
+                {% else %}
+                <span class="bg-gray-100 text-gray-800 text-xs font-medium px-2.5 py-0.5 rounded">Inactive</span>
+                {% endif %}
+            </div>
+
+            {% if drive.description %}
+            <p class="text-gray-600 text-sm mb-4">{{ drive.description|truncatewords:15 }}</p>
+            {% endif %}
+
+            <div class="mb-4">
+                <div class="flex justify-between text-sm text-gray-600 mb-1">
+                    <span>Progress</span>
+                    <span>{{ drive.completed_count }}/{{ drive.total_assignments }}</span>
+                </div>
+                {% if drive.total_assignments > 0 %}
+                <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div class="bg-green-600 h-2 rounded-full" style="width: {% widthratio drive.completed_count drive.total_assignments 100 %}%"></div>
+                </div>
+                {% else %}
+                <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div class="bg-gray-400 h-2 rounded-full" style="width: 0%"></div>
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="flex gap-2">
+                <a href="{% url 'civicpulse:campaign_detail' pk=drive.pk %}" class="flex-1 text-center text-green-700 border border-green-700 hover:bg-green-50 font-medium rounded-lg text-sm px-3 py-2">
+                    View
+                </a>
+                {% if drive.is_active and drive.pending_count > 0 %}
+                <a href="{% url 'civicpulse:calling_session' pk=drive.pk %}" class="flex-1 text-center text-white bg-green-700 hover:bg-green-800 font-medium rounded-lg text-sm px-3 py-2">
+                    Start Calling
+                </a>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="bg-white rounded-lg shadow p-6 text-center">
+        <p class="text-gray-500 mb-4">No drives yet for this campaign</p>
+        <a href="{% url 'civicpulse:campaign_create' %}?campaign={{ campaign.pk }}" class="text-green-700 hover:underline">Create your first drive</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
