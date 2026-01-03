@@ -3,6 +3,7 @@ from django import forms
 from .models import (
     Campaign,
     Candidate,
+    CheckingAccount,
     ContactAttempt,
     ContactEffort,
     District,
@@ -588,5 +589,112 @@ class VoterImportForm(forms.Form):
                 raise forms.ValidationError("CSV must contain 'Voter ID' column")
         except UnicodeDecodeError:
             raise forms.ValidationError("File must be UTF-8 encoded")
+
+        return file
+
+
+class CheckingAccountForm(forms.ModelForm):
+    """Form for creating and editing campaign checking accounts."""
+
+    class Meta:
+        model = CheckingAccount
+        fields = [
+            "institution_name",
+            "account_number_last4",
+            "account_nickname",
+            "opened_date",
+            "closed_date",
+            "is_active",
+        ]
+        widgets = {
+            "institution_name": forms.TextInput(
+                attrs={
+                    "class": TAILWIND_INPUT,
+                    "placeholder": "Bank or credit union name",
+                }
+            ),
+            "account_number_last4": forms.TextInput(
+                attrs={
+                    "class": TAILWIND_INPUT,
+                    "placeholder": "1234",
+                    "maxlength": "4",
+                    "pattern": "[0-9]{4}",
+                }
+            ),
+            "account_nickname": forms.TextInput(
+                attrs={
+                    "class": TAILWIND_INPUT,
+                    "placeholder": "Campaign Checking (optional)",
+                }
+            ),
+            "opened_date": forms.DateInput(
+                attrs={
+                    "class": TAILWIND_INPUT,
+                    "type": "date",
+                }
+            ),
+            "closed_date": forms.DateInput(
+                attrs={
+                    "class": TAILWIND_INPUT,
+                    "type": "date",
+                }
+            ),
+            "is_active": forms.CheckboxInput(
+                attrs={
+                    "class": TAILWIND_CHECKBOX,
+                }
+            ),
+        }
+
+    def clean_account_number_last4(self):
+        """Validate that last 4 digits are numeric."""
+        last4 = self.cleaned_data.get("account_number_last4", "")
+        if not last4.isdigit():
+            raise forms.ValidationError("Must be exactly 4 digits")
+        if len(last4) != 4:
+            raise forms.ValidationError("Must be exactly 4 digits")
+        return last4
+
+    def clean(self):
+        """Validate date logic."""
+        cleaned_data = super().clean()
+        opened = cleaned_data.get("opened_date")
+        closed = cleaned_data.get("closed_date")
+
+        if opened and closed and closed < opened:
+            raise forms.ValidationError(
+                "Closed date cannot be before opened date"
+            )
+
+        return cleaned_data
+
+
+class TransactionImportForm(forms.Form):
+    """Form for uploading bank transaction CSV files."""
+
+    csv_file = forms.FileField(
+        widget=forms.FileInput(
+            attrs={
+                "class": "block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 focus:outline-none",
+                "accept": ".csv",
+            }
+        ),
+        help_text="Upload a CSV file from your bank statement",
+    )
+
+    def clean_csv_file(self):
+        """Validate CSV file."""
+        file = self.cleaned_data.get("csv_file")
+
+        if not file:
+            raise forms.ValidationError("No file uploaded")
+
+        # Check file extension
+        if not file.name.lower().endswith('.csv'):
+            raise forms.ValidationError("File must be a CSV (.csv extension)")
+
+        # Check file size (10MB limit)
+        if file.size > 10 * 1024 * 1024:
+            raise forms.ValidationError("File size must be under 10MB")
 
         return file

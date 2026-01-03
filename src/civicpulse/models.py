@@ -1244,6 +1244,13 @@ class CheckingAccount(models.Model):
             return f"{self.account_nickname} ({self.institution_name})"
         return f"{self.institution_name} (...{self.account_number_last4})"
 
+    @property
+    def current_balance(self):
+        """Calculate current balance from all transactions."""
+        from django.db.models import Sum
+        total = self.transactions.aggregate(total=Sum('amount_cents'))['total'] or 0
+        return total / 100  # Convert cents to dollars
+
 
 class Transaction(models.Model):
     """

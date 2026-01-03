@@ -5,6 +5,7 @@ from .models import (
     Address,
     Campaign,
     Candidate,
+    CheckingAccount,
     ContactAttempt,
     ContactEffort,
     District,
@@ -22,6 +23,7 @@ from .models import (
     Person,
     PhoneNumber,
     StripeConnection,
+    Transaction,
     VoterAddress,
     VoterEmail,
     VoterPhoneNumber,
@@ -979,3 +981,180 @@ class DonationSyncJobAdmin(admin.ModelAdmin):
     @admin.display(description="Progress")
     def progress_display(self, obj):
         return f"{obj.processed_count}/{obj.total_charges} ({obj.progress_percentage}%)"
+
+# =============================================================================
+# Checking Account Admin
+# =============================================================================
+
+
+class TransactionInline(admin.TabularInline):
+    """Inline for viewing transactions within an account."""
+    model = Transaction
+    extra = 0
+    readonly_fields = ['created_at', 'amount_dollars']
+    fields = [
+        'posted_date',
+        'transaction_date',
+        'transaction_type',
+        'description',
+        'amount_dollars',
+        'check_number',
+        'import_batch',
+        'created_at',
+    ]
+    ordering = ['-posted_date', '-created_at']
+
+    def amount_dollars(self, obj):
+        """Display amount in dollars."""
+        return f"${obj.amount_cents / 100:.2f}"
+    amount_dollars.short_description = "Amount"
+
+
+@admin.register(CheckingAccount)
+class CheckingAccountAdmin(admin.ModelAdmin):
+    """Admin interface for checking accounts."""
+
+    list_display = [
+        '__str__',
+        'campaign',
+        'is_active',
+        'opened_date',
+        'closed_date',
+        'current_balance_display',
+        'transaction_count',
+        'created_at',
+    ]
+    list_filter = ['is_active', 'institution_name', 'created_at']
+    search_fields = [
+        'account_nickname',
+        'institution_name',
+        'account_number_last4',
+        'campaign__name',
+    ]
+    readonly_fields = ['created_at', 'updated_at', 'current_balance_display']
+    raw_id_fields = ['campaign', 'created_by']
+    inlines = [TransactionInline]
+
+    fieldsets = [
+        (None, {
+            'fields': [
+                'campaign',
+                'institution_name',
+                'account_number_last4',
+                'account_nickname',
+            ]
+        }),
+        ('Status', {
+            'fields': [
+                'is_active',
+                'opened_date',
+                'closed_date',
+                'current_balance_display',
+            ]
+        }),
+        ('Metadata', {
+            'fields': ['created_by', 'created_at', 'updated_at'],
+            'classes': ['collapse'],
+        }),
+    ]
+
+    @admin.display(description="Current Balance")
+    def current_balance_display(self, obj):
+        """Display current balance with color coding."""
+        balance = obj.current_balance
+        color = 'green' if balance >= 0 else 'red'
+        return format_html(
+            '<span style="color: {};">${:.2f}</span>',
+            color,
+            balance,
+        )
+
+    @admin.display(description="Transactions")
+    def transaction_count(self, obj):
+        """Display transaction count."""
+        return obj.transactions.count()
+
+
+@admin.register(Transaction)
+class TransactionAdmin(admin.ModelAdmin):
+    """Admin interface for transactions."""
+
+    list_display = [
+        'posted_date',
+        'account',
+        'transaction_type',
+        'description_short',
+        'amount_display',
+        'check_number',
+        'import_batch_short',
+    ]
+    list_filter = [
+        'transaction_type',
+        'posted_date',
+        'account__campaign',
+        'account__institution_name',
+    ]
+    search_fields = [
+        'description',
+        'check_number',
+        'import_batch',
+        'account__account_nickname',
+        'account__institution_name',
+    ]
+    readonly_fields = ['created_at', 'amount_display']
+    raw_id_fields = ['account']
+    date_hierarchy = 'posted_date'
+
+    fieldsets = [
+        (None, {
+            'fields': [
+                'account',
+                'posted_date',
+                'transaction_date',
+                'transaction_type',
+                'description',
+            ]
+        }),
+        ('Amount', {
+            'fields': [
+                'amount_cents',
+                'amount_display',
+            ]
+        }),
+        ('Optional Details', {
+            'fields': [
+                'check_number',
+                'import_batch',
+            ],
+            'classes': ['collapse'],
+        }),
+        ('Metadata', {
+            'fields': ['created_at'],
+            'classes': ['collapse'],
+        }),
+    ]
+
+    @admin.display(description="Description")
+    def description_short(self, obj):
+        """Truncate description for list display."""
+        return obj.description[:50] + '...' if len(obj.description) > 50 else obj.description
+
+    @admin.display(description="Amount")
+    def amount_display(self, obj):
+        """Display amount with color coding."""
+        amount = obj.amount_cents / 100
+        color = 'green' if amount >= 0 else 'red'
+        prefix = '+' if amount >= 0 else ''
+        return format_html(
+            '<span style="color: {};">{}{:.2f}</span>',
+            color,
+            prefix,
+            amount,
+        )
+
+    @admin.display(description="Import Batch")
+    def import_batch_short(self, obj):
+        """Truncate import batch UUID for display."""
+        if obj.import_batch:
+            return obj.import_batch[:8] + '...'
+        return '-'

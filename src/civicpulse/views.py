@@ -1,4 +1,7 @@
-from datetime import date, timedelta
+import csv
+import uuid
+from datetime import date, datetime, timedelta
+from decimal import Decimal, InvalidOperation
 from math import atan2, cos, radians, sin, sqrt
 
 from django.contrib.auth.decorators import login_required
@@ -15,16 +18,19 @@ from .forms import (
     AssignmentFilterForm,
     CampaignForm,
     CandidateForm,
+    CheckingAccountForm,
     ContactAttemptForm,
     DriveForm,
     ElectionDateForm,
     ElectionForm,
     OfficeForm,
+    TransactionImportForm,
     VoterImportForm,
 )
 from .models import (
     Campaign,
     Candidate,
+    CheckingAccount,
     ContactAttempt,
     ContactEffort,
     District,
@@ -38,6 +44,7 @@ from .models import (
     Office,
     Person,
     StripeConnection,
+    Transaction,
     VoterRecord,
 )
 
@@ -2970,3 +2977,421 @@ def stripe_disconnect_confirm_redirect(request, owner_type, owner_id):
     else:
         messages.error(request, f"Invalid owner type: {owner_type}")
         return redirect("civicpulse:index")
+
+# =============================================================================
+# Checking Account Management Views
+# =============================================================================
+
+
+@login_required
+def account_list(request, pk):
+    """List all checking accounts for a campaign."""
+    campaign = get_object_or_404(Campaign, pk=pk)
+
+    # Get accounts ordered by most recently created
+    accounts = campaign.checking_accounts.all().order_by('-created_at')
+
+    return render(
+        request,
+        "civicpulse/accounts/account_list.html",
+        {
+            "campaign": campaign,
+            "accounts": accounts,
+        },
+    )
+
+
+@login_required
+def account_create(request, pk):
+    """Create a new checking account for a campaign."""
+    campaign = get_object_or_404(Campaign, pk=pk)
+
+    if request.method == "POST":
+        form = CheckingAccountForm(request.POST)
+        if form.is_valid():
+            account = form.save(commit=False)
+            account.campaign = campaign
+            account.created_by = request.user
+            account.save()
+            return redirect("civicpulse:account_detail", pk=account.pk)
+    else:
+        form = CheckingAccountForm()
+
+    return render(
+        request,
+        "civicpulse/accounts/account_form.html",
+        {
+            "campaign": campaign,
+            "form": form,
+            "is_create": True,
+        },
+    )
+
+
+@login_required
+def account_detail(request, pk):
+    """View checking account details with transaction history."""
+    account = get_object_or_404(CheckingAccount, pk=pk)
+    campaign = account.campaign
+
+    # Get transactions ordered by posted date (newest first)
+    transactions = account.transactions.order_by('-posted_date', '-created_at')
+
+    # Calculate running balances
+    transactions_with_balance = []
+    running_balance = 0
+
+    # Iterate in reverse to calculate running balance forward
+    for txn in reversed(list(transactions)):
+        running_balance += txn.amount_cents / 100
+        transactions_with_balance.insert(0, {
+            'transaction': txn,
+            'running_balance': running_balance,
+        })
+
+    return render(
+        request,
+        "civicpulse/accounts/account_detail.html",
+        {
+            "campaign": campaign,
+            "account": account,
+            "transactions": transactions_with_balance,
+        },
+    )
+
+
+@login_required
+def account_edit(request, pk):
+    """Edit an existing checking account."""
+    account = get_object_or_404(CheckingAccount, pk=pk)
+    campaign = account.campaign
+
+    if request.method == "POST":
+        form = CheckingAccountForm(request.POST, instance=account)
+        if form.is_valid():
+            form.save()
+            return redirect("civicpulse:account_detail", pk=account.pk)
+    else:
+        form = CheckingAccountForm(instance=account)
+
+    return render(
+        request,
+        "civicpulse/accounts/account_form.html",
+        {
+            "campaign": campaign,
+            "account": account,
+            "form": form,
+            "is_create": False,
+        },
+    )
+
+
+@login_required
+def account_delete(request, pk):
+    """Delete a checking account with confirmation."""
+    account = get_object_or_404(CheckingAccount, pk=pk)
+    campaign = account.campaign
+
+    if request.method == "POST":
+        campaign_pk = campaign.pk
+        account.delete()  # CASCADE will delete all transactions
+        return redirect("civicpulse:account_list", pk=campaign_pk)
+
+    return render(
+        request,
+        "civicpulse/accounts/account_confirm_delete.html",
+        {
+            "campaign": campaign,
+            "account": account,
+        },
+    )
+
+
+@login_required
+def transaction_import(request, pk):
+    """Handle transaction CSV upload with preview and confirmation."""
+    account = get_object_or_404(CheckingAccount, pk=pk)
+    campaign = account.campaign
+
+    # Check if we're in preview mode (data stored in session)
+    preview_data = request.session.get(f'transaction_import_preview_{pk}')
+
+    if request.method == "POST":
+        action = request.POST.get('action')
+
+        # Handle cancel action
+        if action == 'cancel':
+            if f'transaction_import_preview_{pk}' in request.session:
+                del request.session[f'transaction_import_preview_{pk}']
+            return redirect("civicpulse:account_detail", pk=account.pk)
+
+        # Handle confirm action (import transactions)
+        if action == 'confirm' and preview_data:
+            import_batch = str(uuid.uuid4())
+            transactions = preview_data['transactions']
+
+            # Create Transaction objects in bulk
+            transaction_objects = []
+            for txn_data in transactions:
+                transaction_objects.append(
+                    Transaction(
+                        account=account,
+                        posted_date=datetime.strptime(txn_data['posted_date'], '%Y-%m-%d').date(),
+                        transaction_date=datetime.strptime(txn_data['transaction_date'], '%Y-%m-%d').date(),
+                        transaction_type=txn_data['transaction_type'],
+                        check_number=txn_data['check_number'],
+                        description=txn_data['description'],
+                        amount_cents=txn_data['amount_cents'],
+                        import_batch=import_batch,
+                    )
+                )
+
+            # Bulk create for efficiency
+            Transaction.objects.bulk_create(transaction_objects)
+
+            # Clear session data
+            del request.session[f'transaction_import_preview_{pk}']
+
+            return redirect("civicpulse:account_detail", pk=account.pk)
+
+        # Handle file upload (preview mode)
+        form = TransactionImportForm(request.POST, request.FILES)
+        if form.is_valid():
+            csv_file = form.cleaned_data['csv_file']
+
+            # Parse CSV
+            transactions = []
+            parse_errors = []
+            duplicate_warnings = []
+
+            try:
+                # Decode file content
+                file_content = csv_file.read().decode('utf-8').splitlines()
+                reader = csv.DictReader(file_content)
+
+                # Expected columns (flexible matching)
+                expected_cols = {
+                    'posted_date': ['Posted Date', 'Post Date', 'Date Posted'],
+                    'transaction_date': ['Transaction Date', 'Txn Date', 'Date'],
+                    'transaction_type': ['Transaction Type', 'Type', 'Txn Type'],
+                    'check_number': ['Check/Serial #', 'Check Number', 'Check #', 'Serial'],
+                    'description': ['Description', 'Memo', 'Details'],
+                    'amount': ['Amount', 'Amt', 'Transaction Amount'],
+                }
+
+                # Map actual column names to expected fields
+                col_mapping = {}
+                for field, possible_names in expected_cols.items():
+                    for col_name in reader.fieldnames or []:
+                        if col_name in possible_names:
+                            col_mapping[field] = col_name
+                            break
+
+                # Validate required columns found
+                required = ['posted_date', 'description', 'amount']
+                missing = [f for f in required if f not in col_mapping]
+                if missing:
+                    raise ValueError(f"Missing required columns: {', '.join(missing)}")
+
+                # Parse rows
+                row_num = 1
+                for row in reader:
+                    row_num += 1
+                    try:
+                        # Parse posted date
+                        posted_date_str = row.get(col_mapping['posted_date'], '').strip()
+                        posted_date = parse_date_flexible(posted_date_str)
+
+                        # Parse transaction date (fallback to posted date)
+                        if 'transaction_date' in col_mapping:
+                            txn_date_str = row.get(col_mapping['transaction_date'], '').strip()
+                            transaction_date = parse_date_flexible(txn_date_str) if txn_date_str else posted_date
+                        else:
+                            transaction_date = posted_date
+
+                        # Parse amount
+                        amount_str = row.get(col_mapping['amount'], '').strip()
+                        amount_cents = parse_amount_to_cents(amount_str)
+
+                        # Detect transaction type from amount or explicit field
+                        if 'transaction_type' in col_mapping:
+                            txn_type_str = row.get(col_mapping['transaction_type'], '').strip().lower()
+                            transaction_type = detect_transaction_type(txn_type_str, amount_cents)
+                        else:
+                            transaction_type = 'debit' if amount_cents < 0 else 'deposit'
+
+                        # Get optional fields
+                        check_number = row.get(col_mapping.get('check_number', ''), '').strip() or ''
+                        description = row.get(col_mapping['description'], '').strip()
+
+                        # Check for potential duplicates
+                        existing = Transaction.objects.filter(
+                            account=account,
+                            posted_date=posted_date,
+                            amount_cents=amount_cents,
+                            description=description,
+                        ).exists()
+
+                        if existing:
+                            duplicate_warnings.append(
+                                f"Row {row_num}: {posted_date} - {description[:30]} "
+                                f"(${abs(amount_cents)/100:.2f}) may already exist"
+                            )
+
+                        # Add to transactions list
+                        transactions.append({
+                            'posted_date': posted_date.strftime('%Y-%m-%d'),
+                            'transaction_date': transaction_date.strftime('%Y-%m-%d'),
+                            'transaction_type': transaction_type,
+                            'check_number': check_number,
+                            'description': description,
+                            'amount_cents': amount_cents,
+                            'amount_display': format_amount_display(amount_cents),
+                        })
+
+                    except Exception as e:
+                        parse_errors.append(f"Row {row_num}: {str(e)}")
+                        if len(parse_errors) >= 10:
+                            parse_errors.append("... (too many errors, stopping)")
+                            break
+
+            except Exception as e:
+                return render(
+                    request,
+                    "civicpulse/accounts/transaction_import.html",
+                    {
+                        "campaign": campaign,
+                        "account": account,
+                        "form": form,
+                        "error": f"Failed to parse CSV: {str(e)}",
+                    },
+                )
+
+            # Store in session for confirmation step
+            request.session[f'transaction_import_preview_{pk}'] = {
+                'transactions': transactions,
+                'parse_errors': parse_errors,
+                'duplicate_warnings': duplicate_warnings,
+                'filename': csv_file.name,
+            }
+
+            # Render preview
+            return render(
+                request,
+                "civicpulse/accounts/transaction_import.html",
+                {
+                    "campaign": campaign,
+                    "account": account,
+                    "preview": True,
+                    "transactions": transactions,
+                    "parse_errors": parse_errors,
+                    "duplicate_warnings": duplicate_warnings,
+                    "total_count": len(transactions),
+                    "filename": csv_file.name,
+                },
+            )
+
+    else:
+        # GET request - show upload form
+        form = TransactionImportForm()
+
+        # Clear any stale preview data
+        if f'transaction_import_preview_{pk}' in request.session:
+            del request.session[f'transaction_import_preview_{pk}']
+
+    return render(
+        request,
+        "civicpulse/accounts/transaction_import.html",
+        {
+            "campaign": campaign,
+            "account": account,
+            "form": form,
+        },
+    )
+
+
+# Helper functions for transaction import
+
+def parse_date_flexible(date_str):
+    """Parse date from various formats."""
+    date_str = date_str.strip()
+
+    # Try common formats
+    formats = [
+        '%m/%d/%Y',  # 01/15/2024
+        '%Y-%m-%d',  # 2024-01-15
+        '%m-%d-%Y',  # 01-15-2024
+        '%m/%d/%y',  # 01/15/24
+        '%Y/%m/%d',  # 2024/01/15
+    ]
+
+    for fmt in formats:
+        try:
+            return datetime.strptime(date_str, fmt).date()
+        except ValueError:
+            continue
+
+    raise ValueError(f"Could not parse date: {date_str}")
+
+
+def parse_amount_to_cents(amount_str):
+    """
+    Parse amount string to cents (integer).
+
+    Handles formats like:
+    - $500.00
+    - 500
+    - ($128.80)  (parentheses indicate negative/debit)
+    - -128.80
+    """
+    amount_str = amount_str.strip()
+
+    # Check for parentheses (indicates negative)
+    is_negative = amount_str.startswith('(') and amount_str.endswith(')')
+
+    # Remove currency symbols, commas, parentheses
+    amount_str = amount_str.replace('$', '').replace(',', '').replace('(', '').replace(')', '').strip()
+
+    try:
+        amount = Decimal(amount_str)
+        if is_negative:
+            amount = -abs(amount)
+
+        # Convert to cents
+        amount_cents = int(amount * 100)
+        return amount_cents
+
+    except (ValueError, InvalidOperation) as e:
+        raise ValueError(f"Invalid amount format: {amount_str}")
+
+
+def detect_transaction_type(type_str, amount_cents):
+    """Detect transaction type from string or amount."""
+    type_str = type_str.lower()
+
+    type_mapping = {
+        'deposit': Transaction.TransactionType.DEPOSIT,
+        'debit': Transaction.TransactionType.DEBIT,
+        'credit': Transaction.TransactionType.CREDIT,
+        'check': Transaction.TransactionType.CHECK,
+        'transfer': Transaction.TransactionType.TRANSFER,
+        'fee': Transaction.TransactionType.FEE,
+        'withdrawal': Transaction.TransactionType.DEBIT,
+        'payment': Transaction.TransactionType.DEBIT,
+    }
+
+    for key, value in type_mapping.items():
+        if key in type_str:
+            return value
+
+    # Fallback based on amount
+    return Transaction.TransactionType.DEBIT if amount_cents < 0 else Transaction.TransactionType.DEPOSIT
+
+
+def format_amount_display(amount_cents):
+    """Format amount in cents for display."""
+    amount = amount_cents / 100
+    if amount >= 0:
+        return f"+${amount:.2f}"
+    else:
+        return f"-${abs(amount):.2f}"

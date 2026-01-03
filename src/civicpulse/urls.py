@@ -217,4 +217,35 @@ urlpatterns = [
         views.stripe_disconnect_confirm_redirect,
         name="stripe_disconnect_confirm",
     ),
+    # Checking Account Management
+    path(
+        "campaigns/<uuid:pk>/accounts/",
+        views.account_list,
+        name="account_list",
+    ),
+    path(
+        "campaigns/<uuid:pk>/accounts/create/",
+        views.account_create,
+        name="account_create",
+    ),
+    path(
+        "accounts/<uuid:pk>/",
+        views.account_detail,
+        name="account_detail",
+    ),
+    path(
+        "accounts/<uuid:pk>/edit/",
+        views.account_edit,
+        name="account_edit",
+    ),
+    path(
+        "accounts/<uuid:pk>/delete/",
+        views.account_delete,
+        name="account_delete",
+    ),
+    path(
+        "accounts/<uuid:pk>/import/",
+        views.transaction_import,
+        name="transaction_import",
+    ),
 ]
