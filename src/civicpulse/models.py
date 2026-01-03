@@ -221,6 +221,53 @@ class VoterRecord(models.Model):
         super().save(*args, **kwargs)
 
 
+class Organization(models.Model):
+    """Represents a governing body that contains offices (e.g., School Board, City Council)."""
+
+    class OrganizationType(models.TextChoices):
+        SCHOOL_BOARD = "school_board", "School Board"
+        BOARD_OF_COMMISSIONERS = "board_of_commissioners", "Board of Commissioners"
+        CITY_COUNCIL = "city_council", "City Council"
+        STATE_SENATE = "state_senate", "State Senate"
+        STATE_HOUSE = "state_house", "State House"
+        US_SENATE = "us_senate", "U.S. Senate"
+        US_HOUSE = "us_house", "U.S. House of Representatives"
+        COUNTY_COMMISSION = "county_commission", "County Commission"
+        OTHER = "other", "Other"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(
+        max_length=200,
+        help_text="e.g., 'Cobb County School Board'"
+    )
+    organization_type = models.CharField(
+        max_length=30,
+        choices=OrganizationType.choices,
+        default=OrganizationType.OTHER
+    )
+
+    # Jurisdiction fields
+    city = models.CharField(max_length=100, blank=True)
+    county = models.CharField(max_length=100, blank=True)
+    state = models.CharField(
+        max_length=2,
+        blank=True,
+        help_text="US state abbreviation"
+    )
+
+    description = models.TextField(blank=True)
+    website = models.URLField(blank=True, help_text="Official website")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["organization_type", "state", "name"]
+
+    def __str__(self):
+        return self.name
+
+
 class Office(models.Model):
     """Represents an elected office position."""
 
@@ -235,6 +282,14 @@ class Office(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(
         max_length=200, help_text="e.g., 'Mayor', 'City Council Seat 3'"
+    )
+    organization = models.ForeignKey(
+        "Organization",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="offices",
+        help_text="The governing body this office belongs to (e.g., School Board, City Council)"
     )
     level = models.CharField(max_length=20, choices=Level.choices, default=Level.CITY)
 

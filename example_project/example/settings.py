@@ -321,7 +321,7 @@ if DEBUG:
         },
         "handlers": {
             "console": {
-                "level": "DEBUG",
+                "level": "INFO",
                 "class": "logging.StreamHandler",
                 "formatter": "verbose",
             },
@@ -338,13 +338,31 @@ if DEBUG:
         "loggers": {
             "django": {
                 "handlers": ["console", "web_file"],
-                "level": "DEBUG",
+                "level": "INFO",
                 "propagate": True,
             },
             "civicpulse": {
                 "handlers": ["console", "web_file"],
                 "level": "DEBUG",
                 "propagate": True,
+            },
+            # Suppress SQL query logging
+            "django.db.backends": {
+                "level": "WARNING",
+                "handlers": ["console", "web_file"],
+                "propagate": False,
+            },
+            # Suppress autoreload file watching
+            "django.utils.autoreload": {
+                "level": "WARNING",
+                "handlers": ["console", "web_file"],
+                "propagate": False,
+            },
+            # Suppress template debug messages
+            "django.template": {
+                "level": "INFO",
+                "handlers": ["console", "web_file"],
+                "propagate": False,
             },
         },
     }
