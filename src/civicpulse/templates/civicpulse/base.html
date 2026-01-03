@@ -47,16 +47,29 @@
               </li>
               {% if user.is_authenticated %}
               <li>
-                <a href="{% url 'civicpulse:org_campaign_list' %}" class="block py-2 pl-3 pr-4 text-gray-600 hover:text-green-700 md:p-0 dark:text-gray-400">Campaigns</a>
-              </li>
-              <li>
-                <a href="{% url 'civicpulse:campaign_list' %}" class="block py-2 pl-3 pr-4 text-gray-600 hover:text-green-700 md:p-0 dark:text-gray-400">Drives</a>
-              </li>
-              <li>
-                <a href="{% url 'civicpulse:election_list' %}" class="block py-2 pl-3 pr-4 text-gray-600 hover:text-green-700 md:p-0 dark:text-gray-400">Elections</a>
-              </li>
-              <li>
-                <a href="{% url 'civicpulse:office_list' %}" class="block py-2 pl-3 pr-4 text-gray-600 hover:text-green-700 md:p-0 dark:text-gray-400">Offices</a>
+                <button id="featuresDropdownButton" data-dropdown-toggle="featuresDropdown" class="flex items-center py-2 pl-3 pr-4 text-gray-600 hover:text-green-700 md:p-0 dark:text-gray-400">
+                  Features
+                  <svg class="w-2.5 h-2.5 ms-2.5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 10 6">
+                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 4 4 4-4"/>
+                  </svg>
+                </button>
+                <!-- Features Dropdown menu -->
+                <div id="featuresDropdown" class="z-10 hidden font-normal bg-white divide-y divide-gray-100 rounded-lg shadow-sm w-44 dark:bg-gray-700 dark:divide-gray-600">
+                  <ul class="py-2 text-sm text-gray-700 dark:text-gray-400" aria-labelledby="featuresDropdownButton">
+                    <li>
+                      <a href="{% url 'civicpulse:org_campaign_list' %}" class="block px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-600 dark:hover:text-white">Campaigns</a>
+                    </li>
+                    <li>
+                      <a href="{% url 'civicpulse:campaign_list' %}" class="block px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-600 dark:hover:text-white">Drives</a>
+                    </li>
+                    <li>
+                      <a href="{% url 'civicpulse:election_list' %}" class="block px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-600 dark:hover:text-white">Elections</a>
+                    </li>
+                    <li>
+                      <a href="{% url 'civicpulse:office_list' %}" class="block px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-600 dark:hover:text-white">Offices</a>
+                    </li>
+                  </ul>
+                </div>
               </li>
               <li>
                 <span class="block py-2 pl-3 pr-4 text-gray-600 md:p-0 dark:text-gray-400">{{ user.username }}</span>

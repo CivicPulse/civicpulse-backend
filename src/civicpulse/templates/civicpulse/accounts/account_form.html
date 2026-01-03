@@ -1,0 +1,116 @@
+{% extends "civicpulse/base.html" %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto px-4">
+    {# Breadcrumb #}
+    <nav class="mb-4 text-sm">
+        <a href="{% url 'civicpulse:org_campaign_list' %}" class="text-green-700 hover:underline">Campaigns</a>
+        <span class="text-gray-500 mx-2">/</span>
+        <a href="{% url 'civicpulse:org_campaign_detail' pk=campaign.pk %}" class="text-green-700 hover:underline">{{ campaign.name }}</a>
+        <span class="text-gray-500 mx-2">/</span>
+        <a href="{% url 'civicpulse:account_list' pk=campaign.pk %}" class="text-green-700 hover:underline">Checking Accounts</a>
+        {% if not is_create %}
+        <span class="text-gray-500 mx-2">/</span>
+        <a href="{% url 'civicpulse:account_detail' pk=account.pk %}" class="text-green-700 hover:underline">{{ account.institution_name }}</a>
+        <span class="text-gray-500 mx-2">/</span>
+        <span class="text-gray-600">Edit</span>
+        {% else %}
+        <span class="text-gray-500 mx-2">/</span>
+        <span class="text-gray-600">New Account</span>
+        {% endif %}
+    </nav>
+
+    <div class="bg-white rounded-lg shadow p-6">
+        <h1 class="text-2xl font-bold text-gray-900 mb-6">
+            {% if is_create %}New Checking Account{% else %}Edit Checking Account{% endif %}
+        </h1>
+
+        <form method="post" class="space-y-6">
+            {% csrf_token %}
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label for="id_institution_name" class="block mb-2 text-sm font-medium text-gray-900">
+                        Institution Name
+                    </label>
+                    {{ form.institution_name }}
+                    {% if form.institution_name.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.institution_name.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <div>
+                    <label for="id_account_number_last4" class="block mb-2 text-sm font-medium text-gray-900">
+                        Last 4 Digits
+                    </label>
+                    {{ form.account_number_last4 }}
+                    <p class="mt-1 text-xs text-gray-500">For security, we only store the last 4 digits</p>
+                    {% if form.account_number_last4.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.account_number_last4.errors.0 }}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div>
+                <label for="id_account_nickname" class="block mb-2 text-sm font-medium text-gray-900">
+                    Account Nickname <span class="text-gray-500">(optional)</span>
+                </label>
+                {{ form.account_nickname }}
+                <p class="mt-1 text-xs text-gray-500">A friendly name to identify this account</p>
+                {% if form.account_nickname.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ form.account_nickname.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label for="id_opened_date" class="block mb-2 text-sm font-medium text-gray-900">
+                        Opened Date
+                    </label>
+                    {{ form.opened_date }}
+                    {% if form.opened_date.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.opened_date.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <div>
+                    <label for="id_closed_date" class="block mb-2 text-sm font-medium text-gray-900">
+                        Closed Date <span class="text-gray-500">(optional)</span>
+                    </label>
+                    {{ form.closed_date }}
+                    <p class="mt-1 text-xs text-gray-500">Leave blank if account is still open</p>
+                    {% if form.closed_date.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.closed_date.errors.0 }}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="flex items-center">
+                <div class="flex items-center h-5">
+                    {{ form.is_active }}
+                </div>
+                <label for="id_is_active" class="ml-2 text-sm font-medium text-gray-900">
+                    Active account
+                </label>
+            </div>
+
+            {% if form.non_field_errors %}
+            <div class="p-4 bg-red-50 rounded-lg">
+                {% for error in form.non_field_errors %}
+                <p class="text-sm text-red-600">{{ error }}</p>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <div class="flex gap-4">
+                <button type="submit" class="text-white bg-green-700 hover:bg-green-800 focus:ring-4 focus:ring-green-300 font-medium rounded-lg text-sm px-5 py-2.5">
+                    {% if is_create %}Create Account{% else %}Save Changes{% endif %}
+                </button>
+                <a href="{% if is_create %}{% url 'civicpulse:account_list' pk=campaign.pk %}{% else %}{% url 'civicpulse:account_detail' pk=account.pk %}{% endif %}" class="text-gray-600 border border-gray-300 hover:bg-gray-50 font-medium rounded-lg text-sm px-5 py-2.5">
+                    Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

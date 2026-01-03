@@ -1,0 +1,180 @@
+{% extends "civicpulse/base.html" %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-4">
+    {# Breadcrumb #}
+    <nav class="mb-4 text-sm">
+        <a href="{% url 'civicpulse:org_campaign_list' %}" class="text-green-700 hover:underline">Campaigns</a>
+        <span class="text-gray-500 mx-2">/</span>
+        <a href="{% url 'civicpulse:org_campaign_detail' pk=campaign.pk %}" class="text-green-700 hover:underline">{{ campaign.name }}</a>
+        <span class="text-gray-500 mx-2">/</span>
+        <a href="{% url 'civicpulse:account_list' pk=campaign.pk %}" class="text-green-700 hover:underline">Checking Accounts</a>
+        <span class="text-gray-500 mx-2">/</span>
+        <a href="{% url 'civicpulse:account_detail' pk=account.pk %}" class="text-green-700 hover:underline">****{{ account.account_number_last4 }}</a>
+        <span class="text-gray-500 mx-2">/</span>
+        <span class="text-gray-600">Import Transactions</span>
+    </nav>
+
+    <h1 class="text-2xl font-bold text-gray-900 mb-6">Import Transactions</h1>
+
+    {% if preview %}
+    {# Preview Mode: Show parsed transactions for confirmation #}
+    <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Review Import</h2>
+        <p class="text-gray-600 mb-4">
+            Found <strong>{{ total_count }}</strong> transaction{{ total_count|pluralize }} in <strong>{{ filename }}</strong>.
+        </p>
+
+        {% if parse_errors %}
+        <div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+            <h3 class="text-sm font-medium text-red-800 mb-2">Parsing Errors</h3>
+            <p class="text-sm text-red-600 mb-2">The following rows could not be parsed and will be skipped:</p>
+            <ul class="list-disc list-inside text-sm text-red-700">
+                {% for error in parse_errors %}
+                <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        {% if duplicate_warnings %}
+        <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+            <h3 class="text-sm font-medium text-yellow-800 mb-2">Potential Duplicates</h3>
+            <p class="text-sm text-yellow-600 mb-2">These transactions may already exist in your account:</p>
+            <ul class="list-disc list-inside text-sm text-yellow-700">
+                {% for warning in duplicate_warnings %}
+                <li>{{ warning }}</li>
+                {% endfor %}
+            </ul>
+            <p class="text-sm text-yellow-600 mt-2">They will still be imported if you continue.</p>
+        </div>
+        {% endif %}
+
+        {# Transaction Preview Table #}
+        {% if transactions %}
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left text-gray-500">
+                <thead class="text-xs text-gray-700 uppercase bg-gray-50">
+                    <tr>
+                        <th scope="col" class="px-4 py-3">Date</th>
+                        <th scope="col" class="px-4 py-3">Description</th>
+                        <th scope="col" class="px-4 py-3">Type</th>
+                        <th scope="col" class="px-4 py-3">Check #</th>
+                        <th scope="col" class="px-4 py-3 text-right">Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for txn in transactions %}
+                    <tr class="bg-white border-b">
+                        <td class="px-4 py-3 whitespace-nowrap text-gray-900">{{ txn.posted_date }}</td>
+                        <td class="px-4 py-3">{{ txn.description|truncatewords:8 }}</td>
+                        <td class="px-4 py-3">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                                {% if txn.transaction_type == 'deposit' %}
+                                    bg-green-100 text-green-800
+                                {% elif txn.transaction_type == 'debit' %}
+                                    bg-red-100 text-red-800
+                                {% elif txn.transaction_type == 'check' %}
+                                    bg-blue-100 text-blue-800
+                                {% elif txn.transaction_type == 'fee' %}
+                                    bg-yellow-100 text-yellow-800
+                                {% elif txn.transaction_type == 'transfer' %}
+                                    bg-purple-100 text-purple-800
+                                {% elif txn.transaction_type == 'credit' %}
+                                    bg-cyan-100 text-cyan-800
+                                {% else %}
+                                    bg-gray-100 text-gray-800
+                                {% endif %}
+                            ">
+                                {{ txn.transaction_type|title }}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3 text-gray-500">{{ txn.check_number|default:"-" }}</td>
+                        <td class="px-4 py-3 text-right font-medium whitespace-nowrap
+                            {% if txn.amount_cents >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                            {{ txn.amount_display }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        {# Action Buttons #}
+        <div class="flex gap-4 mt-6">
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="confirm">
+                <button type="submit" class="text-white bg-green-700 hover:bg-green-800 focus:ring-4 focus:ring-green-300 font-medium rounded-lg text-sm px-5 py-2.5">
+                    Confirm Import ({{ total_count }} transaction{{ total_count|pluralize }})
+                </button>
+            </form>
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="cancel">
+                <button type="submit" class="text-gray-600 border border-gray-300 hover:bg-gray-50 font-medium rounded-lg text-sm px-5 py-2.5">
+                    Cancel
+                </button>
+            </form>
+        </div>
+    </div>
+
+    {% else %}
+    {# Upload Mode: Show file upload form #}
+    <div class="bg-white rounded-lg shadow p-6">
+        {% if error %}
+        <div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+            <p class="text-sm text-red-700">{{ error }}</p>
+        </div>
+        {% endif %}
+
+        <p class="text-gray-600 mb-6">
+            Upload a CSV file from your bank statement. The file should include columns for:
+            Posted Date, Transaction Date, Transaction Type, Description, and Amount.
+        </p>
+
+        <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+
+            <div class="mb-6">
+                <label for="{{ form.csv_file.id_for_label }}" class="block mb-2 text-sm font-medium text-gray-900">
+                    CSV File
+                </label>
+                {{ form.csv_file }}
+                {% if form.csv_file.help_text %}
+                <p class="mt-1 text-sm text-gray-500">{{ form.csv_file.help_text }}</p>
+                {% endif %}
+                {% if form.csv_file.errors %}
+                {% for error in form.csv_file.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ error }}</p>
+                {% endfor %}
+                {% endif %}
+            </div>
+
+            <div class="bg-gray-50 rounded-lg p-4 mb-6">
+                <h3 class="text-sm font-medium text-gray-900 mb-2">Expected CSV Format</h3>
+                <p class="text-sm text-gray-600 mb-2">Your bank statement CSV should include these columns:</p>
+                <ul class="list-disc list-inside text-sm text-gray-600">
+                    <li><strong>Posted Date</strong> - Date transaction posted (MM/DD/YYYY)</li>
+                    <li><strong>Transaction Date</strong> - Original transaction date</li>
+                    <li><strong>Transaction Type</strong> - Deposit, Debit, Credit, etc.</li>
+                    <li><strong>Check/Serial #</strong> - Check number (optional)</li>
+                    <li><strong>Description</strong> - Transaction description</li>
+                    <li><strong>Amount</strong> - Dollar amount ($500 or ($128.80) for debits)</li>
+                </ul>
+            </div>
+
+            <div class="flex gap-4">
+                <button type="submit" class="text-white bg-green-700 hover:bg-green-800 focus:ring-4 focus:ring-green-300 font-medium rounded-lg text-sm px-5 py-2.5">
+                    Upload and Preview
+                </button>
+                <a href="{% url 'civicpulse:account_detail' pk=account.pk %}" class="text-gray-600 border border-gray-300 hover:bg-gray-50 font-medium rounded-lg text-sm px-5 py-2.5">
+                    Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

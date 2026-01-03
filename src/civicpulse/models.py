@@ -1178,6 +1178,154 @@ class GeocodingError(models.Model):
 
 
 # =============================================================================
+# Campaign Finance Models
+# =============================================================================
+
+
+class CheckingAccount(models.Model):
+    """
+    Campaign checking account for tracking campaign finances.
+
+    Each account is linked to a campaign and stores basic identifying information
+    without sensitive data (only last 4 digits of account number).
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    # Account identification (no sensitive data stored)
+    account_number_last4 = models.CharField(
+        max_length=4,
+        help_text="Last 4 digits of account number only"
+    )
+    institution_name = models.CharField(
+        max_length=200,
+        help_text="Bank or financial institution name"
+    )
+    account_nickname = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Optional nickname for easy identification"
+    )
+
+    # Account lifecycle
+    opened_date = models.DateField(help_text="Date the account was opened")
+    closed_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Date the account was closed (if applicable)"
+    )
+    is_active = models.BooleanField(default=True)
+
+    # Relationships
+    campaign = models.ForeignKey(
+        "Campaign",
+        on_delete=models.CASCADE,
+        related_name="checking_accounts",
+        help_text="The campaign this account belongs to"
+    )
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="checking_accounts"
+    )
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "checking account"
+        verbose_name_plural = "checking accounts"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        if self.account_nickname:
+            return f"{self.account_nickname} ({self.institution_name})"
+        return f"{self.institution_name} (...{self.account_number_last4})"
+
+
+class Transaction(models.Model):
+    """
+    Individual bank transaction for a campaign checking account.
+
+    Imported from bank statements to track campaign income and expenses.
+    """
+
+    class TransactionType(models.TextChoices):
+        DEPOSIT = "deposit", "Deposit"
+        DEBIT = "debit", "Debit"
+        CREDIT = "credit", "Credit"
+        CHECK = "check", "Check"
+        TRANSFER = "transfer", "Transfer"
+        FEE = "fee", "Fee"
+        OTHER = "other", "Other"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    # Transaction details
+    posted_date = models.DateField(help_text="Date transaction was posted to account")
+    transaction_date = models.DateField(help_text="Date of the transaction")
+    transaction_type = models.CharField(
+        max_length=20,
+        choices=TransactionType.choices,
+        default=TransactionType.OTHER
+    )
+    check_number = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text="Check or serial number (if applicable)"
+    )
+    description = models.CharField(
+        max_length=500,
+        help_text="Transaction description from bank statement"
+    )
+
+    # Amount in cents (negative for debits/withdrawals)
+    amount_cents = models.IntegerField(
+        help_text="Amount in cents, negative for debits/withdrawals"
+    )
+
+    # Import tracking
+    import_batch = models.CharField(
+        max_length=36,
+        blank=True,
+        help_text="UUID of the import batch for tracking"
+    )
+
+    # Relationships
+    account = models.ForeignKey(
+        "CheckingAccount",
+        on_delete=models.CASCADE,
+        related_name="transactions",
+        help_text="The checking account this transaction belongs to"
+    )
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "transaction"
+        verbose_name_plural = "transactions"
+        ordering = ["-posted_date", "-created_at"]
+        indexes = [
+            models.Index(fields=["account", "posted_date"], name="civicpulse__account_posted_idx"),
+            models.Index(fields=["import_batch"], name="civicpulse__import_batch_idx"),
+        ]
+
+    def __str__(self):
+        amount_display = f"${abs(self.amount_cents) / 100:.2f}"
+        if self.amount_cents < 0:
+            amount_display = f"-{amount_display}"
+        return f"{self.posted_date} - {self.description[:30]} ({amount_display})"
+
+    @property
+    def amount_dollars(self):
+        """Return amount as decimal dollars."""
+        return self.amount_cents / 100
+
+
+# =============================================================================
 # Stripe Connect Models
 # =============================================================================
 

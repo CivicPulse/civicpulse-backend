@@ -4,13 +4,9 @@
 <div class="px-4">
     {# Breadcrumb #}
     <nav class="mb-4 text-sm">
-        {% if owner_type == "campaign" %}
         <a href="{% url 'civicpulse:org_campaign_list' %}" class="text-green-700 hover:underline">Campaigns</a>
         <span class="text-gray-500 mx-2">/</span>
         <a href="{% url 'civicpulse:org_campaign_detail' pk=owner.pk %}" class="text-green-700 hover:underline">{{ owner.name }}</a>
-        {% else %}
-        <a href="{% url 'civicpulse:candidate_detail' pk=owner.pk %}" class="text-green-700 hover:underline">{{ owner }}</a>
-        {% endif %}
         <span class="text-gray-500 mx-2">/</span>
         <span class="text-gray-600">Donations</span>
     </nav>
@@ -23,7 +19,7 @@
                 <p class="text-gray-600 mt-1">{{ owner.name }}</p>
             </div>
             <div class="flex gap-2">
-                <form method="post" action="{% if owner_type == 'campaign' %}{% url 'civicpulse:campaign_donations_sync' pk=owner.pk %}{% else %}{% url 'civicpulse:candidate_donations_sync' pk=owner.pk %}{% endif %}">
+                <form method="post" action="{% url 'civicpulse:campaign_donations_sync' pk=owner.pk %}">
                     {% csrf_token %}
                     <button type="submit" class="text-white bg-green-700 hover:bg-green-800 font-medium rounded-lg text-sm px-4 py-2 flex items-center gap-2">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

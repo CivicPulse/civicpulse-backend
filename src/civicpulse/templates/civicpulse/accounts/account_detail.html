@@ -1,0 +1,147 @@
+{% extends "civicpulse/base.html" %}
+
+{% block content %}
+<div class="px-4">
+    {# Breadcrumb #}
+    <nav class="mb-4 text-sm">
+        <a href="{% url 'civicpulse:org_campaign_list' %}" class="text-green-700 hover:underline">Campaigns</a>
+        <span class="text-gray-500 mx-2">/</span>
+        <a href="{% url 'civicpulse:org_campaign_detail' pk=campaign.pk %}" class="text-green-700 hover:underline">{{ campaign.name }}</a>
+        <span class="text-gray-500 mx-2">/</span>
+        <a href="{% url 'civicpulse:account_list' pk=campaign.pk %}" class="text-green-700 hover:underline">Checking Accounts</a>
+        <span class="text-gray-500 mx-2">/</span>
+        <span class="text-gray-600">****{{ account.account_number_last4 }}</span>
+    </nav>
+
+    {# Header #}
+    <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <div class="flex justify-between items-start mb-4">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">{{ account.institution_name }}</h1>
+                {% if account.account_nickname %}
+                <p class="text-gray-600 mt-1">{{ account.account_nickname }}</p>
+                {% endif %}
+                {% if account.is_active %}
+                <span class="inline-block mt-2 bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded">Active</span>
+                {% else %}
+                <span class="inline-block mt-2 bg-gray-100 text-gray-800 text-xs font-medium px-2.5 py-0.5 rounded">Inactive</span>
+                {% endif %}
+            </div>
+            <div class="flex gap-2">
+                <a href="{% url 'civicpulse:transaction_import' pk=account.pk %}" class="text-white bg-green-700 hover:bg-green-800 focus:ring-4 focus:ring-green-300 font-medium rounded-lg text-sm px-4 py-2">
+                    Import Transactions
+                </a>
+                <a href="{% url 'civicpulse:account_edit' pk=account.pk %}" class="text-gray-600 border border-gray-300 hover:bg-gray-50 font-medium rounded-lg text-sm px-4 py-2">
+                    Edit
+                </a>
+                <a href="{% url 'civicpulse:account_delete' pk=account.pk %}" class="text-red-600 border border-red-300 hover:bg-red-50 font-medium rounded-lg text-sm px-4 py-2">
+                    Delete
+                </a>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div>
+                <span class="text-gray-500 block">Account Number</span>
+                <span class="font-medium">****{{ account.account_number_last4 }}</span>
+            </div>
+            <div>
+                <span class="text-gray-500 block">Opened</span>
+                <span class="font-medium">{{ account.opened_date|date:"M j, Y" }}</span>
+            </div>
+            {% if account.closed_date %}
+            <div>
+                <span class="text-gray-500 block">Closed</span>
+                <span class="font-medium">{{ account.closed_date|date:"M j, Y" }}</span>
+            </div>
+            {% endif %}
+            <div>
+                <span class="text-gray-500 block">Current Balance</span>
+                <span class="font-medium text-lg {% if account.current_balance >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                    ${{ account.current_balance|floatformat:2 }}
+                </span>
+            </div>
+        </div>
+    </div>
+
+    {# Transactions Section #}
+    <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-semibold text-gray-900">Transactions</h2>
+        <a href="{% url 'civicpulse:transaction_import' pk=account.pk %}" class="text-green-700 hover:underline text-sm">
+            + Import from CSV
+        </a>
+    </div>
+
+    {% if transactions %}
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left text-gray-500">
+                <thead class="text-xs text-gray-700 uppercase bg-gray-50">
+                    <tr>
+                        <th scope="col" class="px-6 py-3">Date</th>
+                        <th scope="col" class="px-6 py-3">Description</th>
+                        <th scope="col" class="px-6 py-3">Type</th>
+                        <th scope="col" class="px-6 py-3">Check #</th>
+                        <th scope="col" class="px-6 py-3 text-right">Amount</th>
+                        <th scope="col" class="px-6 py-3 text-right">Balance</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in transactions %}
+                    <tr class="bg-white border-b hover:bg-gray-50">
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="font-medium text-gray-900">{{ item.transaction.posted_date|date:"M j, Y" }}</span>
+                            {% if item.transaction.posted_date != item.transaction.transaction_date %}
+                            <br>
+                            <span class="text-xs text-gray-400">Txn: {{ item.transaction.transaction_date|date:"M j" }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4">
+                            <span class="text-gray-900">{{ item.transaction.description|truncatewords:10 }}</span>
+                        </td>
+                        <td class="px-6 py-4">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                                {% if item.transaction.transaction_type == 'deposit' %}
+                                    bg-green-100 text-green-800
+                                {% elif item.transaction.transaction_type == 'debit' %}
+                                    bg-red-100 text-red-800
+                                {% elif item.transaction.transaction_type == 'check' %}
+                                    bg-blue-100 text-blue-800
+                                {% elif item.transaction.transaction_type == 'fee' %}
+                                    bg-yellow-100 text-yellow-800
+                                {% elif item.transaction.transaction_type == 'transfer' %}
+                                    bg-purple-100 text-purple-800
+                                {% elif item.transaction.transaction_type == 'credit' %}
+                                    bg-cyan-100 text-cyan-800
+                                {% else %}
+                                    bg-gray-100 text-gray-800
+                                {% endif %}
+                            ">
+                                {{ item.transaction.get_transaction_type_display }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 text-gray-500">
+                            {{ item.transaction.check_number|default:"-" }}
+                        </td>
+                        <td class="px-6 py-4 text-right font-medium whitespace-nowrap
+                            {% if item.transaction.amount_cents >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                            {% if item.transaction.amount_cents >= 0 %}+{% endif %}${{ item.transaction.amount_dollars|floatformat:2 }}
+                        </td>
+                        <td class="px-6 py-4 text-right font-semibold whitespace-nowrap
+                            {% if item.running_balance >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                            ${{ item.running_balance|floatformat:2 }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="bg-white rounded-lg shadow p-6 text-center">
+        <p class="text-gray-500 mb-4">No transactions yet</p>
+        <a href="{% url 'civicpulse:transaction_import' pk=account.pk %}" class="text-green-700 hover:underline">Import transactions from CSV</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

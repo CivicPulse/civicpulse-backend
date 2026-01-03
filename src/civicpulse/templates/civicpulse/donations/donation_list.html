@@ -4,15 +4,9 @@
 <div class="px-4">
     {# Breadcrumb #}
     <nav class="mb-4 text-sm">
-        {% if owner_type == "candidate" %}
-        <a href="{% url 'civicpulse:election_detail' pk=owner.election.pk %}" class="text-green-700 hover:underline">Election</a>
-        <span class="text-gray-500 mx-2">/</span>
-        <a href="{% url 'civicpulse:candidate_detail' pk=owner.pk %}" class="text-green-700 hover:underline">{{ owner.display_name }}</a>
-        {% elif owner_type == "campaign" %}
         <a href="{% url 'civicpulse:org_campaign_list' %}" class="text-green-700 hover:underline">Campaigns</a>
         <span class="text-gray-500 mx-2">/</span>
         <a href="{% url 'civicpulse:org_campaign_detail' pk=owner.pk %}" class="text-green-700 hover:underline">{{ owner.name }}</a>
-        {% endif %}
         <span class="text-gray-500 mx-2">/</span>
         <span class="text-gray-600">Donations</span>
     </nav>
@@ -21,7 +15,7 @@
     <div class="flex justify-between items-start mb-6">
         <div>
             <h1 class="text-2xl font-bold text-gray-900">
-                Donations for {% if owner_type == "candidate" %}{{ owner.display_name }}{% else %}{{ owner.name }}{% endif %}
+                Donations for {{ owner.name }}
             </h1>
             <p class="text-gray-600 mt-1">Payments processed through Stripe</p>
         </div>

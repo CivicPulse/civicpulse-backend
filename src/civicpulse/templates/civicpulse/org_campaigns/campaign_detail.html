@@ -63,6 +63,57 @@
     {# Stripe Connect Section #}
     {% include "civicpulse/stripe/connect_button.html" with owner=campaign owner_type="campaign" %}
 
+    {# Checking Accounts Section #}
+    <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-semibold text-gray-900">Checking Accounts</h2>
+        <a href="{% url 'civicpulse:account_create' pk=campaign.pk %}" class="text-white bg-green-700 hover:bg-green-800 focus:ring-4 focus:ring-green-300 font-medium rounded-lg text-sm px-4 py-2">
+            + Add Account
+        </a>
+    </div>
+
+    {% if checking_accounts %}
+    <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-8">
+        {% for account in checking_accounts %}
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex justify-between items-start mb-3">
+                <h3 class="text-lg font-semibold text-gray-900">{{ account.institution_name }}</h3>
+                {% if account.is_active %}
+                <span class="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded">Active</span>
+                {% else %}
+                <span class="bg-gray-100 text-gray-800 text-xs font-medium px-2.5 py-0.5 rounded">Inactive</span>
+                {% endif %}
+            </div>
+
+            {% if account.account_nickname %}
+            <p class="text-gray-600 text-sm mb-2">{{ account.account_nickname }}</p>
+            {% endif %}
+
+            <p class="text-sm text-gray-500 mb-2">
+                <span class="font-medium">Account:</span> ****{{ account.account_number_last4 }}
+            </p>
+
+            <p class="text-lg font-semibold mb-4 {% if account.current_balance >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                ${{ account.current_balance|floatformat:2 }}
+            </p>
+
+            <div class="flex gap-2">
+                <a href="{% url 'civicpulse:account_detail' pk=account.pk %}" class="flex-1 text-center text-green-700 border border-green-700 hover:bg-green-50 font-medium rounded-lg text-sm px-3 py-2">
+                    View
+                </a>
+                <a href="{% url 'civicpulse:account_edit' pk=account.pk %}" class="text-center text-gray-600 border border-gray-300 hover:bg-gray-50 font-medium rounded-lg text-sm px-3 py-2">
+                    Edit
+                </a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="bg-white rounded-lg shadow p-6 text-center mb-8">
+        <p class="text-gray-500 mb-4">No checking accounts yet for this campaign</p>
+        <a href="{% url 'civicpulse:account_create' pk=campaign.pk %}" class="text-green-700 hover:underline">Add your first checking account</a>
+    </div>
+    {% endif %}
+
     {# Drives Section #}
     <div class="flex justify-between items-center mb-4">
         <h2 class="text-xl font-semibold text-gray-900">Drives</h2>

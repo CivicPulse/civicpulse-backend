@@ -1,10 +1,16 @@
 """Tests for civicpulse application."""
 
+import io
+from datetime import date
+
 from django.contrib.auth.models import User
 from django.test import Client, TestCase
 
+from .forms import CheckingAccountForm, parse_bank_csv
 from .models import (
     Address,
+    Campaign,
+    CheckingAccount,
     ContactEffort,
     EffortAssignment,
     Election,
@@ -12,6 +18,7 @@ from .models import (
     Office,
     Person,
     PhoneNumber,
+    Transaction,
     VoterAddress,
     VoterPhoneNumber,
 )
@@ -586,3 +593,177 @@ class GetAssignmentTargetHelperTests(TestCase):
         target, target_type = get_assignment_target_with_details(assignment, campaign)
         self.assertIsNone(target)
         self.assertIsNone(target_type)
+
+
+class CheckingAccountModelTests(TestCase):
+    """Tests for CheckingAccount model."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="testuser", password="password")
+        self.campaign = Campaign.objects.create(
+            name="Test Campaign",
+            description="Test Description",
+            created_by=self.user,
+        )
+
+    def test_checking_account_creation(self):
+        """Test CheckingAccount creates with valid fields and FK to Campaign works."""
+        account = CheckingAccount.objects.create(
+            campaign=self.campaign,
+            account_number_last4="1234",
+            institution_name="Test Bank",
+            opened_date=date.today(),
+            created_by=self.user,
+        )
+        self.assertEqual(account.account_number_last4, "1234")
+        self.assertEqual(account.campaign, self.campaign)
+        self.assertEqual(account.institution_name, "Test Bank")
+        self.assertTrue(account.is_active)
+
+    def test_current_balance_empty_account(self):
+        """Test current_balance returns 0 for account with no transactions."""
+        account = CheckingAccount.objects.create(
+            campaign=self.campaign,
+            account_number_last4="1234",
+            institution_name="Test Bank",
+            opened_date=date.today(),
+        )
+        self.assertEqual(account.current_balance, 0)
+
+    def test_current_balance_with_transactions(self):
+        """Test current_balance correctly sums transaction amounts."""
+        account = CheckingAccount.objects.create(
+            campaign=self.campaign,
+            account_number_last4="1234",
+            institution_name="Test Bank",
+            opened_date=date.today(),
+        )
+        Transaction.objects.create(
+            account=account,
+            posted_date=date.today(),
+            transaction_date=date.today(),
+            transaction_type="deposit",
+            description="Deposit",
+            amount_cents=50000,  # $500.00
+        )
+        Transaction.objects.create(
+            account=account,
+            posted_date=date.today(),
+            transaction_date=date.today(),
+            transaction_type="debit",
+            description="Withdrawal",
+            amount_cents=-12880,  # -$128.80
+        )
+        self.assertEqual(account.current_balance, 371.20)  # $500 - $128.80
+
+
+class TransactionModelTests(TestCase):
+    """Tests for Transaction model."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="testuser", password="password")
+        self.campaign = Campaign.objects.create(
+            name="Test Campaign",
+            created_by=self.user,
+        )
+        self.account = CheckingAccount.objects.create(
+            campaign=self.campaign,
+            account_number_last4="1234",
+            institution_name="Test Bank",
+            opened_date=date.today(),
+        )
+
+    def test_transaction_creation(self):
+        """Test Transaction model creates with amount_cents stored correctly."""
+        txn = Transaction.objects.create(
+            account=self.account,
+            posted_date=date.today(),
+            transaction_date=date.today(),
+            transaction_type="deposit",
+            description="Test Deposit",
+            amount_cents=50000,
+        )
+        self.assertEqual(txn.amount_cents, 50000)
+        self.assertEqual(txn.account, self.account)
+
+    def test_amount_dollars_property(self):
+        """Test amount_dollars returns correct decimal value."""
+        txn = Transaction.objects.create(
+            account=self.account,
+            posted_date=date.today(),
+            transaction_date=date.today(),
+            transaction_type="deposit",
+            description="Test",
+            amount_cents=12345,
+        )
+        self.assertEqual(txn.amount_dollars, 123.45)
+
+
+class CheckingAccountFormTests(TestCase):
+    """Tests for CheckingAccountForm validation."""
+
+    def test_valid_form(self):
+        """Test form is valid with correct data."""
+        form = CheckingAccountForm(data={
+            "account_number_last4": "1234",
+            "institution_name": "Test Bank",
+            "opened_date": date.today(),
+            "is_active": True,
+        })
+        self.assertTrue(form.is_valid())
+
+    def test_account_number_must_be_4_digits(self):
+        """Test account number validation rejects non-4-digit input."""
+        form = CheckingAccountForm(data={
+            "account_number_last4": "123",  # Only 3 digits
+            "institution_name": "Test Bank",
+            "opened_date": date.today(),
+        })
+        self.assertFalse(form.is_valid())
+        self.assertIn("account_number_last4", form.errors)
+
+    def test_account_number_must_be_numeric(self):
+        """Test account number validation rejects non-numeric input."""
+        form = CheckingAccountForm(data={
+            "account_number_last4": "abcd",
+            "institution_name": "Test Bank",
+            "opened_date": date.today(),
+        })
+        self.assertFalse(form.is_valid())
+        self.assertIn("account_number_last4", form.errors)
+
+
+class CSVParsingTests(TestCase):
+    """Tests for parse_bank_csv function."""
+
+    def test_parse_positive_amount(self):
+        """Test parsing $500 format."""
+        csv_content = """Posted Date,Transaction Date,Transaction Type,Description,Amount
+01/15/2026,01/15/2026,Deposit,Test Deposit,$500.00"""
+        transactions, errors = parse_bank_csv(io.StringIO(csv_content))
+        self.assertEqual(len(transactions), 1)
+        self.assertEqual(transactions[0]["amount_cents"], 50000)
+
+    def test_parse_negative_amount_parentheses(self):
+        """Test parsing ($128.8) format."""
+        csv_content = """Posted Date,Transaction Date,Transaction Type,Description,Amount
+01/15/2026,01/15/2026,Debit,Office Supplies,($128.80)"""
+        transactions, errors = parse_bank_csv(io.StringIO(csv_content))
+        self.assertEqual(len(transactions), 1)
+        self.assertEqual(transactions[0]["amount_cents"], -12880)
+
+    def test_parse_date_format(self):
+        """Test date parsing MM/DD/YYYY."""
+        csv_content = """Posted Date,Transaction Date,Transaction Type,Description,Amount
+12/25/2025,12/24/2025,Deposit,Holiday Gift,$100.00"""
+        transactions, errors = parse_bank_csv(io.StringIO(csv_content))
+        self.assertEqual(len(transactions), 1)
+        self.assertEqual(str(transactions[0]["posted_date"]), "2025-12-25")
+        self.assertEqual(str(transactions[0]["transaction_date"]), "2025-12-24")
+
+    def test_empty_csv_returns_empty_list(self):
+        """Test empty CSV returns empty transactions list."""
+        csv_content = """Posted Date,Transaction Date,Transaction Type,Description,Amount"""
+        transactions, errors = parse_bank_csv(io.StringIO(csv_content))
+        self.assertEqual(len(transactions), 0)
+        self.assertEqual(len(errors), 0)

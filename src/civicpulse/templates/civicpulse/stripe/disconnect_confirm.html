@@ -5,15 +5,9 @@
     <div class="max-w-2xl mx-auto">
         {# Breadcrumb #}
         <nav class="mb-4 text-sm">
-            {% if owner_type == "candidate" %}
-            <a href="{% url 'civicpulse:election_detail' pk=owner.election.pk %}" class="text-green-700 hover:underline">Election</a>
-            <span class="text-gray-500 mx-2">/</span>
-            <a href="{% url 'civicpulse:candidate_detail' pk=owner.pk %}" class="text-green-700 hover:underline">{{ owner.display_name }}</a>
-            {% elif owner_type == "campaign" %}
             <a href="{% url 'civicpulse:org_campaign_list' %}" class="text-green-700 hover:underline">Campaigns</a>
             <span class="text-gray-500 mx-2">/</span>
             <a href="{% url 'civicpulse:org_campaign_detail' pk=owner.pk %}" class="text-green-700 hover:underline">{{ owner.name }}</a>
-            {% endif %}
             <span class="text-gray-500 mx-2">/</span>
             <span class="text-gray-600">Disconnect Stripe</span>
         </nav>
@@ -30,7 +24,7 @@
                     <h1 class="text-xl font-bold text-gray-900 mb-2">Disconnect Stripe Account</h1>
                     <p class="text-gray-600 mb-4">
                         You are about to disconnect the Stripe account for
-                        <strong>{% if owner_type == "candidate" %}{{ owner.display_name }}{% else %}{{ owner.name }}{% endif %}</strong>.
+                        <strong>{{ owner.name }}</strong>.
                     </p>
                 </div>
             </div>
@@ -71,7 +65,7 @@
             {# Confirmation Form #}
             <form method="post" class="flex gap-3 justify-end">
                 {% csrf_token %}
-                <a href="{% if owner_type == 'candidate' %}{% url 'civicpulse:candidate_detail' pk=owner.pk %}{% else %}{% url 'civicpulse:org_campaign_detail' pk=owner.pk %}{% endif %}"
+                <a href="{% url 'civicpulse:org_campaign_detail' pk=owner.pk %}"
                    class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 px-4 rounded-lg">
                     Cancel
                 </a>
