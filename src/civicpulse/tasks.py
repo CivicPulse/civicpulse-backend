@@ -863,11 +863,16 @@ def _sync_single_charge(connection, charge) -> bool:
     if charged_at.tzinfo is None:
         charged_at = charged_at.replace(tzinfo=timezone.utc)
 
+    # Extract PaymentIntent ID if available (populated for charges from PaymentIntents)
+    # Uses getattr for forward compatibility with ChargeData.payment_intent_id field
+    payment_intent_id = getattr(charge, "payment_intent_id", None) or ""
+
     # Create or update donation
     donation, created = Donation.objects.update_or_create(
         connection=connection,
         stripe_charge_id=charge.id,
         defaults={
+            "stripe_payment_intent_id": payment_intent_id,
             "stripe_customer_id": charge.customer_id or "",
             "amount_cents": charge.amount_cents,
             "currency": charge.currency.lower(),

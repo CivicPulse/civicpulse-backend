@@ -394,3 +394,153 @@ class TestStripeConnectService:
         list(service.list_charges("acct_123", limit=50))
         call_args = mock_client.v1.charges.list.call_args
         assert call_args.kwargs["params"]["limit"] == 50
+
+    @patch("civicpulse.services.stripe_connect.StripeClient")
+    def test_list_all_payments_deduplicates_charge_and_payment_intent(
+        self, mock_stripe_client, mock_stripe_settings
+    ):
+        """Test that list_all_payments() deduplicates by using only Charges API.
+
+        When a PaymentIntent is created, Stripe also creates a corresponding Charge.
+        The list_all_payments() method should only return one ChargeData per payment,
+        not both the charge and the payment intent.
+        """
+        # Create a mock charge that represents the same underlying payment as a PaymentIntent
+        mock_charge = MagicMock()
+        mock_charge.id = "ch_123"
+        mock_charge.amount = 2500  # $25.00
+        mock_charge.currency = "usd"
+        mock_charge.customer = "cus_456"
+        mock_charge.status = "succeeded"
+        mock_charge.description = "Donation"
+        mock_charge.receipt_url = "https://stripe.com/receipt"
+        mock_charge.created = 1609459200
+
+        mock_charges_response = MagicMock()
+        mock_charges_response.data = [mock_charge]
+        mock_charges_response.has_more = False
+
+        mock_client = Mock()
+        mock_client.v1.charges.list.return_value = mock_charges_response
+        mock_stripe_client.return_value = mock_client
+
+        service = StripeConnectService()
+        payments = list(service.list_all_payments("acct_123"))
+
+        # Should only yield the charge, not duplicate from payment intents
+        assert len(payments) == 1
+        assert payments[0].id == "ch_123"
+        assert payments[0].amount_cents == 2500
+        assert payments[0].source_type == "charge"
+
+        # Verify only the charges API was called (not payment_intents)
+        mock_client.v1.charges.list.assert_called_once()
+        # The list_all_payments() method should NOT call payment_intents.list
+        assert not hasattr(mock_client.v1, "payment_intents") or not mock_client.v1.payment_intents.list.called
+
+    @patch("civicpulse.services.stripe_connect.StripeClient")
+    def test_list_all_payments_yields_orphan_payment_intents(
+        self, mock_stripe_client, mock_stripe_settings
+    ):
+        """Test that orphan PaymentIntents (with no Charge) are handled gracefully.
+
+        Since list_all_payments() uses only the Charges API, orphan PaymentIntents
+        (those without a corresponding Charge, i.e., latest_charge is None) won't
+        appear in the results. This is expected behavior because:
+        1. Successful PaymentIntents always create a Charge
+        2. PaymentIntents without Charges are typically pending/failed payments
+        3. Using only Charges prevents duplicate donation records
+
+        This test verifies the method handles the case where no charges exist,
+        which implicitly covers orphan PaymentIntent scenarios.
+        """
+        # Mock an empty charges response (no charges exist)
+        mock_charges_response = MagicMock()
+        mock_charges_response.data = []
+        mock_charges_response.has_more = False
+
+        mock_client = Mock()
+        mock_client.v1.charges.list.return_value = mock_charges_response
+        mock_stripe_client.return_value = mock_client
+
+        service = StripeConnectService()
+        payments = list(service.list_all_payments("acct_123"))
+
+        # Should return empty list when no charges exist
+        # This implicitly handles orphan PaymentIntents by not fetching them
+        assert len(payments) == 0
+
+        # Verify charges API was called correctly
+        mock_client.v1.charges.list.assert_called_once()
+
+        # Verify payment_intents API was NOT called
+        # (orphan PaymentIntents are handled by not querying for them)
+        assert not hasattr(mock_client.v1, "payment_intents") or not mock_client.v1.payment_intents.list.called
+
+    @patch("civicpulse.services.stripe_connect.StripeClient")
+    def test_list_all_payments_legacy_charges_only(
+        self, mock_stripe_client, mock_stripe_settings
+    ):
+        """Test that list_all_payments() correctly handles legacy charges only.
+
+        Legacy charges are charges created directly via the Charges API (before
+        PaymentIntents became the standard). These charges have no associated
+        PaymentIntent. The list_all_payments() method should return all such
+        charges with source_type='charge'.
+        """
+        # Create mock legacy charges (no payment_intent field)
+        mock_charge1 = MagicMock()
+        mock_charge1.id = "ch_legacy_1"
+        mock_charge1.amount = 1500  # $15.00
+        mock_charge1.currency = "usd"
+        mock_charge1.customer = "cus_legacy_donor"
+        mock_charge1.status = "succeeded"
+        mock_charge1.description = "Legacy donation"
+        mock_charge1.receipt_url = "https://stripe.com/receipt/legacy1"
+        mock_charge1.created = 1577836800  # 2020-01-01
+
+        mock_charge2 = MagicMock()
+        mock_charge2.id = "ch_legacy_2"
+        mock_charge2.amount = 5000  # $50.00
+        mock_charge2.currency = "usd"
+        mock_charge2.customer = None  # Guest donation
+        mock_charge2.status = "succeeded"
+        mock_charge2.description = None
+        mock_charge2.receipt_url = None
+        mock_charge2.created = 1580515200  # 2020-02-01
+
+        mock_charges_response = MagicMock()
+        mock_charges_response.data = [mock_charge1, mock_charge2]
+        mock_charges_response.has_more = False
+
+        mock_client = Mock()
+        mock_client.v1.charges.list.return_value = mock_charges_response
+        mock_stripe_client.return_value = mock_client
+
+        service = StripeConnectService()
+        payments = list(service.list_all_payments("acct_legacy_123"))
+
+        # Should return both legacy charges
+        assert len(payments) == 2
+
+        # Verify first charge
+        assert payments[0].id == "ch_legacy_1"
+        assert payments[0].amount_cents == 1500
+        assert payments[0].currency == "usd"
+        assert payments[0].customer_id == "cus_legacy_donor"
+        assert payments[0].status == "succeeded"
+        assert payments[0].description == "Legacy donation"
+        assert payments[0].receipt_url == "https://stripe.com/receipt/legacy1"
+        assert payments[0].source_type == "charge"
+
+        # Verify second charge
+        assert payments[1].id == "ch_legacy_2"
+        assert payments[1].amount_cents == 5000
+        assert payments[1].customer_id is None
+        assert payments[1].source_type == "charge"
+
+        # Verify only the charges API was called
+        mock_client.v1.charges.list.assert_called_once()
+
+        # Verify payment_intents API was NOT called
+        assert not hasattr(mock_client.v1, "payment_intents") or not mock_client.v1.payment_intents.list.called

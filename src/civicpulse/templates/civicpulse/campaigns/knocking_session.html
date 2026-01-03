@@ -45,8 +45,13 @@
             </button>
         </div>
 
-        <div id="location-error" class="hidden text-yellow-600 text-sm mb-3">
-            GPS unavailable. Please allow location access or start without GPS sorting.
+        <div id="location-error" class="hidden bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-3">
+            <div class="flex items-start gap-2">
+                <svg class="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                </svg>
+                <span class="text-yellow-800 text-sm" id="location-error-text">GPS unavailable. Please allow location access or start without GPS sorting.</span>
+            </div>
         </div>
 
         <button type="button" onclick="skipLocation()"
@@ -129,24 +134,62 @@ function getLocation() {
     const statusEl = document.getElementById('location-status');
     const errorEl = document.getElementById('location-error');
 
-    statusEl.innerHTML = '<div class="flex items-center gap-2 text-gray-600"><div class="animate-spin rounded-full h-5 w-5 border-b-2 border-green-700"></div>Getting location...</div>';
-
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-            (position) => {
-                const lat = position.coords.latitude;
-                const lon = position.coords.longitude;
-                setLocationAndLoad(lat, lon);
-            },
-            (error) => {
-                errorEl.classList.remove('hidden');
-                statusEl.innerHTML = '<button type="button" onclick="getLocation()" class="text-white bg-green-700 hover:bg-green-800 font-medium rounded-lg text-sm px-5 py-2.5 flex items-center gap-2"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>Try Again</button>';
-            },
-            { enableHighAccuracy: true, timeout: 10000 }
-        );
-    } else {
+    // Check if geolocation is supported
+    if (!navigator.geolocation) {
+        document.getElementById('location-error-text').textContent = 'Geolocation is not supported by your browser.';
         errorEl.classList.remove('hidden');
+        console.error('Geolocation not supported');
+        return;
     }
+
+    // Check for HTTPS (required on most mobile browsers)
+    if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+        document.getElementById('location-error-text').textContent = 'GPS location requires HTTPS on mobile devices. Please use a secure connection or start without location.';
+        errorEl.classList.remove('hidden');
+        console.error('HTTPS required for geolocation on mobile');
+        return;
+    }
+
+    statusEl.innerHTML = '<div class="flex items-center gap-2 text-gray-600"><div class="animate-spin rounded-full h-5 w-5 border-b-2 border-green-700"></div>Getting location...</div>';
+    errorEl.classList.add('hidden');
+
+    console.log('Requesting geolocation...');
+
+    navigator.geolocation.getCurrentPosition(
+        (position) => {
+            console.log('Geolocation success:', position.coords.latitude, position.coords.longitude);
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+            setLocationAndLoad(lat, lon);
+        },
+        (error) => {
+            console.error('Geolocation error:', error.code, error.message);
+
+            let errorMessage = 'GPS unavailable. ';
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    errorMessage += 'Please allow location access in your browser settings.';
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    errorMessage += 'Location information is unavailable. Try again or start without location.';
+                    break;
+                case error.TIMEOUT:
+                    errorMessage += 'Location request timed out. Try again or start without location.';
+                    break;
+                default:
+                    errorMessage += 'Please allow location access or start without GPS sorting.';
+            }
+
+            document.getElementById('location-error-text').textContent = errorMessage;
+            errorEl.classList.remove('hidden');
+            statusEl.innerHTML = '<button type="button" onclick="getLocation()" class="text-white bg-green-700 hover:bg-green-800 font-medium rounded-lg text-sm px-5 py-2.5 flex items-center gap-2"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>Try Again</button>';
+        },
+        {
+            enableHighAccuracy: true,
+            timeout: 15000,
+            maximumAge: 0
+        }
+    );
 }
 
 function setLocationAndLoad(lat, lon) {

@@ -1,0 +1,25 @@
+{
+  "active": true,
+  "spec": "001-the-listed-donations-appear-to-be-duplicating-reco",
+  "state": "building",
+  "subtasks": {
+    "completed": 6,
+    "total": 9,
+    "in_progress": 1,
+    "failed": 0
+  },
+  "phase": {
+    "current": "Unit Tests",
+    "id": null,
+    "total": 3
+  },
+  "workers": {
+    "active": 0,
+    "max": 1
+  },
+  "session": {
+    "number": 7,
+    "started_at": "2026-01-02T22:40:33.085976"
+  },
+  "last_update": "2026-01-02T22:55:40.947300"
+}

@@ -48,6 +48,8 @@ class ChargeData:
     receipt_url: str | None
     created: datetime
     source_type: str = "charge"  # "charge" or "payment_intent"
+    payment_intent_id: str | None = None  # For charges: the parent PaymentIntent ID
+    latest_charge_id: str | None = None  # For payment_intents: the associated Charge ID
 
 
 class StripeConnectService:
@@ -358,10 +360,14 @@ class StripeConnectService:
         limit: int = 100,
     ) -> Iterator[ChargeData]:
         """
-        List all payments from a connected account (charges + payment intents).
+        List all payments from a connected account.
 
-        This combines both the legacy charges API and the modern payment intents API
-        to capture all payments regardless of how they were created.
+        Uses only the Charges API since all successful PaymentIntents create
+        a corresponding Charge. This prevents duplication from the same payment
+        appearing as both a Charge (ch_xxx) and PaymentIntent (pi_xxx).
+
+        Note: The list_payment_intents() method is still available for cases
+        where PaymentIntent-specific data is needed (e.g., pending payments).
 
         Args:
             stripe_account_id: Connected account ID (stripe_user_id)
@@ -370,26 +376,14 @@ class StripeConnectService:
         Yields:
             ChargeData objects for each payment
         """
-        seen_ids = set()
         charge_count = 0
-        pi_count = 0
 
         logger.info(f"Fetching charges from account {stripe_account_id}")
-        # First, yield all charges
         for charge in self.list_charges(stripe_account_id, limit=limit):
-            seen_ids.add(charge.id)
             charge_count += 1
             yield charge
 
-        logger.info(f"Found {charge_count} charges, now fetching payment intents")
-        # Then yield payment intents (deduplicating any that might overlap)
-        for pi in self.list_payment_intents(stripe_account_id, limit=limit):
-            # PaymentIntents have different IDs (pi_xxx vs ch_xxx), so no overlap
-            if pi.id not in seen_ids:
-                pi_count += 1
-                yield pi
-
-        logger.info(f"Found {pi_count} payment intents (total: {charge_count + pi_count})")
+        logger.info(f"Found {charge_count} charges")
 
     def get_customer(self, stripe_account_id: str, customer_id: str) -> dict | None:
         """
