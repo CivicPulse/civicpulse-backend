@@ -28,6 +28,11 @@ DEBUG = config("DEBUG", default=False, cast=bool)
 # Comma-separated list: localhost,127.0.0.1,example.com
 ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="localhost,127.0.0.1", cast=Csv())
 
+# CSRF trusted origins for cross-origin requests (Django 4.0+)
+# Format: https://example.com (must include scheme)
+CSRF_TRUSTED_ORIGINS = config("CSRF_TRUSTED_ORIGINS", default="", cast=Csv())
+CSRF_TRUSTED_ORIGINS = [origin for origin in CSRF_TRUSTED_ORIGINS if origin]  # Filter empty strings
+
 
 # Application definition
 
@@ -272,4 +277,25 @@ CIVICPULSE_GEOCODING = {
     "CACHE_TIMEOUT_DAYS": 30,
     # Quality thresholds
     "MIN_CONFIDENCE": 0.5,  # Minimum confidence to accept geocoding result
+}
+
+
+# =============================================================================
+# Stripe Connect Configuration
+# =============================================================================
+
+CIVICPULSE_STRIPE = {
+    # OAuth credentials from Stripe Dashboard -> Connect -> Settings
+    "CLIENT_ID": config("STRIPE_CLIENT_ID", default=""),
+    "SECRET_KEY": config("STRIPE_SECRET_KEY", default=""),
+    # Webhook secret for verifying webhook signatures
+    "WEBHOOK_SECRET": config("STRIPE_WEBHOOK_SECRET", default=""),
+    # Fernet encryption key for storing OAuth tokens at rest
+    # Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    "ENCRYPTION_KEY": config("STRIPE_ENCRYPTION_KEY", default=""),
+    # OAuth settings
+    "OAUTH_SCOPE": "read_write",  # read_only requires special Stripe approval
+    # Sync settings
+    "SYNC_BATCH_SIZE": 100,  # Charges per API call
+    "SYNC_INTERVAL_HOURS": 6,  # Celery beat schedule
 }

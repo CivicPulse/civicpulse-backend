@@ -1167,3 +1167,308 @@ class GeocodingError(models.Model):
 
     def __str__(self):
         return f"Geocoding error: {self.address_text[:50]}..."
+
+
+# =============================================================================
+# Stripe Connect Models
+# =============================================================================
+
+
+class StripeConnection(models.Model):
+    """
+    OAuth connection to a Stripe account for donation tracking.
+
+    Each connection links to exactly one of: Candidate or Campaign (mutually exclusive).
+    Tokens are encrypted at rest using Fernet symmetric encryption.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"  # OAuth started but not completed
+        ACTIVE = "active", "Active"  # Successfully connected
+        REVOKED = "revoked", "Revoked"  # Access revoked by user or Stripe
+        ERROR = "error", "Error"  # Token refresh failed
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    # Mutually exclusive owner - exactly one must be set
+    candidate = models.OneToOneField(
+        "Candidate",
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="stripe_connection",
+        help_text="Candidate this Stripe account is connected to",
+    )
+    campaign = models.OneToOneField(
+        "Campaign",
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="stripe_connection",
+        help_text="Campaign this Stripe account is connected to",
+    )
+
+    # Stripe account info
+    stripe_user_id = models.CharField(
+        max_length=255,
+        unique=True,
+        help_text="Stripe account ID (acct_xxxxx)",
+    )
+    stripe_publishable_key = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Account's publishable key (if provided)",
+    )
+    livemode = models.BooleanField(
+        default=False,
+        help_text="True if connected in live mode, False for test mode",
+    )
+
+    # Encrypted OAuth tokens (stored as base64-encoded ciphertext)
+    access_token_encrypted = models.TextField(
+        help_text="Fernet-encrypted access token",
+    )
+    refresh_token_encrypted = models.TextField(
+        blank=True,
+        help_text="Fernet-encrypted refresh token (if provided)",
+    )
+
+    # Connection status
+    status = models.CharField(
+        max_length=15,
+        choices=Status.choices,
+        default=Status.PENDING,
+    )
+    scope = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="OAuth scope granted (e.g., 'read_only')",
+    )
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    last_sync_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Last successful donation sync",
+    )
+
+    class Meta:
+        verbose_name = "Stripe connection"
+        verbose_name_plural = "Stripe connections"
+        constraints = [
+            # Exactly one of candidate or campaign must be set
+            models.CheckConstraint(
+                check=(
+                    models.Q(candidate__isnull=False, campaign__isnull=True)
+                    | models.Q(candidate__isnull=True, campaign__isnull=False)
+                ),
+                name="stripe_connection_single_owner",
+            ),
+        ]
+
+    def __str__(self):
+        owner = self.owner
+        return f"Stripe: {owner} ({self.get_status_display()})"
+
+    @property
+    def owner(self):
+        """Return the linked Candidate or Campaign."""
+        return self.candidate or self.campaign
+
+    @property
+    def owner_type(self):
+        """Return 'candidate' or 'campaign' based on which owner is set."""
+        if self.candidate:
+            return "candidate"
+        return "campaign"
+
+    @property
+    def is_active(self):
+        """Return True if the connection is active."""
+        return self.status == self.Status.ACTIVE
+
+
+class Donation(models.Model):
+    """
+    A donation synced from Stripe.
+
+    Maps to a Stripe Charge or PaymentIntent, with donor info when available.
+    """
+
+    class Status(models.TextChoices):
+        SUCCEEDED = "succeeded", "Succeeded"
+        PENDING = "pending", "Pending"
+        FAILED = "failed", "Failed"
+        REFUNDED = "refunded", "Refunded"
+        PARTIALLY_REFUNDED = "partial_refund", "Partially Refunded"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    connection = models.ForeignKey(
+        StripeConnection,
+        on_delete=models.CASCADE,
+        related_name="donations",
+    )
+
+    # Stripe identifiers
+    stripe_charge_id = models.CharField(
+        max_length=255,
+        help_text="Stripe charge ID (ch_xxxxx)",
+    )
+    stripe_payment_intent_id = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Stripe PaymentIntent ID (pi_xxxxx)",
+    )
+    stripe_customer_id = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Stripe customer ID (cus_xxxxx)",
+    )
+
+    # Amount (stored in cents for precision)
+    amount_cents = models.PositiveIntegerField(
+        help_text="Amount in cents (e.g., 5000 = $50.00)",
+    )
+    currency = models.CharField(
+        max_length=3,
+        default="usd",
+        help_text="Three-letter ISO currency code",
+    )
+    fee_cents = models.PositiveIntegerField(
+        default=0,
+        help_text="Stripe processing fee in cents",
+    )
+    net_cents = models.PositiveIntegerField(
+        default=0,
+        help_text="Net amount after fees in cents",
+    )
+
+    # Donor information (when available from Stripe)
+    donor_name = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Donor name from Stripe customer or card",
+    )
+    donor_email = models.EmailField(
+        blank=True,
+        help_text="Donor email from Stripe customer",
+    )
+
+    # Status and metadata
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.SUCCEEDED,
+    )
+    description = models.TextField(
+        blank=True,
+        help_text="Charge description from Stripe",
+    )
+    receipt_url = models.URLField(
+        blank=True,
+        help_text="Stripe receipt URL",
+    )
+    livemode = models.BooleanField(
+        default=False,
+        help_text="True if from live mode",
+    )
+
+    # Timestamps
+    charged_at = models.DateTimeField(
+        help_text="When the charge was created in Stripe",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "donation"
+        verbose_name_plural = "donations"
+        ordering = ["-charged_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["connection", "stripe_charge_id"],
+                name="unique_donation_per_connection",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["connection", "charged_at"]),
+            models.Index(fields=["status"]),
+        ]
+
+    def __str__(self):
+        return f"${self.amount_cents / 100:.2f} - {self.donor_name or 'Anonymous'}"
+
+    @property
+    def amount_dollars(self):
+        """Return amount as a decimal dollar value."""
+        return self.amount_cents / 100
+
+
+class DonationSyncJob(models.Model):
+    """Tracks donation sync operations from Stripe."""
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        RUNNING = "running", "Running"
+        COMPLETED = "completed", "Completed"
+        FAILED = "failed", "Failed"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    connection = models.ForeignKey(
+        StripeConnection,
+        on_delete=models.CASCADE,
+        related_name="sync_jobs",
+    )
+
+    status = models.CharField(
+        max_length=15,
+        choices=Status.choices,
+        default=Status.PENDING,
+    )
+
+    # Sync type
+    full_sync = models.BooleanField(
+        default=False,
+        help_text="True for full historical sync, False for incremental",
+    )
+
+    # Progress tracking
+    total_charges = models.PositiveIntegerField(default=0)
+    processed_count = models.PositiveIntegerField(default=0)
+    created_count = models.PositiveIntegerField(default=0)
+    updated_count = models.PositiveIntegerField(default=0)
+    error_count = models.PositiveIntegerField(default=0)
+
+    # Error details
+    error_messages = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="List of error messages encountered during sync",
+    )
+
+    # Celery task reference
+    task_id = models.CharField(max_length=255, blank=True)
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = "donation sync job"
+        verbose_name_plural = "donation sync jobs"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Sync for {self.connection.owner} ({self.get_status_display()})"
+
+    @property
+    def progress_percentage(self):
+        """Return sync progress as a percentage."""
+        if self.total_charges == 0:
+            return 0
+        return round((self.processed_count / self.total_charges) * 100, 1)

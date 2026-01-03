@@ -43,8 +43,10 @@ classifiers = [
 ]
 dependencies = [
     "celery>=5.6.0",
+    "cryptography>=41.0.0",
     "Django>=5.0",
     "python-decouple>=3.8",
+    "stripe>=7.0.0",
 ]
 
 [project.optional-dependencies]
@@ -121,6 +123,9 @@ ignore = ["E501"]
 DJANGO_SETTINGS_MODULE = "example.settings"
 python_files = ["test_*.py", "*_test.py"]
 pythonpath = ["src", "example_project"]
+
+[tool.uv.workspace]
+members = ["example_project"]
 
 [dependency-groups]
 dev = [

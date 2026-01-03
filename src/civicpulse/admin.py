@@ -8,6 +8,8 @@ from .models import (
     ContactAttempt,
     ContactEffort,
     District,
+    Donation,
+    DonationSyncJob,
     EffortAssignment,
     Election,
     ElectionDate,
@@ -19,6 +21,7 @@ from .models import (
     Office,
     Person,
     PhoneNumber,
+    StripeConnection,
     VoterAddress,
     VoterEmail,
     VoterPhoneNumber,
@@ -738,3 +741,233 @@ class DistrictAdmin(admin.ModelAdmin):
         ),
         ("Metadata", {"fields": ["created_at", "updated_at"], "classes": ["collapse"]}),
     ]
+
+
+# =============================================================================
+# Stripe Connect Admin
+# =============================================================================
+
+
+@admin.register(StripeConnection)
+class StripeConnectionAdmin(admin.ModelAdmin):
+    list_display = [
+        "owner_display",
+        "stripe_user_id",
+        "status",
+        "livemode",
+        "last_sync_at",
+        "donation_count",
+    ]
+    list_filter = ["status", "livemode", "created_at"]
+    search_fields = ["stripe_user_id", "candidate__name", "campaign__name"]
+    readonly_fields = [
+        "stripe_user_id",
+        "stripe_publishable_key",
+        "access_token_encrypted",
+        "refresh_token_encrypted",
+        "created_at",
+        "updated_at",
+        "last_sync_at",
+    ]
+    raw_id_fields = ["candidate", "campaign"]
+    actions = ["trigger_sync", "deauthorize_connections"]
+    fieldsets = [
+        (None, {"fields": ["candidate", "campaign", "status"]}),
+        (
+            "Stripe Account",
+            {
+                "fields": [
+                    "stripe_user_id",
+                    "stripe_publishable_key",
+                    "livemode",
+                    "scope",
+                ]
+            },
+        ),
+        (
+            "OAuth Tokens",
+            {
+                "fields": ["access_token_encrypted", "refresh_token_encrypted"],
+                "classes": ["collapse"],
+                "description": "Encrypted tokens - do not share or expose",
+            },
+        ),
+        (
+            "Timestamps",
+            {
+                "fields": ["created_at", "updated_at", "last_sync_at"],
+                "classes": ["collapse"],
+            },
+        ),
+    ]
+
+    @admin.display(description="Owner")
+    def owner_display(self, obj):
+        owner = obj.owner
+        if obj.candidate:
+            return f"Candidate: {owner}"
+        return f"Campaign: {owner}"
+
+    @admin.display(description="Donations")
+    def donation_count(self, obj):
+        return obj.donations.count()
+
+    @admin.action(description="Trigger donation sync")
+    def trigger_sync(self, request, queryset):
+        from civicpulse.tasks import sync_donations
+
+        count = 0
+        for conn in queryset.filter(status=StripeConnection.Status.ACTIVE):
+            sync_donations.delay(str(conn.pk))
+            count += 1
+        self.message_user(
+            request,
+            f"Queued sync for {count} connection(s)",
+            messages.SUCCESS,
+        )
+
+    @admin.action(description="Deauthorize selected connections")
+    def deauthorize_connections(self, request, queryset):
+        """Revoke access for selected Stripe connections."""
+        count = 0
+        for conn in queryset.filter(status=StripeConnection.Status.ACTIVE):
+            conn.status = StripeConnection.Status.REVOKED
+            conn.save(update_fields=["status", "updated_at"])
+            count += 1
+        self.message_user(
+            request,
+            f"Deauthorized {count} connection(s)",
+            messages.SUCCESS,
+        )
+
+
+@admin.register(Donation)
+class DonationAdmin(admin.ModelAdmin):
+    list_display = [
+        "stripe_charge_id",
+        "connection",
+        "donor_name",
+        "amount_display",
+        "status",
+        "charged_at",
+    ]
+    list_filter = ["status", "livemode", "charged_at"]
+    search_fields = ["stripe_charge_id", "donor_name", "donor_email"]
+    readonly_fields = [
+        "stripe_charge_id",
+        "stripe_payment_intent_id",
+        "stripe_customer_id",
+        "created_at",
+        "updated_at",
+    ]
+    raw_id_fields = ["connection"]
+    date_hierarchy = "charged_at"
+    fieldsets = [
+        (None, {"fields": ["connection", "status"]}),
+        (
+            "Stripe IDs",
+            {
+                "fields": [
+                    "stripe_charge_id",
+                    "stripe_payment_intent_id",
+                    "stripe_customer_id",
+                ]
+            },
+        ),
+        (
+            "Amount",
+            {
+                "fields": ["amount_cents", "currency", "fee_cents", "net_cents"],
+            },
+        ),
+        (
+            "Donor Information",
+            {
+                "fields": ["donor_name", "donor_email"],
+            },
+        ),
+        (
+            "Details",
+            {
+                "fields": ["description", "receipt_url", "livemode"],
+                "classes": ["collapse"],
+            },
+        ),
+        (
+            "Timestamps",
+            {
+                "fields": ["charged_at", "created_at", "updated_at"],
+                "classes": ["collapse"],
+            },
+        ),
+    ]
+
+    @admin.display(description="Amount")
+    def amount_display(self, obj):
+        return f"${obj.amount_cents / 100:.2f}"
+
+
+@admin.register(DonationSyncJob)
+class DonationSyncJobAdmin(admin.ModelAdmin):
+    list_display = [
+        "connection",
+        "status",
+        "full_sync",
+        "progress_display",
+        "created_at",
+        "completed_at",
+    ]
+    list_filter = ["status", "full_sync", "created_at"]
+    readonly_fields = [
+        "connection",
+        "task_id",
+        "total_charges",
+        "processed_count",
+        "created_count",
+        "updated_count",
+        "error_count",
+        "error_messages",
+        "created_at",
+        "started_at",
+        "completed_at",
+    ]
+    fieldsets = [
+        (None, {"fields": ["connection", "status", "full_sync"]}),
+        (
+            "Progress",
+            {
+                "fields": [
+                    "total_charges",
+                    "processed_count",
+                    "created_count",
+                    "updated_count",
+                    "error_count",
+                ]
+            },
+        ),
+        (
+            "Errors",
+            {
+                "fields": ["error_messages"],
+                "classes": ["collapse"],
+            },
+        ),
+        (
+            "Task Info",
+            {
+                "fields": ["task_id"],
+                "classes": ["collapse"],
+            },
+        ),
+        (
+            "Timestamps",
+            {
+                "fields": ["created_at", "started_at", "completed_at"],
+                "classes": ["collapse"],
+            },
+        ),
+    ]
+
+    @admin.display(description="Progress")
+    def progress_display(self, obj):
+        return f"{obj.processed_count}/{obj.total_charges} ({obj.progress_percentage}%)"

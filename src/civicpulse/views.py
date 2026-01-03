@@ -28,6 +28,8 @@ from .models import (
     ContactAttempt,
     ContactEffort,
     District,
+    Donation,
+    DonationSyncJob,
     EffortAssignment,
     Election,
     ElectionDate,
@@ -35,6 +37,7 @@ from .models import (
     ImportJob,
     Office,
     Person,
+    StripeConnection,
     VoterRecord,
 )
 
@@ -2363,3 +2366,528 @@ def api_districts(request):
             "features": features,
         }
     )
+
+
+# =============================================================================
+# Stripe Connect OAuth Views
+# =============================================================================
+
+
+@login_required
+def stripe_connect_candidate(request, pk):
+    """
+    Start Stripe OAuth flow for a Candidate.
+
+    Stores candidate reference in session and redirects to Stripe's OAuth page.
+    """
+    from secrets import token_urlsafe
+    from urllib.parse import urlencode
+
+    from django.contrib import messages
+    from django.urls import reverse
+
+    from .conf import stripe_settings
+    from .models import Candidate
+
+    candidate = get_object_or_404(Candidate, pk=pk)
+
+    # Check if Stripe is configured
+    if not stripe_settings.is_configured:
+        messages.error(request, "Stripe Connect is not configured.")
+        return redirect("civicpulse:candidate_detail", pk=pk)
+
+    # Check if already connected
+    if hasattr(candidate, "stripe_connection") and candidate.stripe_connection:
+        messages.warning(request, "This candidate already has a Stripe connection.")
+        return redirect("civicpulse:candidate_detail", pk=pk)
+
+    # Store owner info in session for callback
+    request.session["stripe_owner_type"] = "candidate"
+    request.session["stripe_owner_pk"] = str(pk)
+
+    # Generate state token for CSRF protection
+    state = token_urlsafe(32)
+    request.session["stripe_oauth_state"] = state
+
+    # Build OAuth URL
+    callback_url = request.build_absolute_uri(
+        reverse("civicpulse:stripe_oauth_callback")
+    )
+    params = {
+        "response_type": "code",
+        "client_id": stripe_settings.CLIENT_ID,
+        "scope": stripe_settings.OAUTH_SCOPE,
+        "redirect_uri": callback_url,
+        "state": state,
+    }
+
+    oauth_url = f"https://connect.stripe.com/oauth/authorize?{urlencode(params)}"
+    return redirect(oauth_url)
+
+
+@login_required
+def stripe_connect_campaign(request, pk):
+    """
+    Start Stripe OAuth flow for a Campaign.
+
+    Stores campaign reference in session and redirects to Stripe's OAuth page.
+    """
+    from secrets import token_urlsafe
+    from urllib.parse import urlencode
+
+    from django.contrib import messages
+    from django.urls import reverse
+
+    from .conf import stripe_settings
+
+    campaign = get_object_or_404(Campaign, pk=pk)
+
+    # Check if Stripe is configured
+    if not stripe_settings.is_configured:
+        messages.error(request, "Stripe Connect is not configured.")
+        return redirect("civicpulse:org_campaign_detail", pk=pk)
+
+    # Check if already connected
+    if hasattr(campaign, "stripe_connection") and campaign.stripe_connection:
+        messages.warning(request, "This campaign already has a Stripe connection.")
+        return redirect("civicpulse:org_campaign_detail", pk=pk)
+
+    # Store owner info in session for callback
+    request.session["stripe_owner_type"] = "campaign"
+    request.session["stripe_owner_pk"] = str(pk)
+
+    # Generate state token for CSRF protection
+    state = token_urlsafe(32)
+    request.session["stripe_oauth_state"] = state
+
+    # Build OAuth URL
+    callback_url = request.build_absolute_uri(
+        reverse("civicpulse:stripe_oauth_callback")
+    )
+    params = {
+        "response_type": "code",
+        "client_id": stripe_settings.CLIENT_ID,
+        "scope": stripe_settings.OAUTH_SCOPE,
+        "redirect_uri": callback_url,
+        "state": state,
+    }
+
+    oauth_url = f"https://connect.stripe.com/oauth/authorize?{urlencode(params)}"
+    return redirect(oauth_url)
+
+
+@login_required
+def stripe_oauth_callback(request):
+    """
+    Handle Stripe OAuth callback.
+
+    Validates state, exchanges code for tokens, creates StripeConnection.
+    """
+    import stripe
+    from django.contrib import messages
+
+    from .conf import stripe_settings
+    from .services.encryption import get_encryption_service
+
+    # Validate state parameter
+    state = request.GET.get("state")
+    expected_state = request.session.get("stripe_oauth_state")
+
+    if not state or state != expected_state:
+        messages.error(request, "Invalid OAuth state. Please try again.")
+        return redirect("civicpulse:index")
+
+    # Check for OAuth errors
+    error = request.GET.get("error")
+    if error:
+        error_description = request.GET.get("error_description", "Unknown error")
+        messages.error(request, f"Stripe authorization failed: {error_description}")
+        return _stripe_redirect_to_owner(request)
+
+    # Get authorization code
+    code = request.GET.get("code")
+    if not code:
+        messages.error(request, "No authorization code received from Stripe.")
+        return _stripe_redirect_to_owner(request)
+
+    # Retrieve owner info from session
+    owner_type = request.session.get("stripe_owner_type")
+    owner_pk = request.session.get("stripe_owner_pk")
+
+    if not owner_type or not owner_pk:
+        messages.error(request, "Session expired. Please try connecting again.")
+        return redirect("civicpulse:index")
+
+    # Exchange code for tokens
+    try:
+        stripe.api_key = stripe_settings.SECRET_KEY
+        response = stripe.OAuth.token(
+            grant_type="authorization_code",
+            code=code,
+        )
+    except stripe.oauth_error.OAuthError as e:
+        messages.error(request, f"Failed to connect Stripe account: {e.user_message}")
+        return _stripe_redirect_to_owner(request)
+    except stripe.error.StripeError as e:
+        messages.error(request, f"Stripe error: {str(e)}")
+        return _stripe_redirect_to_owner(request)
+
+    # Extract tokens and account info
+    access_token = response.get("access_token")
+    refresh_token = response.get("refresh_token")
+    stripe_user_id = response.get("stripe_user_id")
+    livemode = response.get("livemode", False)
+
+    if not access_token or not stripe_user_id:
+        messages.error(request, "Invalid response from Stripe.")
+        return _stripe_redirect_to_owner(request)
+
+    # Encrypt tokens before storage
+    encryption = get_encryption_service()
+    encrypted_access_token = encryption.encrypt_token(access_token)
+    encrypted_refresh_token = encryption.encrypt_token(refresh_token) if refresh_token else ""
+
+    # Create StripeConnection for the appropriate owner
+    try:
+        if owner_type == "candidate":
+            candidate = get_object_or_404(Candidate, pk=owner_pk)
+            StripeConnection.objects.create(
+                candidate=candidate,
+                stripe_user_id=stripe_user_id,
+                access_token_encrypted=encrypted_access_token,
+                refresh_token_encrypted=encrypted_refresh_token,
+                livemode=livemode,
+                status=StripeConnection.Status.ACTIVE,
+            )
+            redirect_url = "civicpulse:candidate_detail"
+        elif owner_type == "campaign":
+            campaign = get_object_or_404(Campaign, pk=owner_pk)
+            StripeConnection.objects.create(
+                campaign=campaign,
+                stripe_user_id=stripe_user_id,
+                access_token_encrypted=encrypted_access_token,
+                refresh_token_encrypted=encrypted_refresh_token,
+                livemode=livemode,
+                status=StripeConnection.Status.ACTIVE,
+            )
+            redirect_url = "civicpulse:org_campaign_detail"
+        else:
+            messages.error(request, "Invalid owner type.")
+            return redirect("civicpulse:index")
+
+    except Exception as exc:
+        messages.error(request, f"Failed to save connection: {exc}")
+        return _stripe_redirect_to_owner(request)
+
+    # Clear session data
+    for key in ["stripe_owner_type", "stripe_owner_pk", "stripe_oauth_state"]:
+        request.session.pop(key, None)
+
+    messages.success(request, "Stripe account connected successfully!")
+    return redirect(redirect_url, pk=owner_pk)
+
+
+def _stripe_redirect_to_owner(request):
+    """Helper to redirect back to owner detail page."""
+    owner_type = request.session.get("stripe_owner_type")
+    owner_pk = request.session.get("stripe_owner_pk")
+
+    # Clear session data
+    for key in ["stripe_owner_type", "stripe_owner_pk", "stripe_oauth_state"]:
+        request.session.pop(key, None)
+
+    if owner_type == "candidate" and owner_pk:
+        return redirect("civicpulse:candidate_detail", pk=owner_pk)
+    elif owner_type == "campaign" and owner_pk:
+        return redirect("civicpulse:org_campaign_detail", pk=owner_pk)
+    else:
+        return redirect("civicpulse:index")
+
+
+@login_required
+def stripe_disconnect(request, connection_pk):
+    """
+    Disconnect a Stripe account.
+
+    GET: Show confirmation page
+    POST: Revoke access and delete connection
+    """
+    import stripe
+    from django.contrib import messages
+
+    from .conf import stripe_settings
+
+    connection = get_object_or_404(StripeConnection, pk=connection_pk)
+
+    # Determine owner for redirect
+    if connection.candidate:
+        owner = connection.candidate
+        owner_type = "candidate"
+        redirect_url = "civicpulse:candidate_detail"
+        owner_pk = owner.pk
+    elif connection.campaign:
+        owner = connection.campaign
+        owner_type = "campaign"
+        redirect_url = "civicpulse:org_campaign_detail"
+        owner_pk = owner.pk
+    else:
+        messages.error(request, "Invalid connection.")
+        return redirect("civicpulse:index")
+
+    if request.method == "POST":
+        # Revoke access at Stripe
+        try:
+            stripe.api_key = stripe_settings.SECRET_KEY
+            stripe.OAuth.deauthorize(
+                client_id=stripe_settings.CLIENT_ID,
+                stripe_user_id=connection.stripe_user_id,
+            )
+        except stripe.error.StripeError:
+            # Log error but continue - connection may already be revoked
+            pass
+
+        # Delete local connection record
+        connection.delete()
+
+        messages.success(request, "Stripe account disconnected successfully.")
+        return redirect(redirect_url, pk=owner_pk)
+
+    # GET: Show confirmation page
+    return render(
+        request,
+        "civicpulse/stripe/disconnect_confirm.html",
+        {
+            "connection": connection,
+            "owner": owner,
+            "owner_type": owner_type,
+        },
+    )
+
+
+def _render_donations(request, connection, owner, owner_type):
+    """
+    Shared helper for rendering donation lists.
+
+    Returns template context with donations, stats, and pagination.
+    """
+    from django.core.paginator import Paginator
+    from django.db.models import Sum
+
+    # Get donations for this connection
+    donations = Donation.objects.filter(connection=connection).order_by("-created_at")
+
+    # Calculate stats
+    stats = donations.filter(status=Donation.Status.SUCCEEDED).aggregate(
+        total_amount=Sum("amount_cents"),
+        total_count=Count("id"),
+    )
+    total_amount_dollars = (stats["total_amount"] or 0) / 100
+    total_count = stats["total_count"] or 0
+
+    # Date range
+    first_donation = donations.order_by("created_at").first()
+    last_donation = donations.order_by("-created_at").first()
+
+    # Paginate donations
+    paginator = Paginator(donations, 25)
+    page_number = request.GET.get("page")
+    page_obj = paginator.get_page(page_number)
+
+    # Get latest sync job
+    latest_sync = connection.sync_jobs.order_by("-created_at").first()
+
+    return {
+        "connection": connection,
+        "owner": owner,
+        "owner_type": owner_type,
+        "donations": page_obj,
+        "page_obj": page_obj,
+        "total_amount": total_amount_dollars,
+        "total_count": total_count,
+        "first_donation": first_donation,
+        "last_donation": last_donation,
+        "latest_sync": latest_sync,
+    }
+
+
+@login_required
+def candidate_donations(request, pk):
+    """
+    View donations for a candidate's connected Stripe account.
+    """
+    from django.contrib import messages
+
+    candidate = get_object_or_404(
+        Candidate.objects.select_related("stripe_connection"), pk=pk
+    )
+
+    if not hasattr(candidate, "stripe_connection") or not candidate.stripe_connection:
+        messages.warning(request, "No Stripe account connected to this candidate.")
+        return redirect("civicpulse:candidate_detail", pk=pk)
+
+    context = _render_donations(
+        request,
+        candidate.stripe_connection,
+        candidate,
+        "candidate",
+    )
+
+    return render(request, "civicpulse/stripe/donations.html", context)
+
+
+@login_required
+def campaign_donations(request, pk):
+    """
+    View donations for a campaign's connected Stripe account.
+    """
+    from django.contrib import messages
+
+    campaign = get_object_or_404(
+        Campaign.objects.select_related("stripe_connection"), pk=pk
+    )
+
+    if not hasattr(campaign, "stripe_connection") or not campaign.stripe_connection:
+        messages.warning(request, "No Stripe account connected to this campaign.")
+        return redirect("civicpulse:org_campaign_detail", pk=pk)
+
+    context = _render_donations(
+        request,
+        campaign.stripe_connection,
+        campaign,
+        "campaign",
+    )
+
+    return render(request, "civicpulse/stripe/donations.html", context)
+
+
+@login_required
+def candidate_donations_sync(request, pk):
+    """
+    Trigger donation sync for a candidate's Stripe account.
+
+    POST only - queues a Celery task to sync donations from Stripe.
+    """
+    from django.contrib import messages
+
+    from .tasks import sync_donations
+
+    if request.method != "POST":
+        return redirect("civicpulse:candidate_donations", pk=pk)
+
+    candidate = get_object_or_404(
+        Candidate.objects.select_related("stripe_connection"), pk=pk
+    )
+
+    if not hasattr(candidate, "stripe_connection") or not candidate.stripe_connection:
+        messages.error(request, "No Stripe account connected to this candidate.")
+        return redirect("civicpulse:candidate_detail", pk=pk)
+
+    connection = candidate.stripe_connection
+
+    # Check for already running sync
+    running_sync = connection.sync_jobs.filter(
+        status__in=[DonationSyncJob.Status.PENDING, DonationSyncJob.Status.RUNNING]
+    ).exists()
+
+    if running_sync:
+        messages.warning(request, "A sync is already in progress.")
+        return redirect("civicpulse:candidate_donations", pk=pk)
+
+    # Queue sync task (task creates its own sync job)
+    sync_donations.delay(str(connection.pk))
+
+    messages.success(request, "Donation sync started. This may take a few minutes.")
+    return redirect("civicpulse:candidate_donations", pk=pk)
+
+
+@login_required
+def campaign_donations_sync(request, pk):
+    """
+    Trigger donation sync for a campaign's Stripe account.
+
+    POST only - queues a Celery task to sync donations from Stripe.
+    """
+    from django.contrib import messages
+
+    from .tasks import sync_donations
+
+    if request.method != "POST":
+        return redirect("civicpulse:campaign_donations", pk=pk)
+
+    campaign = get_object_or_404(
+        Campaign.objects.select_related("stripe_connection"), pk=pk
+    )
+
+    if not hasattr(campaign, "stripe_connection") or not campaign.stripe_connection:
+        messages.error(request, "No Stripe account connected to this campaign.")
+        return redirect("civicpulse:org_campaign_detail", pk=pk)
+
+    connection = campaign.stripe_connection
+
+    # Check for already running sync
+    running_sync = connection.sync_jobs.filter(
+        status__in=[DonationSyncJob.Status.PENDING, DonationSyncJob.Status.RUNNING]
+    ).exists()
+
+    if running_sync:
+        messages.warning(request, "A sync is already in progress.")
+        return redirect("civicpulse:campaign_donations", pk=pk)
+
+    # Queue sync task (task creates its own sync job)
+    sync_donations.delay(str(connection.pk))
+
+    messages.success(request, "Donation sync started. This may take a few minutes.")
+    return redirect("civicpulse:campaign_donations", pk=pk)
+
+
+# =============================================================================
+# Stripe Generic Redirects (for polymorphic template usage)
+# =============================================================================
+
+
+@login_required
+def stripe_connect_redirect(request, owner_type, owner_id):
+    """Redirect to the appropriate stripe connect view based on owner_type."""
+    if owner_type == "candidate":
+        return redirect("civicpulse:stripe_connect_candidate", pk=owner_id)
+    elif owner_type == "campaign":
+        return redirect("civicpulse:stripe_connect_campaign", pk=owner_id)
+    else:
+        messages.error(request, f"Invalid owner type: {owner_type}")
+        return redirect("civicpulse:index")
+
+
+@login_required
+def stripe_donations_redirect(request, owner_type, owner_id):
+    """Redirect to the appropriate donations view based on owner_type."""
+    if owner_type == "candidate":
+        return redirect("civicpulse:candidate_donations", pk=owner_id)
+    elif owner_type == "campaign":
+        return redirect("civicpulse:campaign_donations", pk=owner_id)
+    else:
+        messages.error(request, f"Invalid owner type: {owner_type}")
+        return redirect("civicpulse:index")
+
+
+@login_required
+def stripe_disconnect_confirm_redirect(request, owner_type, owner_id):
+    """Redirect to the appropriate disconnect confirmation based on owner_type."""
+    if owner_type == "candidate":
+        candidate = get_object_or_404(Candidate, pk=owner_id)
+        if hasattr(candidate, "stripe_connection") and candidate.stripe_connection:
+            return redirect(
+                "civicpulse:stripe_disconnect", connection_pk=candidate.stripe_connection.pk
+            )
+        messages.error(request, "No Stripe account connected to this candidate.")
+        return redirect("civicpulse:candidate_detail", pk=owner_id)
+    elif owner_type == "campaign":
+        campaign = get_object_or_404(Campaign, pk=owner_id)
+        if hasattr(campaign, "stripe_connection") and campaign.stripe_connection:
+            return redirect(
+                "civicpulse:stripe_disconnect", connection_pk=campaign.stripe_connection.pk
+            )
+        messages.error(request, "No Stripe account connected to this campaign.")
+        return redirect("civicpulse:org_campaign_detail", pk=owner_id)
+    else:
+        messages.error(request, f"Invalid owner type: {owner_type}")
+        return redirect("civicpulse:index")

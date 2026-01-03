@@ -51,6 +51,55 @@ DEFAULTS = {
 }
 
 
+# =============================================================================
+# Stripe Connect Settings
+# =============================================================================
+
+STRIPE_DEFAULTS = {
+    # Stripe Connect OAuth credentials
+    "CLIENT_ID": None,
+    "SECRET_KEY": None,
+    "WEBHOOK_SECRET": None,
+    # Fernet encryption key for token storage
+    "ENCRYPTION_KEY": None,
+    # OAuth scope (read_write required by default; read_only requires Stripe approval)
+    "OAUTH_SCOPE": "read_write",
+    # Sync settings
+    "SYNC_BATCH_SIZE": 100,
+    "SYNC_INTERVAL_HOURS": 6,
+}
+
+
+class StripeSettings:
+    """
+    Lazy settings object for Stripe configuration.
+
+    Access settings via the stripe_settings instance::
+
+        from civicpulse.conf import stripe_settings
+
+        client_id = stripe_settings.CLIENT_ID
+    """
+
+    def __getattr__(self, name):
+        if name not in STRIPE_DEFAULTS:
+            raise AttributeError(f"Unknown Stripe setting: {name}")
+
+        user_settings = getattr(settings, "CIVICPULSE_STRIPE", {})
+        return user_settings.get(name, STRIPE_DEFAULTS[name])
+
+    def __dir__(self):
+        return list(STRIPE_DEFAULTS.keys())
+
+    @property
+    def is_configured(self):
+        """Check if Stripe is properly configured."""
+        return bool(self.CLIENT_ID and self.SECRET_KEY)
+
+
+stripe_settings = StripeSettings()
+
+
 class CivicPulseSettings:
     """
     Lazy settings object that reads from Django settings.
@@ -62,7 +111,16 @@ class CivicPulseSettings:
         timeout = civicpulse_settings.LOCK_TIMEOUT_MINUTES
     """
 
+    # Computed settings that delegate to other modules
+    COMPUTED_SETTINGS = {
+        "STRIPE_CONFIGURED": lambda: stripe_settings.is_configured,
+    }
+
     def __getattr__(self, name):
+        # Handle computed settings
+        if name in self.COMPUTED_SETTINGS:
+            return self.COMPUTED_SETTINGS[name]()
+
         if name not in DEFAULTS:
             raise AttributeError(f"Unknown CivicPulse setting: {name}")
 
@@ -70,7 +128,7 @@ class CivicPulseSettings:
         return user_settings.get(name, DEFAULTS[name])
 
     def __dir__(self):
-        return list(DEFAULTS.keys())
+        return list(DEFAULTS.keys()) + list(self.COMPUTED_SETTINGS.keys())
 
 
 civicpulse_settings = CivicPulseSettings()

@@ -1,0 +1,159 @@
+{% extends "civicpulse/base.html" %}
+
+{% block content %}
+<div class="px-4">
+    {# Breadcrumb #}
+    <nav class="mb-4 text-sm">
+        {% if owner_type == "campaign" %}
+        <a href="{% url 'civicpulse:org_campaign_list' %}" class="text-green-700 hover:underline">Campaigns</a>
+        <span class="text-gray-500 mx-2">/</span>
+        <a href="{% url 'civicpulse:org_campaign_detail' pk=owner.pk %}" class="text-green-700 hover:underline">{{ owner.name }}</a>
+        {% else %}
+        <a href="{% url 'civicpulse:candidate_detail' pk=owner.pk %}" class="text-green-700 hover:underline">{{ owner }}</a>
+        {% endif %}
+        <span class="text-gray-500 mx-2">/</span>
+        <span class="text-gray-600">Donations</span>
+    </nav>
+
+    {# Header #}
+    <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <div class="flex justify-between items-start mb-4">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">Donations</h1>
+                <p class="text-gray-600 mt-1">{{ owner.name }}</p>
+            </div>
+            <div class="flex gap-2">
+                <form method="post" action="{% if owner_type == 'campaign' %}{% url 'civicpulse:campaign_donations_sync' pk=owner.pk %}{% else %}{% url 'civicpulse:candidate_donations_sync' pk=owner.pk %}{% endif %}">
+                    {% csrf_token %}
+                    <button type="submit" class="text-white bg-green-700 hover:bg-green-800 font-medium rounded-lg text-sm px-4 py-2 flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                        </svg>
+                        Sync from Stripe
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        {# Stats #}
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="bg-green-50 rounded-lg p-4">
+                <span class="text-gray-600 text-sm block">Total Raised</span>
+                <span class="text-2xl font-bold text-green-700">${{ total_amount|floatformat:2 }}</span>
+            </div>
+            <div class="bg-gray-50 rounded-lg p-4">
+                <span class="text-gray-600 text-sm block">Donations</span>
+                <span class="text-2xl font-bold text-gray-900">{{ total_count }}</span>
+            </div>
+            {% if first_donation %}
+            <div class="bg-gray-50 rounded-lg p-4">
+                <span class="text-gray-600 text-sm block">First Donation</span>
+                <span class="text-lg font-medium text-gray-900">{{ first_donation.created_at|date:"M j, Y" }}</span>
+            </div>
+            {% endif %}
+            {% if latest_sync %}
+            <div class="bg-gray-50 rounded-lg p-4">
+                <span class="text-gray-600 text-sm block">Last Sync</span>
+                <span class="text-lg font-medium text-gray-900">{{ latest_sync.created_at|date:"M j, g:i A" }}</span>
+                {% if latest_sync.status == "running" %}
+                <span class="text-xs text-amber-600 block">In Progress...</span>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    {# Donations List #}
+    {% if donations %}
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Donor</th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {% for donation in donations %}
+                <tr>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {{ donation.created_at|date:"M j, Y g:i A" }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        {% if donation.donor_name %}
+                        <div class="text-sm font-medium text-gray-900">{{ donation.donor_name }}</div>
+                        {% endif %}
+                        {% if donation.donor_email %}
+                        <div class="text-sm text-gray-500">{{ donation.donor_email }}</div>
+                        {% else %}
+                        <div class="text-sm text-gray-400 italic">Anonymous</div>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        ${{ donation.amount_dollars|floatformat:2 }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        {% if donation.status == "succeeded" %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            Succeeded
+                        </span>
+                        {% elif donation.status == "pending" %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                            Pending
+                        </span>
+                        {% elif donation.status == "refunded" %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                            Refunded
+                        </span>
+                        {% elif donation.status == "failed" %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                            Failed
+                        </span>
+                        {% else %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                            {{ donation.get_status_display }}
+                        </span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {# Pagination #}
+    {% if page_obj.has_other_pages %}
+    <div class="mt-4 flex justify-center">
+        <nav class="inline-flex rounded-md shadow-sm -space-x-px">
+            {% if page_obj.has_previous %}
+            <a href="?page={{ page_obj.previous_page_number }}" class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                Previous
+            </a>
+            {% endif %}
+
+            <span class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">
+                Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+            </span>
+
+            {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}" class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                Next
+            </a>
+            {% endif %}
+        </nav>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="bg-white rounded-lg shadow p-6 text-center">
+        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <h3 class="mt-2 text-sm font-medium text-gray-900">No donations yet</h3>
+        <p class="mt-1 text-sm text-gray-500">Click "Sync from Stripe" to pull in your donation data.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

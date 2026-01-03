@@ -1,0 +1,89 @@
+{# Stripe Connect Button Partial #}
+{# Usage: {% include "civicpulse/stripe/connect_button.html" with owner=candidate owner_type="candidate" %} #}
+{# Shows "Connect Stripe" button if not connected, status badge + actions if connected #}
+
+{% load civicpulse_tags %}
+
+{% civicpulse_setting "STRIPE_CONFIGURED" as stripe_configured %}
+
+<div class="bg-white rounded-lg shadow p-4 mb-6">
+    <div class="flex justify-between items-center">
+        <div>
+            <h3 class="font-semibold text-gray-900 mb-1">Payment Processing</h3>
+            {% if not stripe_configured %}
+            <p class="text-sm text-amber-600">
+                <svg class="inline w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                </svg>
+                Stripe is not configured. Contact administrator to enable payment processing.
+            </p>
+            {% elif owner.stripe_connection and owner.stripe_connection.is_active %}
+            <p class="text-sm text-gray-600">Accept donations with Stripe</p>
+            {% else %}
+            <p class="text-sm text-gray-600">Connect a Stripe account to accept donations</p>
+            {% endif %}
+        </div>
+
+        <div class="flex gap-2 items-center">
+            {% if stripe_configured %}
+                {% if owner.stripe_connection and owner.stripe_connection.is_active %}
+                    {# Connected state #}
+                    <span class="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded flex items-center gap-1">
+                        <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                        </svg>
+                        Stripe Connected
+                    </span>
+
+                    <a href="{% url 'civicpulse:stripe_donations' owner_type=owner_type owner_id=owner.pk %}"
+                       class="text-green-700 border border-green-700 hover:bg-green-50 font-medium rounded-lg text-sm px-3 py-1.5">
+                        View Donations
+                    </a>
+
+                    <a href="{% url 'civicpulse:stripe_disconnect_confirm' owner_type=owner_type owner_id=owner.pk %}"
+                       class="text-gray-600 border border-gray-300 hover:bg-gray-50 font-medium rounded-lg text-sm px-3 py-1.5">
+                        Disconnect
+                    </a>
+                {% else %}
+                    {# Not connected state #}
+                    <a href="{% url 'civicpulse:stripe_connect' owner_type=owner_type owner_id=owner.pk %}"
+                       class="text-white bg-green-600 hover:bg-green-700 font-medium rounded-lg text-sm px-4 py-2 flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                        </svg>
+                        Connect Stripe Account
+                    </a>
+                {% endif %}
+            {% endif %}
+        </div>
+    </div>
+
+    {% if owner.stripe_connection and owner.stripe_connection.is_active %}
+    <div class="mt-3 pt-3 border-t border-gray-200">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+            <div>
+                <span class="text-gray-500 block">Account ID</span>
+                <span class="font-mono text-gray-900">{{ owner.stripe_connection.stripe_user_id|truncatechars:20 }}</span>
+            </div>
+            <div>
+                <span class="text-gray-500 block">Connected</span>
+                <span class="text-gray-900">{{ owner.stripe_connection.created_at|date:"M j, Y" }}</span>
+            </div>
+            {% if owner.stripe_connection.last_sync_at %}
+            <div>
+                <span class="text-gray-500 block">Last Synced</span>
+                <span class="text-gray-900">{{ owner.stripe_connection.last_sync_at|date:"M j, g:i A" }}</span>
+            </div>
+            {% endif %}
+            <div>
+                <span class="text-gray-500 block">Mode</span>
+                {% if owner.stripe_connection.livemode %}
+                <span class="text-green-600 font-medium">Live</span>
+                {% else %}
+                <span class="text-amber-600 font-medium">Test</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>

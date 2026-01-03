@@ -153,4 +153,63 @@ urlpatterns = [
         views.api_districts,
         name="api_districts",
     ),
+    # Stripe Connect - Candidates
+    path(
+        "candidates/<uuid:pk>/stripe/connect/",
+        views.stripe_connect_candidate,
+        name="stripe_connect_candidate",
+    ),
+    path(
+        "candidates/<uuid:pk>/donations/",
+        views.candidate_donations,
+        name="candidate_donations",
+    ),
+    path(
+        "candidates/<uuid:pk>/donations/sync/",
+        views.candidate_donations_sync,
+        name="candidate_donations_sync",
+    ),
+    # Stripe Connect - Campaigns
+    path(
+        "campaigns/<uuid:pk>/stripe/connect/",
+        views.stripe_connect_campaign,
+        name="stripe_connect_campaign",
+    ),
+    path(
+        "campaigns/<uuid:pk>/donations/",
+        views.campaign_donations,
+        name="campaign_donations",
+    ),
+    path(
+        "campaigns/<uuid:pk>/donations/sync/",
+        views.campaign_donations_sync,
+        name="campaign_donations_sync",
+    ),
+    # Stripe - Shared
+    path(
+        "stripe/oauth/callback/",
+        views.stripe_oauth_callback,
+        name="stripe_oauth_callback",
+    ),
+    path(
+        "stripe/<uuid:connection_pk>/disconnect/",
+        views.stripe_disconnect,
+        name="stripe_disconnect",
+    ),
+    # Stripe - Generic redirects (for polymorphic template usage)
+    path(
+        "stripe/<str:owner_type>/<uuid:owner_id>/connect/",
+        views.stripe_connect_redirect,
+        name="stripe_connect",
+    ),
+    path(
+        "stripe/<str:owner_type>/<uuid:owner_id>/donations/",
+        views.stripe_donations_redirect,
+        name="stripe_donations",
+    ),
+    path(
+        "stripe/<str:owner_type>/<uuid:owner_id>/disconnect/",
+        views.stripe_disconnect_confirm_redirect,
+        name="stripe_disconnect_confirm",
+    ),
 ]

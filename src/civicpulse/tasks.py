@@ -688,3 +688,232 @@ def _build_address_string(addr) -> str:
     if addr.zip_code:
         parts.append(addr.zip_code)
     return ", ".join(parts) if parts else ""
+
+
+# ============================================================================
+# Stripe Donation Sync Tasks
+# ============================================================================
+
+
+@shared_task(
+    bind=True,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_backoff_max=300,
+    max_retries=3,
+)
+def sync_donations(self, connection_id: str, full_sync: bool = False):
+    """
+    Sync donations from a connected Stripe account.
+
+    Args:
+        connection_id: UUID of the StripeConnection
+        full_sync: If True, sync all history; if False, incremental since last_sync_at
+    """
+
+    from .models import DonationSyncJob, StripeConnection
+    from .services.stripe_connect import get_stripe_service
+
+    # Get the connection
+    try:
+        connection = StripeConnection.objects.get(pk=connection_id)
+    except StripeConnection.DoesNotExist:
+        logger.error(f"StripeConnection {connection_id} not found")
+        return {"status": "error", "message": "Connection not found"}
+
+    if connection.status != StripeConnection.Status.ACTIVE:
+        logger.warning(
+            f"StripeConnection {connection_id} is not active (status: {connection.status})"
+        )
+        return {"status": "skipped", "message": "Connection not active"}
+
+    # Create sync job
+    job = DonationSyncJob.objects.create(
+        connection=connection,
+        status=DonationSyncJob.Status.RUNNING,
+        full_sync=full_sync,
+        task_id=self.request.id,
+        started_at=timezone.now(),
+    )
+
+    created_count = 0
+    updated_count = 0
+    error_count = 0
+    error_messages = []
+
+    try:
+        # Initialize Stripe service (uses platform credentials)
+        stripe_service = get_stripe_service()
+
+        logger.info(
+            f"Starting {'full' if full_sync else 'incremental'} sync for connection {connection_id}"
+        )
+
+        processed_count = 0
+
+        # Iterate over all payments (charges + payment intents) from connected account
+        for charge in stripe_service.list_all_payments(connection.stripe_user_id):
+            # Skip charges before last sync (for incremental sync)
+            if not full_sync and connection.last_sync_at:
+                if charge.created < connection.last_sync_at:
+                    continue
+
+            try:
+                with transaction.atomic():
+                    was_created = _sync_single_charge(connection, charge)
+                    if was_created:
+                        created_count += 1
+                    else:
+                        updated_count += 1
+            except Exception as e:
+                error_count += 1
+                error_msg = f"Charge {charge.id}: {e!s}"
+                error_messages.append(error_msg)
+                logger.error(f"Error syncing charge: {error_msg}")
+
+                if len(error_messages) >= 100:
+                    error_messages.append("... additional errors truncated")
+                    break
+
+            processed_count += 1
+
+            # Update progress every 50 records
+            if processed_count % 50 == 0:
+                job.processed_count = processed_count
+                job.created_count = created_count
+                job.updated_count = updated_count
+                job.error_count = error_count
+                job.save(
+                    update_fields=[
+                        "processed_count",
+                        "created_count",
+                        "updated_count",
+                        "error_count",
+                    ]
+                )
+                logger.info(f"Sync progress: {processed_count} charges processed")
+
+        # Update connection's last_sync_at
+        connection.last_sync_at = timezone.now()
+        connection.save(update_fields=["last_sync_at"])
+
+        # Complete the job
+        job.status = DonationSyncJob.Status.COMPLETED
+        job.completed_at = timezone.now()
+        job.processed_count = processed_count
+        job.created_count = created_count
+        job.updated_count = updated_count
+        job.error_count = error_count
+        job.error_messages = error_messages
+        job.save()
+
+        logger.info(
+            f"Sync completed for connection {connection_id}: "
+            f"{created_count} created, {updated_count} updated, {error_count} errors"
+        )
+
+        return {
+            "status": "completed",
+            "job_id": str(job.pk),
+            "created": created_count,
+            "updated": updated_count,
+            "errors": error_count,
+        }
+
+    except Exception as e:
+        # Handle fatal errors
+        logger.error(f"Sync failed for connection {connection_id}: {e}")
+
+        job.status = DonationSyncJob.Status.FAILED
+        job.completed_at = timezone.now()
+        job.error_count = error_count + 1
+        error_messages.append(f"Fatal error: {e!s}")
+        job.error_messages = error_messages
+        job.save()
+
+        # Update connection status if token is invalid
+        if "authentication" in str(e).lower() or "unauthorized" in str(e).lower():
+            connection.status = StripeConnection.Status.ERROR
+            connection.save(update_fields=["status"])
+
+        raise  # Re-raise for Celery retry
+
+
+def _sync_single_charge(connection, charge) -> bool:
+    """
+    Create or update a Donation from a ChargeData object.
+
+    Args:
+        connection: StripeConnection instance
+        charge: ChargeData object from stripe_connect service
+
+    Returns:
+        True if created, False if updated
+    """
+    from .models import Donation
+
+    if not charge.id:
+        raise ValueError("Charge missing ID")
+
+    # Map Stripe status to Donation status
+    status = _map_charge_status(charge.status)
+
+    # Make created datetime timezone-aware if it isn't
+    charged_at = charge.created
+    if charged_at.tzinfo is None:
+        charged_at = charged_at.replace(tzinfo=timezone.utc)
+
+    # Create or update donation
+    donation, created = Donation.objects.update_or_create(
+        connection=connection,
+        stripe_charge_id=charge.id,
+        defaults={
+            "stripe_customer_id": charge.customer_id or "",
+            "amount_cents": charge.amount_cents,
+            "currency": charge.currency.lower(),
+            "net_cents": charge.amount_cents,  # Fee not available in ChargeData
+            "status": status,
+            "description": charge.description or "",
+            "receipt_url": charge.receipt_url or "",
+            "livemode": connection.livemode,  # Use connection's livemode
+            "charged_at": charged_at,
+        },
+    )
+
+    return created
+
+
+def _map_charge_status(status: str) -> str:
+    """Map Stripe charge status string to Donation.Status."""
+    from .models import Donation
+
+    if status == "succeeded":
+        return Donation.Status.SUCCEEDED
+    if status == "pending":
+        return Donation.Status.PENDING
+    if status == "failed":
+        return Donation.Status.FAILED
+    return Donation.Status.PENDING
+
+
+@shared_task
+def sync_all_active_connections():
+    """
+    Periodic task to sync all active Stripe connections.
+
+    Queues individual sync_donations tasks for each active connection.
+    """
+    from .models import StripeConnection
+
+    active_connections = StripeConnection.objects.filter(
+        status=StripeConnection.Status.ACTIVE
+    ).values_list("pk", flat=True)
+
+    count = 0
+    for connection_id in active_connections:
+        sync_donations.delay(str(connection_id), full_sync=False)
+        count += 1
+
+    logger.info(f"Queued donation sync for {count} active Stripe connections")
+
+    return {"queued": count}
