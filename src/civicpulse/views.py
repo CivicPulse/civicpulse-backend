@@ -762,6 +762,27 @@ def assignment_add(request, pk):
                             likelihood_general__regex=r"^[0-3]?[0-9]%$"
                         )
 
+                # Geographic filtering
+                district = form.cleaned_data.get("district")
+                radius_miles = form.cleaned_data.get("radius_miles")
+                center_lat = form.cleaned_data.get("center_lat")
+                center_lon = form.cleaned_data.get("center_lon")
+
+                if district:
+                    voters = voters.filter(
+                        location__isnull=False, location__within=district.boundary
+                    )
+
+                if radius_miles and center_lat and center_lon:
+                    from django.contrib.gis.geos import Point
+                    from django.contrib.gis.measure import D
+
+                    center = Point(float(center_lon), float(center_lat), srid=4326)
+                    voters = voters.filter(
+                        location__isnull=False,
+                        location__distance_lte=(center, D(mi=radius_miles)),
+                    )
+
                 limit = form.cleaned_data.get("limit") or 100
                 voter_ids = list(voters.values_list("id", flat=True)[:limit])
 
@@ -797,6 +818,28 @@ def assignment_add(request, pk):
                         persons = persons.filter(
                             voter_record__likelihood_general__regex=r"^[0-3]?[0-9]%$"
                         )
+
+                # Geographic filtering (via voter_record for Person-based campaigns)
+                district = form.cleaned_data.get("district")
+                radius_miles = form.cleaned_data.get("radius_miles")
+                center_lat = form.cleaned_data.get("center_lat")
+                center_lon = form.cleaned_data.get("center_lon")
+
+                if district:
+                    persons = persons.filter(
+                        voter_record__location__isnull=False,
+                        voter_record__location__within=district.boundary,
+                    )
+
+                if radius_miles and center_lat and center_lon:
+                    from django.contrib.gis.geos import Point
+                    from django.contrib.gis.measure import D
+
+                    center = Point(float(center_lon), float(center_lat), srid=4326)
+                    persons = persons.filter(
+                        voter_record__location__isnull=False,
+                        voter_record__location__distance_lte=(center, D(mi=radius_miles)),
+                    )
 
                 limit = form.cleaned_data.get("limit") or 100
                 person_ids = list(persons.values_list("id", flat=True)[:limit])
@@ -2354,6 +2397,42 @@ def api_districts(request):
                         "id": str(district.pk),
                         "name": district.name,
                         "district_type": district.district_type,
+                        "identifier": district.identifier,
+                        "state": district.state,
+                    },
+                }
+            )
+
+    return JsonResponse(
+        {
+            "type": "FeatureCollection",
+            "features": features,
+        }
+    )
+
+
+@login_required
+def api_election_districts(request, pk):
+    """
+    Return GeoJSON of all districts linked to an election.
+
+    Used by election detail page to display district boundaries on the map.
+    """
+    election = get_object_or_404(Election, pk=pk)
+
+    districts = election.districts.all()
+
+    features = []
+    for district in districts:
+        if district.boundary:
+            features.append(
+                {
+                    "type": "Feature",
+                    "geometry": json.loads(district.boundary.geojson),
+                    "properties": {
+                        "id": str(district.pk),
+                        "name": district.name,
+                        "district_type": district.get_district_type_display(),
                         "identifier": district.identifier,
                         "state": district.state,
                     },

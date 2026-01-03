@@ -62,6 +62,8 @@ geo = [
     "psycopg[binary]>=3.1.0",  # PostgreSQL driver with PostGIS support
     "geopy>=2.4.0",  # Geocoding (OpenCage, Nominatim)
     "requests>=2.31.0",  # HTTP client for OSRM routing API
+    "geopandas>=0.14.0",  # Shapefile reading and GIS data manipulation
+    "pyogrio>=0.7.0",  # Fast GDAL/OGR bindings for geopandas
 ]
 dev = [
     "black>=24.0",

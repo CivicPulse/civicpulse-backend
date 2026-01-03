@@ -153,6 +153,11 @@ urlpatterns = [
         views.api_districts,
         name="api_districts",
     ),
+    path(
+        "api/elections/<uuid:pk>/districts/",
+        views.api_election_districts,
+        name="api_election_districts",
+    ),
     # Stripe Connect - Candidates
     path(
         "candidates/<uuid:pk>/stripe/connect/",

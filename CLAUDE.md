@@ -742,6 +742,107 @@ uv run python manage.py import_voters path/to/file.csv --dry-run # Validate only
 
 **Expected CSV columns:** Voter ID, First Name, Last Name, Address, City, State, Zipcode, Cell Phone, Registered Party, Gender, Age, Ethnicity, voting history fields, etc.
 
+### Import TIGER/Line Shapefiles (`import_tiger_shapefile.py`)
+
+Import Census Bureau district boundaries for election coverage visualization and voter filtering.
+
+**Prerequisites:**
+```bash
+# Install GIS dependencies
+uv sync --extra geo
+```
+
+**Download shapefiles:**
+1. Visit https://www.census.gov/geographies/mapping-files/time-series/geo/tiger-line-file.html
+2. Select year and layer type (Counties, Congressional Districts, State Legislative Districts, etc.)
+3. Download state-specific or nationwide .zip file
+4. Extract to a local directory (e.g., `data/`)
+
+**Import examples:**
+
+```bash
+# Import Georgia counties
+uv run python manage.py import_tiger_shapefile \
+    data/tl_2024_13_county/tl_2024_13_county.shp \
+    --district-type county \
+    --state GA \
+    --effective-date 2024-01-01
+
+# Import congressional districts (nationwide file)
+uv run python manage.py import_tiger_shapefile \
+    data/tl_2024_us_cd118/tl_2024_us_cd118.shp \
+    --district-type congressional \
+    --effective-date 2024-01-01
+
+# Import state legislative districts
+uv run python manage.py import_tiger_shapefile \
+    data/tl_2024_13_sldl/tl_2024_13_sldl.shp \
+    --district-type state_house \
+    --state GA \
+    --effective-date 2024-01-01
+
+# Dry run to preview without saving
+uv run python manage.py import_tiger_shapefile \
+    data/tl_2024_13_vtd/tl_2024_13_vtd.shp \
+    --district-type precinct \
+    --state GA \
+    --dry-run
+
+# Update existing boundaries with new vintage
+uv run python manage.py import_tiger_shapefile \
+    data/tl_2025_13_county/tl_2025_13_county.shp \
+    --district-type county \
+    --state GA \
+    --effective-date 2025-01-01 \
+    --update-existing
+```
+
+**Command options:**
+- `--district-type` (required): Type of district (county, congressional, state_house, state_senate, city, precinct, school_district)
+- `--state`: Two-letter state code (e.g., GA, CA) - extracted from GEOID if not provided
+- `--identifier-field`: Shapefile attribute for district ID (default: GEOID)
+- `--name-field`: Shapefile attribute for district name (default: NAME)
+- `--county-field`: Shapefile attribute for county name (optional)
+- `--effective-date`: Date boundaries took effect (YYYY-MM-DD format)
+- `--source`: Data source description (default: "Census TIGER/Line")
+- `--dry-run`: Validate without saving to database
+- `--update-existing`: Update geometries if district already exists
+- `--verbose`: Show detailed progress for each feature
+
+**Functionality:**
+- Reads ESRI shapefiles using GeoPandas
+- Transforms CRS to EPSG:4326 (WGS84) automatically
+- Converts Polygon to MultiPolygon for Django GIS compatibility
+- Uses natural key (district_type, state, identifier) for matching
+- Reports progress every 50 features
+- Stops after 10 errors with detailed error messages
+- Atomic transactions per feature
+
+**Linking Elections to Districts:**
+
+After importing districts, link them to elections via Django admin:
+
+1. Navigate to **Elections** in Django admin
+2. Open an election record
+3. Scroll to **Geographic Coverage** section
+4. Select districts using the filter horizontal widget
+5. Save
+
+Districts can now be visualized on the election detail page map.
+
+**Using Geographic Filters in Drive Assignments:**
+
+When creating bulk assignments for a drive:
+
+1. Navigate to **Drives** → Select drive → **Assignments** → **Add Assignments**
+2. Use the **Geographic Filters** section:
+   - **District**: Select a district to only assign voters within that boundary
+   - **Radius**: Enter distance in miles and click "Pick on Map" to set center point
+3. Combine with party/likelihood filters for targeted outreach
+4. Set assignment limit and submit
+
+**Note:** Geographic filtering requires voters to have geocoded locations (see Geocoding section).
+
 ## Admin Interface
 
 - `PersonAdmin` with TabularInline for phone/email/address and StackedInline for VoterRecord

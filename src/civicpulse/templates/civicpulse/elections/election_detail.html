@@ -205,5 +205,105 @@
         <a href="{% url 'civicpulse:campaign_create' %}?election={{ election.pk }}" class="text-green-700 hover:underline">Create a drive</a>
     </div>
     {% endif %}
+
+    <!-- Election Coverage Map -->
+    {% if election.districts.exists %}
+    <div class="bg-white rounded-lg shadow p-6 mb-6 mt-6">
+        <h2 class="text-xl font-semibold mb-4">Election Coverage Map</h2>
+        <div id="election-map" style="height: 400px; border-radius: 0.5rem;"></div>
+    </div>
+    {% endif %}
 </div>
+
+{% block extra_css %}
+{% if election.districts.exists %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+{% if election.districts.exists %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const map = L.map('election-map').setView([33.7490, -84.3880], 7);
+
+    // Base layer
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+
+    // Fetch district boundaries
+    fetch('{% url "civicpulse:api_election_districts" pk=election.pk %}')
+        .then(res => res.json())
+        .then(data => {
+            const districtLayer = L.geoJSON(data, {
+                style: {
+                    color: '#3b82f6',
+                    weight: 2,
+                    fillOpacity: 0.1
+                },
+                onEachFeature: function(feature, layer) {
+                    layer.bindPopup('<b>' + feature.properties.name + '</b><br>' + feature.properties.district_type);
+                }
+            }).addTo(map);
+
+            // Fit bounds if districts exist
+            if (data.features.length > 0) {
+                map.fitBounds(districtLayer.getBounds());
+            }
+        })
+        .catch(err => console.error('Error loading districts:', err));
+
+    // Fetch voter distribution (optional overlay)
+    fetch('{% url "civicpulse:api_election_voter_distribution" pk=election.pk %}?limit=1000')
+        .then(res => res.json())
+        .then(data => {
+            const markers = L.markerClusterGroup({
+                maxClusterRadius: 50,
+                iconCreateFunction: function(cluster) {
+                    return L.divIcon({
+                        html: '<div style="background-color: rgba(59, 130, 246, 0.6); color: white; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; font-weight: bold;">' + cluster.getChildCount() + '</div>',
+                        className: '',
+                        iconSize: L.point(40, 40)
+                    });
+                }
+            });
+
+            L.geoJSON(data, {
+                pointToLayer: function(feature, latlng) {
+                    const party = feature.properties.party || 'Unknown';
+                    const colors = {
+                        'Democratic': '#1e40af',
+                        'Republican': '#dc2626',
+                        'Independent': '#9333ea',
+                        'Unknown': '#6b7280'
+                    };
+                    return L.circleMarker(latlng, {
+                        radius: 4,
+                        fillColor: colors[party] || '#6b7280',
+                        color: '#fff',
+                        weight: 1,
+                        opacity: 0.8,
+                        fillOpacity: 0.6
+                    });
+                },
+                onEachFeature: function(feature, layer) {
+                    const props = feature.properties;
+                    layer.bindPopup('<b>' + (props.name || 'Voter') + '</b><br>Party: ' + (props.party || 'Unknown'));
+                }
+            }).addTo(markers);
+
+            map.addLayer(markers);
+        })
+        .catch(err => {
+            // Voter distribution endpoint may not exist yet or return no data - this is expected
+            console.log('Voter distribution not available:', err.message);
+        });
+});
+</script>
+{% endif %}
 {% endblock %}

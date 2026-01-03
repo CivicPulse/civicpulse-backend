@@ -318,6 +318,14 @@ class Election(models.Model):
     )
     description = models.TextField(blank=True)
 
+    # Geographic coverage
+    districts = models.ManyToManyField(
+        "District",
+        related_name="elections",
+        blank=True,
+        help_text="Geographic districts this election covers",
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

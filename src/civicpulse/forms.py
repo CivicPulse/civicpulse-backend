@@ -5,6 +5,7 @@ from .models import (
     Candidate,
     ContactAttempt,
     ContactEffort,
+    District,
     Election,
     ElectionDate,
     Office,
@@ -245,6 +246,48 @@ class AssignmentFilterForm(forms.Form):
                 "class": "bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-green-500 focus:border-green-500 block w-full p-2.5",
             }
         ),
+    )
+
+    # Geographic filters
+    district = forms.ModelChoiceField(
+        queryset=District.objects.all().order_by("state", "name"),
+        required=False,
+        empty_label="Any District",
+        help_text="Filter by district boundary",
+        widget=forms.Select(
+            attrs={
+                "class": "bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-green-500 focus:border-green-500 block w-full p-2.5"
+            }
+        ),
+    )
+
+    radius_miles = forms.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        required=False,
+        min_value=0.1,
+        max_value=100,
+        help_text="Filter by radius from center (miles)",
+        widget=forms.NumberInput(
+            attrs={
+                "class": "bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-green-500 focus:border-green-500 block w-full p-2.5",
+                "placeholder": "e.g., 5.0",
+            }
+        ),
+    )
+
+    center_lat = forms.DecimalField(
+        max_digits=10,
+        decimal_places=7,
+        required=False,
+        widget=forms.HiddenInput(),
+    )
+
+    center_lon = forms.DecimalField(
+        max_digits=10,
+        decimal_places=7,
+        required=False,
+        widget=forms.HiddenInput(),
     )
 
 

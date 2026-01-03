@@ -197,6 +197,7 @@ class ElectionAdmin(admin.ModelAdmin):
     raw_id_fields = ["office", "parent_election"]
     inlines = [CandidateInline, ElectionDateInline]
     actions = ["trigger_geocoding"]
+    filter_horizontal = ["districts"]
     fieldsets = [
         (
             None,
@@ -214,6 +215,13 @@ class ElectionAdmin(admin.ModelAdmin):
                     "election_day",
                     "certification_date",
                 ]
+            },
+        ),
+        (
+            "Geographic Coverage",
+            {
+                "fields": ["districts"],
+                "description": "Geographic districts this election covers (counties, precincts, etc.)",
             },
         ),
         ("Metadata", {"fields": ["created_at", "updated_at"], "classes": ["collapse"]}),

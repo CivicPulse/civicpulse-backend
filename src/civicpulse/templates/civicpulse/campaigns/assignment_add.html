@@ -37,6 +37,48 @@
                 </div>
             </div>
 
+            <!-- Geographic Filters Section -->
+            <div class="mt-6">
+                <h3 class="text-lg font-medium text-gray-900 mb-4">Geographic Filters (Optional)</h3>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- District Filter -->
+                    <div>
+                        <label for="{{ form.district.id_for_label }}" class="block mb-2 text-sm font-medium text-gray-900">
+                            District
+                        </label>
+                        {{ form.district }}
+                        {% if form.district.help_text %}
+                        <p class="mt-1 text-sm text-gray-500">{{ form.district.help_text }}</p>
+                        {% endif %}
+                    </div>
+
+                    <!-- Radius Filter -->
+                    <div>
+                        <label for="{{ form.radius_miles.id_for_label }}" class="block mb-2 text-sm font-medium text-gray-900">
+                            Radius (miles)
+                        </label>
+                        <div class="flex gap-2">
+                            {{ form.radius_miles }}
+                            <button type="button" id="pick-location-btn" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 whitespace-nowrap">
+                                Pick on Map
+                            </button>
+                        </div>
+                        {% if form.radius_miles.help_text %}
+                        <p class="mt-1 text-sm text-gray-500">{{ form.radius_miles.help_text }}</p>
+                        {% endif %}
+                        {{ form.center_lat }}
+                        {{ form.center_lon }}
+                    </div>
+                </div>
+
+                <!-- Map Picker (hidden by default) -->
+                <div id="location-picker-map" class="mt-4 hidden">
+                    <p class="text-sm text-gray-600 mb-2">Click on the map to set the center point:</p>
+                    <div id="picker-map" style="height: 350px; border-radius: 0.5rem;"></div>
+                </div>
+            </div>
+
             <div class="flex gap-3 mt-6">
                 <button type="submit" class="text-white bg-green-700 hover:bg-green-800 font-medium rounded-lg text-sm px-5 py-2.5">
                     Add {% if uses_election_voters %}Voters{% else %}Persons{% endif %}
@@ -48,4 +90,51 @@
         </form>
     </div>
 </div>
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+let pickerMap = null;
+let pickerMarker = null;
+
+document.getElementById('pick-location-btn').addEventListener('click', function() {
+    const mapContainer = document.getElementById('location-picker-map');
+
+    if (mapContainer.classList.contains('hidden')) {
+        mapContainer.classList.remove('hidden');
+
+        if (!pickerMap) {
+            // Initialize map
+            pickerMap = L.map('picker-map').setView([33.7490, -84.3880], 10);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(pickerMap);
+
+            // Set marker on click
+            pickerMap.on('click', function(e) {
+                if (pickerMarker) {
+                    pickerMap.removeLayer(pickerMarker);
+                }
+                pickerMarker = L.marker(e.latlng).addTo(pickerMap);
+
+                // Update hidden fields
+                document.getElementById('{{ form.center_lat.id_for_label }}').value = e.latlng.lat.toFixed(7);
+                document.getElementById('{{ form.center_lon.id_for_label }}').value = e.latlng.lng.toFixed(7);
+
+                // Show coordinates
+                pickerMarker.bindPopup('Center: ' + e.latlng.lat.toFixed(4) + ', ' + e.latlng.lng.toFixed(4)).openPopup();
+            });
+        }
+
+        // Force map to resize
+        setTimeout(function() { pickerMap.invalidateSize(); }, 100);
+    } else {
+        mapContainer.classList.add('hidden');
+    }
+});
+</script>
 {% endblock %}
