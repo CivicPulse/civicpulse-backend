@@ -2,6 +2,7 @@
 .worktree
 .worktrees
 
+tmp
 
 
 node_modules
